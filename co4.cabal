@@ -1,0 +1,54 @@
+Name:			        co4
+Version:        	0.0.1
+Cabal-Version:  	>= 1.9.2
+License:          GPL
+License-file:     LICENSE
+Build-type:       Simple
+Author:         	Alexander Bau
+Maintainer:       Alexander Bau
+Synopsis:       	Complexity concerned constraint compiler
+Category:         Language      
+Description:      Complexity concerned constraint compiler
+
+Library
+  Exposed-Modules:    CO4
+  Other-Modules:      CO4.Backend
+                    , CO4.Compilation
+                    , CO4.Frontend
+                    , CO4.Language
+                    , CO4.MonadifyTypes
+                    , CO4.Names
+                    , CO4.PPrint
+                    , CO4.TypesUtil
+                    , CO4.Unique
+                    , CO4.Util
+                    , CO4.Algorithms.Bound
+                    , CO4.Algorithms.Free
+                    , CO4.Algorithms.Globalize
+                    , CO4.Algorithms.HindleyMilner
+                    , CO4.Algorithms.Instantiation
+                    , CO4.Algorithms.Instantiator
+                    , CO4.Algorithms.Monadify
+                    , CO4.Algorithms.TypedNames
+                    , CO4.Algorithms.UniqueNames
+                    , CO4.Algorithms.HindleyMilner.Prelude
+                    , CO4.Algorithms.HindleyMilner.Util
+                    , CO4.Algorithms.HindleyMilner.W
+                    , CO4.Backend.Raml
+                    , CO4.Backend.RamlPreprocess
+                    , CO4.Backend.SatchmoPreprocess
+                    , CO4.Backend.TH
+                    , CO4.Frontend.String
+                    , CO4.Frontend.TH
+                    , CO4.Frontend.THCheck
+                    , CO4.Frontend.THPreprocess
+  Ghc-options:        -W -fno-warn-incomplete-patterns
+  Build-Depends:      base >= 4.2 && < 5.0
+                    , template-haskell == 2.7.*
+                    , containers == 0.4.*
+                    , mtl == 2.1.*
+                    , syb == 0.3.*
+                    , pretty == 1.1.*
+                    , parsec == 3.1.*
+                    , raml == 0.7.1
+                    , satchmo == 2.1
