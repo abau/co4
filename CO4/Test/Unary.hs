@@ -100,7 +100,8 @@ $([d|
                             (x:xs) -> case split ls of
                                         (ys,m') -> (x:ys,xs:m')
 
-  |] >>= \p -> TH.runIO $ compile p [Verbose, Degree 5, DumpRaml "unary.raml"]
+  |] >>= \p -> TH.runIO $ compile p [ Verbose, Metric "heap-space"
+                                    , Degree 5, DumpRaml "unary.raml"]
   )
 
 testSimple :: IO ()

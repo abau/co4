@@ -15,7 +15,9 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noWhereInMatch) 
   >>= return . everywhere  (mkT noWhereInClause) 
   >>=          everywhereM (mkM noInfixApp)
+  >>= return . everywhere  (mkT noParensExpression) 
   >>= return . everywhere  (mkT noInfixPattern) 
+  >>= return . everywhere  (mkT noParensPattern) 
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
   >>=          everywhereM (mkM noWildcardPattern)
@@ -78,13 +80,27 @@ noInfixApp exp = case exp of
     do u <- newTHName "noInfixApp"
        v <- newTHName "noInfixApp"
        return $ LamE [VarP u,VarP v] $ AppE (AppE op $ VarE u) $ VarE v
+  UInfixE a op b  -> noInfixApp $ InfixE (Just a) op (Just b)
   _ -> return exp
+
+-- |Removes parens expressions
+noParensExpression :: Exp -> Exp
+noParensExpression e = case e of
+  ParensE e -> e
+  _         -> e
+
+-- |Removes parens patterns
+noParensPattern :: Pat -> Pat
+noParensPattern p = case p of
+  ParensP p -> p
+  _         -> p
 
 -- |Transforms infix patterns to contructor patterns
 noInfixPattern :: Pat -> Pat
 noInfixPattern pat = case pat of
-  InfixP p1 n p2 -> ConP n [p1,p2]
-  _              -> pat
+  InfixP p1 n p2  -> ConP n [p1,p2]
+  UInfixP p1 n p2 -> noInfixPattern $ InfixP p1 n p2
+  _               -> pat
 
 -- |Transforms complex patterns in arguments of function clauses into case expression
 -- over those arguments
@@ -110,6 +126,7 @@ noComplexPatterns (p:ps)   exp = do
   (p',e'') <- noComplexPatterns [p] e'
   return (p' ++ ps', e'')
 
+-- |Removes wildcard patterns by introducting new pattern variables
 noWildcardPattern :: Pat -> Unique Pat
 noWildcardPattern pat = case pat of
   WildP -> VarP <$> newTHName "wildcard"

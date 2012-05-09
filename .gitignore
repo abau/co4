@@ -3,3 +3,4 @@
 *.raml
 *.clp
 *.lp
+dist/

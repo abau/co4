@@ -103,7 +103,8 @@ $([d|
         (l:ls) -> case l of [] -> ([],[])
                             (x:xs) -> case split ls of
                                         (ys,m') -> (x:ys,xs:m')
-  |] >>= \p -> TH.runIO $ compile p [Verbose, Degree 5, DumpRaml "z001.raml"]
+  |] >>= \p -> TH.runIO $ compile p [ Verbose, Degree 5, Metric "heap-space"
+                                    , DumpRaml "z001.raml"]
   )
 
 main :: IO ()

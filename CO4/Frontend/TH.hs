@@ -14,19 +14,18 @@ import           CO4.Frontend.THCheck (check)
 import           CO4.Frontend.THPreprocess (preprocess)
 
 instance ProgramFrontend [TH.Dec] where
-
   parseProgram decs = do
+    check decs
     decs' <- preprocess decs
-    return $ case check decs' of
-      [] -> let (signatures,rest) = partition isSignature decs'
-                signatures'       = signatureMap signatures
-                rest'             = map parseTHDeclaration rest
-            in
-              map (\(DBind n v) -> case M.lookup n signatures' of 
-                                    Nothing -> DBind n v
-                                    Just s  -> DBind (typedName n s) v
-                  ) rest'
-      xs -> error $ unlines xs
+    return $ 
+      let (signatures,rest) = partition isSignature decs'
+          signatures'       = signatureMap signatures
+          rest'             = map parseTHDeclaration rest
+      in
+        map (\(DBind n v) -> case M.lookup n signatures' of 
+                              Nothing -> DBind n v
+                              Just s  -> DBind (typedName n s) v
+            ) rest'
     where
       isSignature (TH.SigD {}) = True
       isSignature _            = False
@@ -36,10 +35,9 @@ instance ProgramFrontend [TH.Dec] where
   
 instance ExpressionFrontend TH.Exp where
   parseExpression exp = do
+    check exp
     exp' <- preprocess exp
-    return $ case check exp' of 
-      [] -> parseTHExpression exp'
-      xs -> error $ unlines xs
+    return $ parseTHExpression exp'
 
 instance SchemeFrontend TH.Type where
   parseScheme type_ = parseTHType type_
@@ -51,7 +49,7 @@ parseTHDeclaration dec = case dec of
 
   TH.ValD (TH.VarP n) (TH.NormalB e) [] -> DBind (fromTHName n) (parseTHExpression e)
 
-  _ -> error $ unwords ["parseTHDeclaration:", show dec, "not supported"]
+  _ -> notSupported "parseTHDeclaration" dec
 
 parseTHExpression :: TH.Exp -> Expression
 parseTHExpression expression = case expression of
@@ -83,9 +81,7 @@ parseTHExpression expression = case expression of
   TH.ListE xs        -> foldr (\x rest -> EApp (ECon consCon) [x,rest]) 
                           (ECon nilCon) $ map parse xs
 
-  TH.InfixE a op b -> error $ unlines [show a,show op,show b]
-
-  _ -> error $ unwords ["parseTHExpression:", show expression, "not supported"]
+  _ -> notSupported "parseTHExpression" expression
   
   where
     parse = parseTHExpression
@@ -111,7 +107,7 @@ parseTHPattern pattern = case pattern of
   TH.InfixP a n b -> PCon (fromTHName n) $ map parse [a,b]
   TH.ListP ps     -> foldr (\x rest -> PCon consCon [x,rest]) (PCon nilCon []) 
                         $ map parse ps
-  _               -> error $ unwords ["parseTHPattern:", show pattern, "not supported"]
+  _               -> notSupported "parseTHPattern" pattern
 
   where parse = parseTHPattern
 
@@ -120,7 +116,7 @@ parseTHLiteral literal = case literal of
   TH.CharL l       -> LChar l
   TH.IntegerL l    -> LInt l
   TH.RationalL l   -> LDouble $ fromRational l
-  _                -> error $ unwords ["parseTHLiteral:", show literal, "not supported"]
+  _                -> notSupported "parseTHLiteral" $ TH.LitE literal
 
 parseTHType :: TH.Type -> Scheme
 parseTHType type_ = case type_ of
@@ -142,11 +138,11 @@ parseTHType type_ = case type_ of
                         TCon c [] -> TCon c $ map parse args
                         TVar v    -> TCon v $ map parse args
 
-      _           -> error $ unwords ["parseTHType:", show type_, "not supported"]
+      _           -> notSupported "parseTHType" type_
 
     fromTHTyVarBndr bndr = case bndr of
       TH.PlainTV n -> fromTHName n
-      _            -> error $ unwords ["fromTHTyVarBndr:", show bndr, "not supported"]
+      _            -> notSupported "fromTHTyVarBndr" bndr
 
     gatherApplication f e =
       let gatherApplication' (TH.AppT f' e') es = gatherApplication' f' (e':es)
@@ -159,3 +155,7 @@ fromTHName thName = case TH.nameBase thName of
   ":"   -> consCon
   "[]"  -> nilCon
   other -> Name other
+
+notSupported :: (TH.Ppr a, Show a) => String -> a -> b
+notSupported funName a = 
+  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported", show a]

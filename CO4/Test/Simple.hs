@@ -20,7 +20,7 @@ $([d|
 
     map f xs = case xs of [] -> [] ; x : xs -> f x : map f xs          
     head (x:xs) = x
-  |] >>= \p -> TH.runIO ( compile p [Verbose, Degree 2] )
+  |] >>= \p -> TH.runIO ( compile p [Verbose, Metric "heap-space", Degree 2] )
   )
 
 testSimple :: IO ()

@@ -1,7 +1,10 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Compilation
-  (Config(..), Configs, compile)
+  (Config(..), Configs, compile, metrics)
 where
 
+import           Prelude hiding (catch)
+import           Control.Exception (catch,SomeException,IOException,ErrorCall(..))
 import           Control.Monad.Reader hiding (liftIO)
 import           Control.Applicative ((<$>))
 import qualified Raml.RAMLTypes as RamlT
@@ -23,8 +26,12 @@ import           CO4.Algorithms.Instantiation (instantiation)
 
 data Config  = Verbose
              | Degree Int
+             | DegreeLoop Int
+             | Metric String
              | NoRaml
+             | NoSatchmo
              | DumpRaml FilePath
+             | DumpSatchmo FilePath
              deriving (Eq)
 
 type Configs      = [Config]
@@ -34,30 +41,48 @@ compile :: (ProgramFrontend a) => a -> Configs -> IO [TH.Dec]
 compile a configs = do
   runUniqueT $ flip runReaderT configs $ do
     uniqueProgram <- liftUnique $ parseProgram a >>= uniqueNames
-    logWhenVerbose $ unlines [ "## Intermediate language ##############"
+    logWhenVerbose $ unlines [ "## Parsed #############################"
                              , displayProgram uniqueProgram]
-    satchmo <- compileToSatchmo uniqueProgram
-
+    
     whenNot' NoRaml $ do 
       ramlP <- compileToRaml uniqueProgram 
       case isDumpRaml configs of
         Nothing   -> return ()
         Just file -> lift $ lift $ writeFile file $ show $ RamlPP.pprint ramlP
-      analyseRaml ramlP
+      analyseRaml ramlP $ degree configs
 
-    return satchmo
-
+    noSatchmo <- is NoSatchmo
+    if noSatchmo 
+     then return []
+     else do satchmo <- compileToSatchmo uniqueProgram
+             case isDumpSatchmo configs of
+                Nothing   -> return ()
+                Just file -> lift $ lift $ writeFile file $ show $ TH.ppr satchmo
+             return satchmo
   where
-    analyseRaml (decs,main) =
+    m = metric configs
+
+    analyseRaml (decs,main) d =
       case RamlST.analyseDecs decs of
         Left msg    -> error $ "Raml.analyseDecs: " ++ msg
         Right decs' -> case RamlST.typeProgram decs' main of
-            Left msg                     -> error $ "Raml.typeProgram: " ++ msg
-            Right (typedDecs, typedMain) -> do
-              logWhenVerbose "Raml is analysing ..."
-              c <- liftIO $ RamlA.analyseAST typedMain typedDecs RamlT.evalSteps 
-                          $ degree configs
-              when (not c) $ error "Raml says: No!"
+          Left msg                     -> error $ "Raml.typeProgram: " ++ msg
+          Right (typedDecs, typedMain) -> do
+            logWhenVerbose $ "Raml is analysing using degree " ++ show d ++ " ..."
+            c <- liftIO $ ( do r <- RamlA.analyseAST typedMain typedDecs m d
+                               seq r $ return r )
+                    `catch`
+                    (\(ErrorCall msg) -> do putStrLn $ "Raml aborted: " ++ msg
+                                            return False
+                    )
+            if c
+             then do
+               logWhenVerbose $ "Raml successfully finished analysis of degree " ++ show d
+               return ()
+             else case isDegreeLoop configs of
+                    Nothing  -> error $ "Raml can not infer degree " ++ show d
+                    Just max | d < max -> analyseRaml (decs,main) (d + 1)
+                    Just max -> error $ "Raml can not infer degree up to " ++ show max
 
 compileToRaml :: Program -> Configurable RamlT.Program
 compileToRaml p = do        
@@ -102,8 +127,35 @@ degree cs = case cs of
   []           -> error "Compilation: No degree provided"
   _            -> degree $ tail cs
 
+metrics :: [String]
+metrics = [ "heap-space", "eval-steps", "overflow", "cost-free" ]
+metric :: Configs -> RamlT.ResourceMetric
+metric cs = case cs of
+  (Metric "heap-space"):_ -> RamlT.heapSpace
+  (Metric "eval-steps"):_ -> RamlT.evalSteps
+  (Metric "overflow"):_   -> RamlT.overflow
+  (Metric "cost-free"):_  -> RamlT.costFree
+  (Metric m):_            -> error $ concat 
+                              [ "Compilation: Unknown metric '", m, "'. "
+                              , "Available metrics: ", show metrics 
+                              ]
+  []                      -> error "Compilation: No metric provided"
+  _                       -> metric $ tail cs
+
 isDumpRaml :: Configs -> Maybe FilePath
 isDumpRaml cs = case cs of
   (DumpRaml fp):_ -> Just fp
   []              -> Nothing
   _               -> isDumpRaml $ tail cs
+
+isDumpSatchmo :: Configs -> Maybe FilePath
+isDumpSatchmo cs = case cs of
+  (DumpSatchmo fp):_ -> Just fp
+  []                 -> Nothing
+  _                  -> isDumpSatchmo $ tail cs
+
+isDegreeLoop :: Configs -> Maybe Int
+isDegreeLoop cs = case cs of
+  (DegreeLoop d):_ -> Just d
+  []               -> Nothing
+  _                -> isDegreeLoop $ tail cs

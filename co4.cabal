@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.1
+Version:        	0.0.2
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -42,6 +42,7 @@ Library
                     , CO4.Frontend.TH
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.THPreprocess
+                    , CO4.Frontend.HaskellSrcExts
   Ghc-options:        -W -fno-warn-incomplete-patterns
   Build-Depends:      base >= 4.2 && < 5.0
                     , template-haskell == 2.7.*
@@ -51,4 +52,21 @@ Library
                     , pretty == 1.1.*
                     , parsec == 3.1.*
                     , raml == 0.7.1
-                    , satchmo == 2.1
+                    , satchmo >= 2.1 && < 3.0
+                    , haskell-src-exts == 1.13.*
+                    , haskell-src-meta == 0.5.*
+
+Executable co4 
+  Main-Is:          Main.hs
+  Ghc-options:        -W -fno-warn-incomplete-patterns
+  Build-Depends:      base >= 4.2 && < 5.0
+                    , template-haskell == 2.7.*
+                    , containers == 0.4.*
+                    , mtl == 2.1.*
+                    , syb == 0.3.*
+                    , pretty == 1.1.*
+                    , parsec == 3.1.*
+                    , raml == 0.7.1
+                    , satchmo >= 2.1 && < 3.0
+                    , haskell-src-exts == 1.13.*
+                    , haskell-src-meta == 0.5.*

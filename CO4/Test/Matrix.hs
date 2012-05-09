@@ -5,7 +5,7 @@ import           Control.Monad (forM)
 import           Control.Monad.Identity (runIdentity)
 import           Satchmo.Boolean (boolean,assert)
 import           Satchmo.Code (decode)
-import           Satchmo.SAT.Mini (run)
+import           Satchmo.SAT.Mini (solve)
 import qualified Language.Haskell.TH as TH
 import           CO4
 import qualified CO4.MonadifyTypes
@@ -60,7 +60,7 @@ $([d|
       transpose xss = 
           if null ( head xss ) then [] 
           else map head xss : transpose ( map tail xss )
-  |] >>= \p -> TH.runIO $ compile p [Verbose, Degree 3]
+  |] >>= \p -> TH.runIO $ compile p [Verbose, Metric "heap-space", Degree 3]
   )
 
 {-
