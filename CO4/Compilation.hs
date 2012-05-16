@@ -4,7 +4,7 @@ module CO4.Compilation
 where
 
 import           Prelude hiding (catch)
-import           Control.Exception (catch,SomeException,IOException,ErrorCall(..))
+import           Control.Exception (catch,ErrorCall(..))
 import           Control.Monad.Reader hiding (liftIO)
 import           Control.Applicative ((<$>))
 import qualified Raml.RAMLTypes as RamlT
