@@ -4,6 +4,7 @@ where
 
 import           Data.List (nub)
 import           CO4.Language
+import           CO4.Names (name)
 
 class Bound a where
   bound :: a -> [Name]
@@ -15,4 +16,4 @@ instance Bound Pattern where
 
 instance Bound Scheme where
   bound (SType _)     = []
-  bound (SForall n s) = n : bound s
+  bound (SForall n s) = (name n) : bound s

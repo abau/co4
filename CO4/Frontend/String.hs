@@ -12,7 +12,7 @@ import           Text.Parsec.Language (haskellDef)
 import           Text.Parsec.String (Parser)
 import           CO4.Language
 import           CO4.Frontend
-import           CO4.Names (fromName,funType)
+import           CO4.Names (fromName,funType,untypedName,nTyped)
 
 parseProgramFromFile :: FilePath -> IO Program
 parseProgramFromFile filePath = unsafeParse pProgram False <$> readFile filePath
@@ -39,8 +39,8 @@ pProgram = many1 pDeclaration
 
 pDeclaration :: Parser Declaration
 pDeclaration = do
-  Name n <- pVarName
-  name   <- option (Name n) $ reservedOp "::" >> pScheme >>= return . TypedName n
+  var  <- pVarName
+  name <- option var $ reservedOp "::" >> pScheme >>= return . nTyped var
   symbol "="
   e <- pExpression
   symbol ";"
@@ -129,7 +129,7 @@ pNonFunctionalType :: Parser Type
 pNonFunctionalType = pTCon <|> pTVar <|> parens pType <?> "non-functional type"
 
 pTVar :: Parser Type
-pTVar = TVar <$> pVarName
+pTVar = TVar <$> pTypeVarName
 
 pNonArgTCon :: Parser Type
 pNonArgTCon = flip TCon [] <$> pTypeName
@@ -141,7 +141,7 @@ pTCon =
   in 
     choice [ do c <- pTypeName
                 TCon c <$> many simpleT
-           , try $ do c <- pVarName
+           , try $ do c <- pTypeVarName
                       -- Type constructor variables must have >0 arguments
                       TCon c <$> many1 simpleT 
            ]
@@ -151,7 +151,7 @@ pFunctionTCon = do
   a <- pNonFunctionalType
   reservedOp $ fromName funType
   b <- pType
-  return $ TCon funType [a,b]
+  return $ TCon (untypedName funType) [a,b]
 
 pScheme :: Parser Scheme
 pScheme = pSForall <|> pSType <|> parens pScheme <?> "scheme"
@@ -188,20 +188,23 @@ signedNumberLiteral = do
     LDouble d -> return $ LDouble $ d * (fromIntegral sign)
 
 -- Utilities
-pTypeName :: Parser Name
-pTypeName = pConName
+pTypeName :: Parser UntypedName
+pTypeName = untypedName <$> pConName
+
+pTypeVarName :: Parser UntypedName
+pTypeVarName = untypedName <$> pVarName
 
 pVarName :: Parser Name
 pVarName = try $ choice [ do i <- identifier 
                              if isLower (head i) 
-                               then return (Name i) 
+                               then return (NUntyped i) 
                                else parserZero
-                        , Name <$> operator
+                        , NUntyped <$> operator
                         ]
 
 pConName :: Parser Name
 pConName = try $ do i <- identifier 
-                    if isUpper (head i) then return (Name i) else parserZero
+                    if isUpper (head i) then return (NUntyped i) else parserZero
 
 lexer           = T.makeTokenParser haskellDef    
 parens          = T.parens lexer

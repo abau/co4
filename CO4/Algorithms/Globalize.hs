@@ -11,7 +11,7 @@ import           Data.Maybe (fromMaybe)
 import           CO4.Language
 import qualified CO4.Util as U
 import           CO4.Util (renames,boundExpression,boundName,collapseFunApps)
-import           CO4.Unique (Unique,newName,newName')
+import           CO4.Unique (Unique,newName)
 import           CO4.Algorithms.HindleyMilner (freeInPrelude)
 import           CO4.Algorithms.Instantiator
 
@@ -46,7 +46,7 @@ instance MonadInstantiator Instantiator where
     return $ ELet name v' e'
     
 newGlobalName :: Instantiator Name
-newGlobalName = liftUnique $ newName' "global" 
+newGlobalName = liftUnique $ newName "global" 
 
 liftUnique :: Unique a -> Instantiator a
 liftUnique = Instantiator . lift . lift

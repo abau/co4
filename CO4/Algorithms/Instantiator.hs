@@ -16,9 +16,9 @@ class Monad m => MonadInstantiator m where
 
   -- |Instantiate names. Default instantiates scheme of typed-names.
   instantiateName :: Name -> m Name
-  instantiateName (TypedName n s) = do
+  instantiateName (NTyped n s) = do
     s' <- instantiate s
-    return $ TypedName n s'
+    return $ NTyped n s'
 
   instantiateName name = return name
 
@@ -79,12 +79,11 @@ class Monad m => MonadInstantiator m where
     e'  <- instantiate e 
     return $ ELam ns' e'
 
-  -- |Instantiates type-abstraction. Default instantiates sub-expression and names.
+  -- |Instantiates type-abstraction. Default instantiates sub-expression.
   instantiateTLam :: Expression -> m Expression
   instantiateTLam (ETLam ns e) = do
-    ns' <- instantiate ns
     e'  <- instantiate e 
-    return $ ETLam ns' e'
+    return $ ETLam ns e'
 
   -- |Instantiates case-expressions. Default instantiates the matched expression 
   -- and all matches

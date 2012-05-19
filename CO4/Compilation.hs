@@ -17,6 +17,7 @@ import           CO4.Unique (Unique,UniqueT,runUniqueT,mapUnique)
 import           CO4.Frontend
 import           CO4.Backend
 import           CO4.Backend.Raml
+import           CO4.Backend.TH ()
 import           CO4.Backend.SatchmoPreprocess
 import           CO4.Algorithms.Globalize
 import           CO4.Algorithms.UniqueNames

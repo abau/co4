@@ -8,13 +8,13 @@ import           CO4.Names (funType)
 import           CO4.PPrint (PPrint (..))
 
 -- |Returns the quantified names and the embedded type of a scheme 
-splitScheme :: Scheme -> ([Name],Type)
+splitScheme :: Scheme -> ([UntypedName],Type)
 splitScheme scheme = case scheme of
   SType t     -> ([],t)
   SForall n s -> (\(ns,t) -> (n:ns,t)) $ splitScheme s
 
 -- |Returns the quantified names of a scheme 
-quantifiedNames :: Scheme -> [Name]
+quantifiedNames :: Scheme -> [UntypedName]
 quantifiedNames = fst . splitScheme
 
 -- |Returns the embedded type of a scheme 

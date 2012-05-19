@@ -6,7 +6,7 @@ where
 
 import Text.PrettyPrint 
 import CO4.Language
-import CO4.Names (funType)
+import CO4.Names (funType,name)
 
 class PPrint a where
   pprint :: a -> Doc
@@ -16,10 +16,16 @@ class PPrint a where
 parensHsep :: PPrint a => (a -> Bool) -> [a] -> Doc
 parensHsep f = hsep . map (\x -> ( if f x then parens else id ) $ pprint x)
 
+instance PPrint UntypedName where
+  pprint = pprint . name
+
+instance PPrint TypedName where
+  pprint = pprint . name
+
 instance PPrint Name where
-  pprint (Name n)        = text n
-  pprint (TypedName n _) = text n
-  --pprint (TypedName n t) = text n <+> (brackets $ pprint t)
+  pprint (NUntyped n) = text n
+  pprint (NTyped n _) = text n
+  --pprint (NTyped n s) = text n <+> (brackets $ pprint s)
 
 instance PPrint Literal where
   pprint (LInt l) | l < 0    = parens $ int $ fromIntegral l
@@ -87,7 +93,7 @@ instance PPrint Scheme where
   pprint (SForall n s) = hsep [ text "forall", pprint n, text ".", pprint s ]
 
 instance PPrint Declaration where
-  pprint (DBind (TypedName name t) e) = 
+  pprint (DBind (NTyped name t) e) = 
     hsep [ text name, text "::", pprint t, text "="] $$ (nest 2 $ pprint e <+> (text ";"))
 
   pprint (DBind name e)  = hsep [ pprint name, text "="] $$ (nest 2 $ pprint e <+> (text ";"))

@@ -14,14 +14,14 @@ import           CO4.Unique
 import           CO4.Util (boundName,collapseFunApps)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
-import           CO4.Names (typedName)
+import           CO4.Names (nTyped)
 import           CO4.TypesUtil
 
 data Env   = Env { bindings        :: M.Map Name Expression
                  , notInstantiable :: [Declaration]
                  }
 
-type CacheKey   = (Name,[Expression],[Type])
+type CacheKey   = (TypedName,[Expression],[Type])
 type CacheValue = Name 
 type Cache      = M.Map CacheKey CacheValue
 
@@ -37,28 +37,28 @@ instance MonadInstantiator Instantiator where
   instantiateVar (EVar name) = 
     M.findWithDefault (EVar name) name <$> asks bindings
 
-  instantiateTApp (ETApp (EVar fName@(TypedName fString fScheme)) typeApps) = do
+  instantiateTApp (ETApp (EVar fName@(NTyped fString fScheme)) typeApps) = do
     f' <- fromJust . M.lookup fName <$> asks bindings
     case f' of
       ETLam typeParams e -> do
         cache <- gets cache
-        case M.lookup (fName, [], typeApps) cache of
+        case M.lookup (TypedName fString fScheme, [], typeApps) cache of
           Nothing -> 
             let instantiatedE  = HM.substitutes (zip typeParams typeApps) e
                 instanceScheme = HM.instantiateSchemeApp fScheme typeApps
             in do
               instanceName <- liftUnique $ do 
-                                untyped <- newName' $ fString ++ "Instance"
-                                return $ typedName untyped instanceScheme
+                                untyped <- newName $ fString ++ "Instance"
+                                return $ nTyped untyped instanceScheme
 
-              writeCacheItem (fName, [], typeApps) instanceName 
+              writeCacheItem (TypedName fString fScheme, [], typeApps) instanceName 
               instantiatedE' <- instantiateExpression instantiatedE
               writeInstance $ DBind instanceName instantiatedE'
               return $ EVar instanceName
               
       exp -> return exp
 
-  instantiateApp (EApp (ETApp (EVar fName@(TypedName fString fScheme)) typeApps) args) = do
+  instantiateApp (EApp (ETApp (EVar fName@(NTyped fString fScheme)) typeApps) args) = do
     f'    <- fromJust . M.lookup fName <$> asks bindings
     args' <- mapM instantiateExpression args
 
@@ -81,19 +81,19 @@ instance MonadInstantiator Instantiator where
             allFoArguments  = foArguments  ++ map EVar freeInHoArguments
             
             instanceScheme  = 
-              let argsT   = map (\(TypedName _ s) -> fromSType s) allFoParameters
+              let argsT   = map (\(NTyped _ s) -> fromSType s) allFoParameters
                   resultT = resultType $ fromSType monoScheme
               in
                 HM.generalizeAll $ functionType argsT resultT
 
         cache <- gets cache
-        case M.lookup (fName, hoArguments, typeApps) cache of
+        case M.lookup (TypedName fString fScheme, hoArguments, typeApps) cache of
           Nothing -> do
             instanceName <- liftUnique $ do 
-                              untyped <- newName' $ fString ++ "Instance"
-                              return $ typedName untyped instanceScheme
+                              untyped <- newName $ fString ++ "Instance"
+                              return $ nTyped untyped instanceScheme
 
-            writeCacheItem (fName, hoArguments, typeApps) instanceName
+            writeCacheItem (TypedName fString fScheme, hoArguments, typeApps) instanceName
 
             let modifyEnv      = addBindings (zip hoParameters hoArguments)
                 instanceRHS    = ELam allFoParameters e'
@@ -120,14 +120,14 @@ splitFirstHigherOrder parameters arguments =
   ) ([],[],[],[]) $ zip parameters arguments
 
 hasFunType :: Name -> Bool
-hasFunType (TypedName _ s) = isFunType $ typeOfScheme s
+hasFunType (NTyped _ s) = isFunType $ typeOfScheme s
 
 isPolymorphic :: Name -> Bool
-isPolymorphic (TypedName _ (SForall {})) = True
-isPolymorphic (TypedName _ (SType _))   = False
+isPolymorphic (NTyped _ (SForall {})) = True
+isPolymorphic (NTyped _ (SType _))   = False
 
 isHigherOrder :: Name -> Bool
-isHigherOrder (TypedName _ scheme) = 
+isHigherOrder (NTyped _ scheme) = 
   let paramTypes = argumentTypes $ typeOfScheme scheme
   in
     any isFunType paramTypes

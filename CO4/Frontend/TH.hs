@@ -24,7 +24,7 @@ instance ProgramFrontend [TH.Dec] where
       in
         map (\(DBind n v) -> case M.lookup n signatures' of 
                               Nothing -> DBind n v
-                              Just s  -> DBind (typedName n s) v
+                              Just s  -> DBind (nTyped n s) v
             ) rest'
     where
       isSignature (TH.SigD {}) = True
@@ -47,7 +47,8 @@ parseTHDeclaration dec = case dec of
   TH.FunD n [TH.Clause ps (TH.NormalB e) []] -> 
     DBind (fromTHName n) (parseTHExpression $ TH.LamE ps e)
 
-  TH.ValD (TH.VarP n) (TH.NormalB e) [] -> DBind (fromTHName n) (parseTHExpression e)
+  TH.ValD (TH.VarP n) (TH.NormalB e) [] -> DBind (fromTHName n) 
+                                                 (parseTHExpression e)
 
   _ -> notSupported "parseTHDeclaration" dec
 
@@ -102,11 +103,11 @@ parseTHPattern pattern = case pattern of
     case l of TH.StringL s -> parse $ TH.ListP $ map (TH.LitP . TH.CharL) s
               _            -> PLit $ parseTHLiteral l
   TH.VarP n       -> PVar $ fromTHName n
-  TH.TupP ts      -> PCon (tupleType $ length ts) $ map parse ts
+  TH.TupP ts      -> PCon (tupleCon $ length ts) $ map parse ts
   TH.ConP n ps    -> PCon (fromTHName n) $ map parse ps
   TH.InfixP a n b -> PCon (fromTHName n) $ map parse [a,b]
-  TH.ListP ps     -> foldr (\x rest -> PCon consCon [x,rest]) (PCon nilCon []) 
-                        $ map parse ps
+  TH.ListP ps     -> foldr (\x rest -> PCon consCon [x,rest]) 
+                      (PCon nilCon []) $ map parse ps
   _               -> notSupported "parseTHPattern" pattern
 
   where parse = parseTHPattern
@@ -125,14 +126,15 @@ parseTHType type_ = case type_ of
 
   where
     parse type_ = case type_ of
-      TH.VarT v   -> TVar $ fromTHName v
-      TH.ConT c   -> TCon (fromTHName c) []
-      TH.TupleT i -> TCon (tupleType i) []
+      TH.VarT v   -> TVar $ untypedName $ fromTHName v
+      TH.ConT c   -> TCon (untypedName $ fromTHName c) []
+      TH.TupleT i -> TCon (untypedName $ tupleType i) []
       TH.AppT a b -> case gatherApplication a b of
         (TH.ArrowT, args) -> 
-          foldr1 (\arg result -> TCon funType [arg,result]) $ map parse args
+          foldr1 (\arg result -> TCon (untypedName funType) [arg,result]) 
+            $ map parse args
 
-        (TH.ListT, args) -> TCon listType $ map parse args
+        (TH.ListT, args) -> TCon (untypedName listType) $ map parse args
 
         (f, args) -> case parse f of
                         TCon c [] -> TCon c $ map parse args
@@ -141,7 +143,7 @@ parseTHType type_ = case type_ of
       _           -> notSupported "parseTHType" type_
 
     fromTHTyVarBndr bndr = case bndr of
-      TH.PlainTV n -> fromTHName n
+      TH.PlainTV n -> untypedName $ fromTHName n
       _            -> notSupported "fromTHTyVarBndr" bndr
 
     gatherApplication f e =
@@ -154,7 +156,7 @@ fromTHName :: TH.Name -> Name
 fromTHName thName = case TH.nameBase thName of
   ":"   -> consCon
   "[]"  -> nilCon
-  other -> Name other
+  other -> name other
 
 notSupported :: (TH.Ppr a, Show a) => String -> a -> b
 notSupported funName a = 

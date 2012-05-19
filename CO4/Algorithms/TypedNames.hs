@@ -6,7 +6,7 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Identity
-import           CO4.Names (typedName,untypedName)
+import           CO4.Names (nTyped,nUntyped,untypedName)
 import qualified CO4.Algorithms.HindleyMilner.Util as HM
 import           CO4.Algorithms.Instantiator
 
@@ -19,12 +19,12 @@ newtype Eraser a = Eraser { runEraser :: Identity a }
 instance MonadInstantiator Instantiator where
   instantiateName name = do
     context <- ask
-    case HM.lookup name context of
+    case HM.lookup (untypedName name) context of
       Nothing -> return name
-      Just s  -> return $ typedName name s
+      Just s  -> return $ nTyped name s
 
 instance MonadInstantiator Eraser where
-  instantiateName = return . untypedName
+  instantiateName = return . nUntyped
 
 typedNames :: Instantiable a => HM.Context -> a -> a
 typedNames context a = runReader (runInstantiator $ instantiate a) context

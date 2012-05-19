@@ -1,41 +1,41 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module CO4.Language
-  ( Name (..), Literal (..), Pattern (..), Match (..), Expression (..), Type (..)
-  , Scheme (..), Declaration (..), Program
+  ( Type (..), Scheme (..)
+  , Name (..), UntypedName (..), TypedName (..)
+  , Literal (..), Pattern (..), Match (..), Expression (..)
+  , Declaration (..), Program
   ) 
 where
 
 import           Data.Data (Data,Typeable)
 
-data Type = TVar Name
-          | TCon Name [Type]
+data Type = TVar UntypedName
+          | TCon UntypedName [Type]
           deriving (Show,Eq,Ord,Data,Typeable)
 
 data Scheme = SType Type
-            | SForall Name Scheme
+            | SForall UntypedName Scheme
             deriving (Show,Eq,Ord,Data,Typeable)
 
-data Name = Name      String
-          | TypedName String Scheme
+data UntypedName = UntypedName String
+                 deriving (Show,Eq,Ord,Data,Typeable)
+
+data TypedName = TypedName String Scheme
+               deriving (Show,Eq,Ord,Data,Typeable)
+
+data Name = NUntyped String
+          | NTyped String Scheme
           deriving (Show,Data,Typeable)
 
-{-
 instance Eq Name where
-  (Name a) == (Name b)                 = a == b
-  (TypedName a ta) == (TypedName b tb) = (a == b) && (ta == tb)
-  (Name name) == _                     = error $ "Do not compare untyped names against typed names (here: '" ++ name ++ "')"
-  a == b                               = b == a
--}
-
-instance Eq Name where
-  a == b = let string (Name n)        = n
-               string (TypedName n _) = n
+  a == b = let string (NUntyped n) = n
+               string (NTyped n _) = n
            in
              string a == string b
 
 instance Ord Name where
-  a `compare` b = let string (Name n)        = n
-                      string (TypedName n _) = n
+  a `compare` b = let string (NUntyped n) = n
+                      string (NTyped n _) = n
                   in
                     compare (string a) (string b)
 
@@ -58,12 +58,15 @@ data Expression = EVar  Name
                 | EApp  Expression [Expression]
                 | ETApp Expression [Type]
                 | ELam  [Name] Expression
-                | ETLam [Name] Expression
+                | ETLam [UntypedName] Expression
                 | ECase Expression [Match]
                 | ELet  Name Expression Expression
                 deriving (Show,Eq,Ord,Data,Typeable)
 
+-- data Constructor = CCon Name [
+
 data Declaration = DBind Name Expression 
+             --  | DADT  Name [Name] [Constructor]
                 deriving (Show,Eq,Data,Typeable)
 
 type Program     = [Declaration]

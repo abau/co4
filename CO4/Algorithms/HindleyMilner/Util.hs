@@ -8,7 +8,7 @@ where
 
 import           Prelude hiding (lookup)
 import           Control.Monad.Reader
-import           Text.PrettyPrint ((<+>),hsep,text,nest,vcat,brackets)
+import           Text.PrettyPrint ((<+>),hsep,text,nest,vcat)
 import qualified Data.Map as M
 import           Data.List ((\\),nub)
 import           Data.Monoid (Monoid(..))
@@ -16,17 +16,15 @@ import           CO4.Algorithms.Free (Free(..))
 import           CO4.Algorithms.Instantiator
 import           CO4.Language 
 import           CO4.PPrint (PPrint (..))
+import           CO4.Names (Namelike,untypedName)
 
 -- |A context is a mapping from names to schemes
-data Context = Gamma (M.Map Name Scheme) deriving Show
+data Context = Gamma (M.Map UntypedName Scheme) deriving Show
 
-type Substitution  = (Name,Type)
+type Substitution  = (UntypedName,Type)
 
 class Substitutable a where
   substitute :: Substitution -> a -> a
-
-instance PPrint [Substitution] where
-  pprint substs = brackets $ vcat $ map pprint substs
 
 instance Substitutable Type where
   substitute (n,t') (TVar v) | v == n = t'
@@ -46,7 +44,7 @@ instance Substitutable Context where
   substitute s (Gamma c) = Gamma $ M.map (substitute s) c
 
 instance Monoid Context where
-  mempty                      = gamma []
+  mempty                      = emptyContext
   mappend (Gamma a) (Gamma b) = Gamma $ M.union b a -- Needs to be right-biased
 
 instance PPrint Context where
@@ -56,8 +54,8 @@ instance PPrint Context where
       ppBinding (name,scheme) = hsep [pprint name, text "::", pprint scheme]
 
 instance Substitutable Name where
-  substitute s (TypedName n t) = TypedName n $ substitute s t
-  substitute _ name            = name
+  substitute s (NTyped n t) = NTyped n $ substitute s t
+  substitute _ name         = name
 
 -- Expression substitution is done by an Instantiator monad
 newtype Substituter a = Substituter { runSubstituter :: Reader Substitution a }
@@ -87,10 +85,10 @@ instance (Substitutable a, Substitutable b) => Substitutable (a,b) where
 substitutes :: Substitutable a => [Substitution] -> a -> a
 substitutes ss a = foldl (flip substitute) a ss
 
-binds :: [(Name,Scheme)] -> Context -> Context
+binds :: Namelike n => [(n,Scheme)] -> Context -> Context
 binds bindings context = mappend context $ gamma bindings
 
-bindTypes :: [(Name,Type)] -> Context -> Context
+bindTypes :: Namelike n => [(n,Type)] -> Context -> Context
 bindTypes bindings context = 
   mappend context $ gamma $ map (\(n,t) -> (n, SType t)) bindings
 
@@ -98,29 +96,29 @@ generalize :: Context -> Type -> Scheme
 generalize context t =
   let ts = (free t) \\ (free context)
   in
-    foldl (flip SForall) (SType t) ts
+    foldl (flip SForall) (SType t) $ map untypedName ts
 
 generalizeAll :: Type -> Scheme
 generalizeAll = generalize emptyContext
 
-gamma :: [(Name,Scheme)] -> Context
-gamma = Gamma . M.fromList
+gamma :: Namelike n => [(n,Scheme)] -> Context
+gamma = Gamma . M.fromList . map (\(n,t) -> (untypedName n, t))
 
 emptyContext :: Context
 emptyContext = Gamma M.empty
 
-lookup :: Name -> Context -> Maybe Scheme
-lookup name (Gamma ctxt) = M.lookup name ctxt
+lookup :: Namelike n => n -> Context -> Maybe Scheme
+lookup name (Gamma ctxt) = M.lookup (untypedName name) ctxt
 
-unsafeLookup :: Name -> Context -> Scheme
-unsafeLookup name context = case lookup name context of
+unsafeLookup :: (Namelike n, PPrint n) => n -> Context -> Scheme
+unsafeLookup name context = case lookup (untypedName name) context of
   Nothing -> error $ "HindleyMilner.Util: unsafeLookup of '" ++ show (pprint name) ++ "'"
   Just s  -> s
 
-hasScheme :: Name -> Context -> Bool
-hasScheme name (Gamma ctxt) = M.member name ctxt
+hasScheme :: Namelike n => n -> Context -> Bool
+hasScheme name (Gamma ctxt) = M.member (untypedName name) ctxt
 
-toList :: Context -> [(Name,Scheme)]
+toList :: Context -> [(UntypedName,Scheme)]
 toList (Gamma context) = M.toList context
 
 -- |Instantiates scheme by applying a list of types.
@@ -131,7 +129,7 @@ instantiateSchemeApp =
         SForall n s -> substitute (n,t') s
         SType t     -> case free t of
                         []    -> SType t
-                        (f:_) -> SType $ substitute (f,t') t
+                        (f:_) -> SType $ substitute (untypedName f,t') t
   in
     foldl instantiate
 

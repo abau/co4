@@ -10,7 +10,6 @@ import           CO4.PPrint (pprint)
 import           CO4.Backend
 import           CO4.Names
 import           CO4.Unique (Unique)
-import           CO4.Backend.TH (isTupleCon)
 import           CO4.Backend.RamlPreprocess (preprocess)
 import           CO4.Algorithms.TypedNames (eraseTypedNames)
 
@@ -35,18 +34,18 @@ instance ExpressionBackend R.Exp where
     EApp (ECon c) es | isTupleCon c -> R.ETuple (map display es) pos
 
     -- Functions
-    EApp (EVar (Name "not"))  [x]  -> R.EUnaryOp R.UNot    (display x)             pos
-    EApp (EVar (Name "+"))  [x,y]  -> R.EBinOp R.Add       (display x) (display y) pos
-    EApp (EVar (Name "-"))  [x,y]  -> R.EBinOp R.Sub       (display x) (display y) pos
-    EApp (EVar (Name "*"))  [x,y]  -> R.EBinOp R.Mult      (display x) (display y) pos
-    EApp (EVar (Name "/"))  [x,y]  -> R.EBinOp R.Div       (display x) (display y) pos
-    EApp (EVar (Name "&&")) [x,y]  -> R.EBinOp R.And       (display x) (display y) pos
-    EApp (EVar (Name "||")) [x,y]  -> R.EBinOp R.Or        (display x) (display y) pos
-    EApp (EVar (Name "<"))  [x,y]  -> R.EBinOp R.Less      (display x) (display y) pos
-    EApp (EVar (Name "<=")) [x,y]  -> R.EBinOp R.LessEq    (display x) (display y) pos
-    EApp (EVar (Name "==")) [x,y]  -> R.EBinOp R.Eq        (display x) (display y) pos
-    EApp (EVar (Name ">=")) [x,y]  -> R.EBinOp R.GreaterEq (display x) (display y) pos
-    EApp (EVar (Name ">"))  [x,y]  -> R.EBinOp R.Greater   (display x) (display y) pos
+    EApp (EVar (NUntyped "not"))  [x]  -> R.EUnaryOp R.UNot    (display x)             pos
+    EApp (EVar (NUntyped "+"))  [x,y]  -> R.EBinOp R.Add       (display x) (display y) pos
+    EApp (EVar (NUntyped "-"))  [x,y]  -> R.EBinOp R.Sub       (display x) (display y) pos
+    EApp (EVar (NUntyped "*"))  [x,y]  -> R.EBinOp R.Mult      (display x) (display y) pos
+    EApp (EVar (NUntyped "/"))  [x,y]  -> R.EBinOp R.Div       (display x) (display y) pos
+    EApp (EVar (NUntyped "&&")) [x,y]  -> R.EBinOp R.And       (display x) (display y) pos
+    EApp (EVar (NUntyped "||")) [x,y]  -> R.EBinOp R.Or        (display x) (display y) pos
+    EApp (EVar (NUntyped "<"))  [x,y]  -> R.EBinOp R.Less      (display x) (display y) pos
+    EApp (EVar (NUntyped "<=")) [x,y]  -> R.EBinOp R.LessEq    (display x) (display y) pos
+    EApp (EVar (NUntyped "==")) [x,y]  -> R.EBinOp R.Eq        (display x) (display y) pos
+    EApp (EVar (NUntyped ">=")) [x,y]  -> R.EBinOp R.GreaterEq (display x) (display y) pos
+    EApp (EVar (NUntyped ">"))  [x,y]  -> R.EBinOp R.Greater   (display x) (display y) pos
 
     EApp (ECon c) [x]   -> display $ EApp (EVar c) [x]
     EApp (EVar v) [x]   -> R.EApp Nothing (fromName v)  (display x) pos
@@ -104,10 +103,10 @@ instance SchemeBackend R.FunType where
     SType type_ -> R.FunType R.TUnit (displayType type_)
 
     where displayType type_ = case type_ of
-            TCon c []  | c == intType  -> R.TInt
-            TCon c []  | c == boolType -> R.TBool
-            TCon c [t] | c == listType -> R.TList $ displayType t
-            TCon c ts  | isTupleCon c  -> R.TTuple $ map displayType ts
+            TCon c []  | c == intType   -> R.TInt
+            TCon c []  | c == boolType  -> R.TBool
+            TCon c [t] | c == listType  -> R.TList $ displayType t
+            TCon c ts  | isTupleType c  -> R.TTuple $ map displayType ts
             _ -> error $ "Backend.Raml: don't know how to display scheme '" ++ (show $ pprint scheme) ++ "'"
 
           gatherFunType a b =
@@ -121,12 +120,12 @@ instance ProgramBackend R.Program where
   displayProgram program = (concatMap displayDeclaration program, R.EUnit pos)
 
     where
-      displayDeclaration (DBind (Name n) _) = error $ "Backend.Raml: can't display schemeless declaration '" ++ n ++ "'"
-      displayDeclaration (DBind (TypedName n scheme) (ELam ns exp)) =
+      displayDeclaration (DBind (NUntyped n) _) = error $ "Backend.Raml: can't display schemeless declaration '" ++ n ++ "'"
+      displayDeclaration (DBind (NTyped n scheme) (ELam ns exp)) =
         [ R.TypeDec n (displayScheme scheme) pos
         , R.FunDec  n (map fromName ns) (displayExpression exp) pos
         ]
-      displayDeclaration (DBind (TypedName n scheme) exp) =
+      displayDeclaration (DBind (NTyped n scheme) exp) =
         [ R.TypeDec n (displayScheme scheme) pos
         , R.FunDec  n [] (displayExpression exp) pos
         ]
