@@ -28,7 +28,7 @@ instance MonadInstantiator Preprocessor where
   instantiateCon exp = return exp
 
 preprocessSatchmoProgram :: Program -> Program
-preprocessSatchmoProgram p =
+preprocessSatchmoProgram p = 
   let Preprocessor prep = instantiateProgram p
   in
     runIdentity prep

@@ -24,6 +24,7 @@ import           CO4.Algorithms.UniqueNames
 import           CO4.Algorithms.Monadify
 import           CO4.Algorithms.HindleyMilner (schemes,prelude)
 import           CO4.Algorithms.Instantiation (instantiation)
+import           CO4.Algorithms.Eitherize (eitherize)
 
 data Config  = Verbose
              | Degree Int
@@ -89,7 +90,7 @@ compileToRaml :: Program -> Configurable RamlT.Program
 compileToRaml p = do        
   (ramlP) <- liftUnique $ globalize p
                        >>= \p'      -> schemes prelude p'
-                       >>= instantiation
+--                       >>= instantiation
 
   logWhenVerbose $ unlines [ "## Raml ###############################"
                            , displayProgram ramlP]
@@ -98,7 +99,10 @@ compileToRaml p = do
 
 compileToSatchmo :: Program -> Configurable [TH.Dec]
 compileToSatchmo p = do
-  satchmoP <- liftUnique $ monadify p >>= return . preprocessSatchmoProgram
+  satchmoP <- liftUnique $ {-monadify-} return p 
+                >>= eitherize
+                >>= monadify
+                >>= return . preprocessSatchmoProgram
 
   logWhenVerbose $ unlines [ "## Satchmo ############################"
                            , displayProgram satchmoP]

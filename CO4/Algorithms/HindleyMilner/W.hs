@@ -9,7 +9,7 @@ import           Control.Applicative ((<$>))
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           Data.Graph (stronglyConnComp,flattenSCC)
-import           CO4.Util (topLevelNames)
+import           CO4.Util (topLevelNames,splitDeclarations)
 import           CO4.Language
 import           CO4.Unique (Unique,newName)
 import           CO4.Names
@@ -143,16 +143,18 @@ w context exp = case exp of
 -- |Infers the toplevel types of a program (returned as a context)
 wProgram :: Context -> Program -> HM ([Substitution], Program)
 wProgram context program = do
-  let bgs = bindingGroups program
+  let (typeDecls, valueDecls) = splitDeclarations program
+      bgs                     = bindingGroups valueDecls
+      context'                = foldr bindAdt context typeDecls
 
-  (subst,_,program') <-
+  (subst,_,valueDecls') <-
     foldM (\(s,ctxt,program') bg -> do 
-              (s',bg')  <- wBindingGroup ({-substitutes s-} ctxt) bg
+              (s',bg')  <- wBindingGroup ctxt bg
               let ctxt' =  gamma $ map (\(DBind (NTyped n s) _) -> (UntypedName n, s)) bg'
               return (s ++ s', mappend ctxt ctxt', program' ++ bg')
-          ) ([],context,[]) bgs
+          ) ([],context',[]) bgs
 
-  return (subst,program')
+  return (subst, typeDecls ++ valueDecls')
 
 -- |Infers the types of a mutually recursive binding group 
 wBindingGroup :: Context -> BindingGroup -> HM ([Substitution], BindingGroup)

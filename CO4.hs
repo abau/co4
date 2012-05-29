@@ -1,5 +1,6 @@
 module CO4
   ( module CO4.Language
+  , module CO4.Util
   , module CO4.PPrint
   , module CO4.Unique
   , module CO4.Frontend
@@ -15,11 +16,13 @@ module CO4
   , module CO4.Algorithms.HindleyMilner
   , module CO4.Algorithms.TypedNames
   , module CO4.Algorithms.Instantiation
+  , module CO4.Algorithms.Eitherize
   , module CO4.Compilation
   ) 
 where
 
 import           CO4.Language
+import           CO4.Util
 import           CO4.PPrint
 import           CO4.Unique
 import           CO4.Frontend
@@ -38,4 +41,5 @@ import           CO4.Algorithms.Bound
 import           CO4.Algorithms.HindleyMilner
 import           CO4.Algorithms.TypedNames
 import           CO4.Algorithms.Instantiation
+import           CO4.Algorithms.Eitherize
 import           CO4.Compilation

@@ -1,9 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module CO4.Language
   ( Type (..), Scheme (..)
-  , Name (..), UntypedName (..), TypedName (..)
+  , Name (..), UntypedName (..)
   , Literal (..), Pattern (..), Match (..), Expression (..)
-  , Declaration (..), Program
+  , Constructor (..), Declaration (..), Program
   ) 
 where
 
@@ -19,9 +19,6 @@ data Scheme = SType Type
 
 data UntypedName = UntypedName String
                  deriving (Show,Eq,Ord,Data,Typeable)
-
-data TypedName = TypedName String Scheme
-               deriving (Show,Eq,Ord,Data,Typeable)
 
 data Name = NUntyped String
           | NTyped String Scheme
@@ -63,12 +60,14 @@ data Expression = EVar  Name
                 | ELet  Name Expression Expression
                 deriving (Show,Eq,Ord,Data,Typeable)
 
--- data Constructor = CCon Name [
+data Constructor = CCon UntypedName [Type]
+                deriving (Show,Eq,Ord,Data,Typeable)
 
-data Declaration = DBind Name Expression 
-             --  | DADT  Name [Name] [Constructor]
+data Declaration = DBind { dBindName :: Name , dBindExpression :: Expression }
+                 | DAdt  { dAdtName          ::  UntypedName 
+                         , dAdtTypeVariables :: [UntypedName] 
+                         , dAdtConstructors  :: [Constructor] }
                 deriving (Show,Eq,Data,Typeable)
 
 type Program     = [Declaration]
-
 

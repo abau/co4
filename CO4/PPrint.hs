@@ -19,9 +19,6 @@ parensHsep f = hsep . map (\x -> ( if f x then parens else id ) $ pprint x)
 instance PPrint UntypedName where
   pprint = pprint . name
 
-instance PPrint TypedName where
-  pprint = pprint . name
-
 instance PPrint Name where
   pprint (NUntyped n) = text n
   pprint (NTyped n _) = text n
@@ -45,7 +42,7 @@ instance PPrint Pattern where
       pprint name <+> parensHsep (not . isSimple) ps
 
 instance PPrint Match where
-  pprint (Match pat e) = hsep [pprint pat, text "->", pprint e, text ";"]
+  pprint (Match pat e) = hsep [pprint pat, text "->", pprint e]
 
 instance PPrint Expression where
   pprint (EVar name)   = pprint name
@@ -69,7 +66,7 @@ instance PPrint Expression where
 
   pprint (ECase e matches) = 
     vcat $ [hsep [text "case", pprint e, text "of {"]]
-        ++ (map (nest 2 . pprint) matches)
+        ++ (map (nest 2) $ punctuate (text " ;") $ map pprint matches)
         ++ [text "}"]
 
   pprint (ELet n e1 e2) =
@@ -92,14 +89,23 @@ instance PPrint Scheme where
   pprint (SType t)     = pprint t
   pprint (SForall n s) = hsep [ text "forall", pprint n, text ".", pprint s ]
 
+instance PPrint Constructor where
+  pprint (CCon name types) = pprint $ TCon name types
+
 instance PPrint Declaration where
   pprint (DBind (NTyped name t) e) = 
-    hsep [ text name, text "::", pprint t, text "="] $$ (nest 2 $ pprint e <+> (text ";"))
+    hsep [ text name, text "::", pprint t, text "="] $$ (nest 2 $ pprint e)
 
-  pprint (DBind name e)  = hsep [ pprint name, text "="] $$ (nest 2 $ pprint e <+> (text ";"))
+  pprint (DBind name e) = 
+    hsep [ pprint name, text "="] $$ (nest 2 $ pprint e)
+
+  pprint (DAdt name tvars cons) =
+    hsep [ text "adt", pprint name, hsep $ map pprint tvars, text "= {"] 
+      $$ (nest 2 $ vcat $ punctuate (text " ;") $ map pprint cons)
+      $$ (text "}")
 
 instance PPrint Program where 
-  pprint decs = vcat $ map pprint decs
+  pprint decs = vcat $ punctuate (text ";") $ map pprint decs
 
 instance PPrint (Name,Type) where
   pprint (n,t) = hsep [pprint n, text "=", pprint t]

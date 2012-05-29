@@ -17,22 +17,24 @@ instance ProgramFrontend [TH.Dec] where
   parseProgram decs = do
     check decs
     decs' <- preprocess decs
-    return $ 
-      let (signatures,rest) = partition isSignature decs'
-          signatures'       = signatureMap signatures
-          rest'             = map parseTHDeclaration rest
-      in
-        map (\(DBind n v) -> case M.lookup n signatures' of 
-                              Nothing -> DBind n v
-                              Just s  -> DBind (nTyped n s) v
-            ) rest'
-    where
-      isSignature (TH.SigD {}) = True
-      isSignature _            = False
 
-      signatureMap = 
-        foldr (\(TH.SigD n t) -> M.insert (fromTHName n) $ parseTHType t) M.empty
-  
+    let isSignature (TH.SigD {}) = True
+        isSignature _            = False
+        mkSignatureMap    = foldr (\(TH.SigD n t) -> M.insert (fromTHName n) 
+                                      $ parseTHType t) M.empty
+
+        (signatures,rest) = partition isSignature decs'
+        rest'             = map parseTHDeclaration rest
+
+        applySignature (DBind n v) = 
+          case M.lookup n $ mkSignatureMap signatures of 
+            Nothing -> DBind n v
+            Just s  -> DBind (nTyped n s) v
+
+        applySignature dec = dec
+
+    return $ map applySignature rest'
+
 instance ExpressionFrontend TH.Exp where
   parseExpression exp = do
     check exp
@@ -50,7 +52,26 @@ parseTHDeclaration dec = case dec of
   TH.ValD (TH.VarP n) (TH.NormalB e) [] -> DBind (fromTHName n) 
                                                  (parseTHExpression e)
 
+  TH.DataD [] n tVars cons [] ->
+    let n'     = untypedName $ fromTHName n
+        tVars' = map fromTHTyVarBndr tVars
+        cons'  = map parseTHConstructor cons
+    in
+      DAdt n' tVars' cons'
+
   _ -> notSupported "parseTHDeclaration" dec
+
+parseTHConstructor :: TH.Con -> Constructor
+parseTHConstructor con = case con of
+  TH.NormalC n strictTypes -> 
+    CCon (untypedName $ fromTHName n) $ map parseTHStrictType strictTypes
+
+  _ -> notSupported "parseTHConstructor" con
+
+  where parseTHStrictType (_,t) = 
+          let SType t' = parseTHType t
+          in
+            t'
 
 parseTHExpression :: TH.Exp -> Expression
 parseTHExpression expression = case expression of
@@ -142,15 +163,16 @@ parseTHType type_ = case type_ of
 
       _           -> notSupported "parseTHType" type_
 
-    fromTHTyVarBndr bndr = case bndr of
-      TH.PlainTV n -> untypedName $ fromTHName n
-      _            -> notSupported "fromTHTyVarBndr" bndr
-
     gatherApplication f e =
       let gatherApplication' (TH.AppT f' e') es = gatherApplication' f' (e':es)
           gatherApplication' f' es              = (f',es)
       in
        gatherApplication' f [e]
+
+fromTHTyVarBndr :: TH.TyVarBndr -> UntypedName
+fromTHTyVarBndr bndr = case bndr of
+  TH.PlainTV n -> untypedName $ fromTHName n
+  _            -> notSupported "fromTHTyVarBndr" bndr
 
 fromTHName :: TH.Name -> Name
 fromTHName thName = case TH.nameBase thName of

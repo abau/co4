@@ -29,10 +29,11 @@ checkMsg a = concat  [ and' noGuardedBody a
 
 validDeclaration :: Dec -> Check
 validDeclaration dec = case dec of
-  FunD {} -> []
-  ValD {} -> []
-  SigD {} -> []
-  _       -> [Error "Only function declarations, value declarations and signatures are allowed"]
+  FunD {}  -> []
+  ValD {}  -> []
+  SigD {}  -> []
+  DataD {} -> []
+  _        -> [Error "Only function declarations, value declarations, signatures and data declarations are allowed"]
 
 noGuardedBody :: Body -> Check
 noGuardedBody (NormalB  _) = []

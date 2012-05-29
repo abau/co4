@@ -6,11 +6,11 @@ import CO4.Language
 
 class Monad m => MonadInstantiator m where
 
-  -- |Instantiate schemes. Default is @return@
+  -- |Instantiate schemes. Default is @return@.
   instantiateScheme :: Scheme -> m Scheme
   instantiateScheme = return
 
-  -- |Instantiate types. Default is @return@
+  -- |Instantiate types. Default is @return@.
   instantiateType :: Type -> m Type
   instantiateType = return
 
@@ -21,6 +21,10 @@ class Monad m => MonadInstantiator m where
     return $ NTyped n s'
 
   instantiateName name = return name
+
+  -- |Instantiate untyped names. Default is @return@.
+  instantiateUntypedName :: UntypedName -> m UntypedName
+  instantiateUntypedName = return
 
   -- |Instantiates variables.
   -- Default instantiates name.
@@ -82,8 +86,9 @@ class Monad m => MonadInstantiator m where
   -- |Instantiates type-abstraction. Default instantiates sub-expression.
   instantiateTLam :: Expression -> m Expression
   instantiateTLam (ETLam ns e) = do
+    ns' <- instantiate ns
     e'  <- instantiate e 
-    return $ ETLam ns e'
+    return $ ETLam ns' e'
 
   -- |Instantiates case-expressions. Default instantiates the matched expression 
   -- and all matches
@@ -104,12 +109,27 @@ class Monad m => MonadInstantiator m where
   instantiateProgram :: Program -> m Program
   instantiateProgram = mapM instantiate
 
-  -- |Instantiates declaration. Default instantiates name and subexpression.
-  instantiateDeclaration :: Declaration -> m Declaration
-  instantiateDeclaration (DBind name exp) = do
+  -- |Instantiate value-declaration. Default instantiates names and subexpression.
+  instantiateBind :: Declaration -> m Declaration
+  instantiateBind (DBind name exp) = do
     name' <- instantiate name
     exp'  <- instantiate exp
     return $ DBind name' exp' 
+    
+  -- |Instantiate adt-declaration. Default instantiates names and constructors.
+  instantiateAdt :: Declaration -> m Declaration
+  instantiateAdt (DAdt name ts cons) = do
+    name' <- instantiate name
+    ts'   <- instantiate ts
+    cons' <- instantiate cons
+    return $ DAdt name' ts' cons'
+
+  -- |Instantiates declaration. Default calls @instantiate...@ according
+  -- to the matched constructor.
+  instantiateDeclaration :: Declaration -> m Declaration
+  instantiateDeclaration decl = case decl of
+    DBind {} -> instantiateBind decl
+    DAdt {}  -> instantiateAdt decl
 
   -- |Instantiates expression. Default calls @instantiate...@ according
   -- to the matched constructor.
@@ -134,11 +154,21 @@ class Monad m => MonadInstantiator m where
       ps' <- instantiate ps
       return $ PCon n' ps'
 
+  -- |Instantiates constructor. Default instantiates name and types.
+  instantiateConstructor :: Constructor -> m Constructor
+  instantiateConstructor (CCon name types) = do
+    name'  <- instantiate name
+    types' <- instantiate types
+    return $ CCon name' types'
+
 class Instantiable a where
   instantiate :: MonadInstantiator m => a -> m a
 
 instance Instantiable Name where
   instantiate = instantiateName
+
+instance Instantiable UntypedName where
+  instantiate = instantiateUntypedName
 
 instance Instantiable Type where
   instantiate = instantiateType
@@ -157,6 +187,9 @@ instance Instantiable Match where
 
 instance Instantiable Declaration where
   instantiate = instantiateDeclaration
+
+instance Instantiable Constructor where
+  instantiate = instantiateConstructor
 
 instance (Instantiable a) => Instantiable [a] where
   instantiate = mapM instantiate

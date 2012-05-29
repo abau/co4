@@ -10,7 +10,7 @@ import           Data.List (find,(\\))
 import           Data.Maybe (fromMaybe)
 import           CO4.Language
 import qualified CO4.Util as U
-import           CO4.Util (renames,boundExpression,boundName,collapseFunApps)
+import           CO4.Util (renames,collapseFunApps)
 import           CO4.Unique (Unique,newName)
 import           CO4.Algorithms.HindleyMilner (freeInPrelude)
 import           CO4.Algorithms.Instantiator
@@ -27,8 +27,8 @@ instance MonadInstantiator Instantiator where
   instantiateVar (EVar name) = do
     bs <- asks bindings
     return $ fromMaybe (EVar name) 
-           $ fmap boundExpression 
-           $ find (\d -> boundName d == name) bs
+           $ fmap dBindExpression 
+           $ find (\d -> dBindName d == name) bs
 
   instantiateLam exp = 
     newGlobalName >>= \name -> instantiateLambdaWithName name exp

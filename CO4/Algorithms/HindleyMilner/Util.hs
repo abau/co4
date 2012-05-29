@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
 module CO4.Algorithms.HindleyMilner.Util
   ( Context (..), Substitution, Free (..), Substitutable (..), mappend
-  , substitutes, binds, bindTypes, generalize, generalizeAll, gamma
+  , substitutes, binds, bindTypes, bindAdt, generalize, generalizeAll, gamma
   , emptyContext, lookup, unsafeLookup, hasScheme, toList, instantiateSchemeApp
   , unifyOrFail, unifyLeftOrFail, unifiesOrFail)
 where
@@ -17,6 +17,8 @@ import           CO4.Algorithms.Instantiator
 import           CO4.Language 
 import           CO4.PPrint (PPrint (..))
 import           CO4.Names (Namelike,untypedName)
+import           CO4.TypesUtil (functionType)
+import           CO4.Util (dAdt)
 
 -- |A context is a mapping from names to schemes
 data Context = Gamma (M.Map UntypedName Scheme) deriving Show
@@ -91,6 +93,12 @@ binds bindings context = mappend context $ gamma bindings
 bindTypes :: Namelike n => [(n,Type)] -> Context -> Context
 bindTypes bindings context = 
   mappend context $ gamma $ map (\(n,t) -> (n, SType t)) bindings
+
+bindAdt :: Declaration -> Context -> Context
+bindAdt adt context = foldr bindConstructor context $ dAdtConstructors adt
+  where bindConstructor (CCon name types) =
+          binds [(name, foldr SForall (SType $ functionType types $ dAdt adt) 
+                                      (dAdtTypeVariables adt))]
 
 generalize :: Context -> Type -> Scheme
 generalize context t =

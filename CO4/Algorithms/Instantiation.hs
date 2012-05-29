@@ -11,7 +11,7 @@ import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromJust)
 import           CO4.Language
 import           CO4.Unique
-import           CO4.Util (boundName,collapseFunApps)
+import           CO4.Util (collapseFunApps)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
 import           CO4.Names (nTyped)
@@ -21,7 +21,7 @@ data Env   = Env { bindings        :: M.Map Name Expression
                  , notInstantiable :: [Declaration]
                  }
 
-type CacheKey   = (TypedName,[Expression],[Type])
+type CacheKey   = (Name,[Expression],[Type])
 type CacheValue = Name 
 type Cache      = M.Map CacheKey CacheValue
 
@@ -42,7 +42,7 @@ instance MonadInstantiator Instantiator where
     case f' of
       ETLam typeParams e -> do
         cache <- gets cache
-        case M.lookup (TypedName fString fScheme, [], typeApps) cache of
+        case M.lookup (fName, [], typeApps) cache of
           Nothing -> 
             let instantiatedE  = HM.substitutes (zip typeParams typeApps) e
                 instanceScheme = HM.instantiateSchemeApp fScheme typeApps
@@ -51,7 +51,7 @@ instance MonadInstantiator Instantiator where
                                 untyped <- newName $ fString ++ "Instance"
                                 return $ nTyped untyped instanceScheme
 
-              writeCacheItem (TypedName fString fScheme, [], typeApps) instanceName 
+              writeCacheItem (fName, [], typeApps) instanceName 
               instantiatedE' <- instantiateExpression instantiatedE
               writeInstance $ DBind instanceName instantiatedE'
               return $ EVar instanceName
@@ -87,13 +87,13 @@ instance MonadInstantiator Instantiator where
                 HM.generalizeAll $ functionType argsT resultT
 
         cache <- gets cache
-        case M.lookup (TypedName fString fScheme, hoArguments, typeApps) cache of
+        case M.lookup (fName, hoArguments, typeApps) cache of
           Nothing -> do
             instanceName <- liftUnique $ do 
                               untyped <- newName $ fString ++ "Instance"
                               return $ nTyped untyped instanceScheme
 
-            writeCacheItem (TypedName fString fScheme, hoArguments, typeApps) instanceName
+            writeCacheItem (fName, hoArguments, typeApps) instanceName
 
             let modifyEnv      = addBindings (zip hoParameters hoArguments)
                 instanceRHS    = ELam allFoParameters e'
@@ -162,8 +162,8 @@ freeNames :: Expression -> Instantiator [Name]
 freeNames exp = 
   let freeInPrelude = HM.freeInPrelude exp
   in do
-    topLevelBounds <- map boundName <$> asks notInstantiable
-    instanceNames  <- map boundName <$> gets instances
+    topLevelBounds <- map dBindName <$> asks notInstantiable
+    instanceNames  <- map dBindName <$> gets instances
     return $ freeInPrelude \\ (topLevelBounds ++ instanceNames)
 
 addBindings :: [(Name,Expression)] -> Env -> Env

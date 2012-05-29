@@ -62,9 +62,9 @@ instance MonadInstantiator Monadifier where
     exp'   <- instantiateExpression exp
     return $ bindExpression value' n $ exp'
 
-  instantiateDeclaration (DBind n (ELam ns e)) = 
+  instantiateBind (DBind n (ELam ns e)) = 
     (DBind n . ELam ns) <$> instantiateExpression e
-  instantiateDeclaration (DBind n e) = 
+  instantiateBind (DBind n e) = 
     DBind n <$> instantiateExpression e
 
 monadify :: Instantiable a => a -> Unique a
