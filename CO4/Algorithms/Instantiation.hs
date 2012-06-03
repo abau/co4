@@ -19,6 +19,7 @@ import           CO4.TypesUtil
 
 data Env   = Env { bindings        :: M.Map Name Expression
                  , notInstantiable :: [Declaration]
+                 , depth           :: Int
                  }
 
 type CacheKey   = (Name,[Expression],[Type])
@@ -52,7 +53,8 @@ instance MonadInstantiator Instantiator where
                                 return $ typedName untyped instanceScheme
 
               writeCacheItem (fName, [], typeApps) instanceName 
-              instantiatedE' <- instantiateExpression instantiatedE
+              instantiatedE' <- local (decreaseDepth fString)
+                                  $ instantiateExpression instantiatedE
               writeInstance $ DBind instanceName instantiatedE'
               return $ EVar instanceName
               
@@ -96,6 +98,7 @@ instance MonadInstantiator Instantiator where
             writeCacheItem (fName, hoArguments, typeApps) instanceName
 
             let modifyEnv      = addBindings (zip hoParameters hoArguments)
+                               . decreaseDepth fString
                 instanceRHS    = ELam allFoParameters e'
 
             e'' <- local modifyEnv $ instantiateExpression instanceRHS 
@@ -146,12 +149,12 @@ writeCacheItem :: CacheKey -> CacheValue -> Instantiator ()
 writeCacheItem key value = 
   modify (\state -> state { cache = M.insert key value $ cache state })
 
-instantiation :: Program -> Unique Program
-instantiation p = do
+instantiation :: Int -> Program -> Unique Program
+instantiation maxDepth p = do
   let (instantiable,rest) = partition (\(DBind n _) -> isInstantiable n) p 
 
       initBindings      = M.fromList $ map (\(DBind n e) -> (n,e)) instantiable
-      initEnv           = Env initBindings rest
+      initEnv           = Env initBindings rest maxDepth
       initState         = State M.empty []
       Instantiator inst = instantiateProgram rest
 
@@ -169,3 +172,10 @@ freeNames exp =
 addBindings :: [(Name,Expression)] -> Env -> Env
 addBindings bindings' env = 
   env { bindings = M.union (M.fromList bindings') (bindings env) }
+
+decreaseDepth :: String -> Env -> Env
+decreaseDepth fName env@(Env { depth = d }) = 
+  if d == 0
+  then error $ "Instantiation: reached maximum depth while instantiating '" ++ fName ++ "'"
+  else env { depth = d - 1 }
+  

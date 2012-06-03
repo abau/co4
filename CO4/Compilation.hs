@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Compilation
-  (Config(..), Configs, compile, metrics)
+  (Config(..), Configs, compile, metrics, defaultInstantiationDepth)
 where
 
 import           Prelude hiding (catch)
@@ -32,6 +32,7 @@ data Config  = Verbose
              | NoSatchmo
              | DumpRaml FilePath
              | DumpSatchmo FilePath
+             | InstantiationDepth Int
              deriving (Eq)
 
 type Configs      = [Config]
@@ -52,13 +53,16 @@ compile a configs = do
       analyseRaml ramlP $ degree configs
 
     noSatchmo <- is NoSatchmo
-    if noSatchmo 
-     then return []
-     else do satchmo <- compileToSatchmo uniqueProgram
-             case isDumpSatchmo configs of
-                Nothing   -> return ()
-                Just file -> lift $ lift $ writeFile file $ show $ TH.ppr satchmo
-             return satchmo
+    result    <- if noSatchmo 
+                 then return []
+                 else do satchmo <- compileToSatchmo uniqueProgram
+                         case isDumpSatchmo configs of
+                            Nothing   -> return ()
+                            Just file -> lift $ lift $ writeFile file $ show 
+                                                     $ TH.ppr satchmo
+                         return satchmo
+    logWhenVerbose "Compilation successful"
+    return result
   where
     m = metric configs
 
@@ -86,9 +90,11 @@ compile a configs = do
 
 compileToRaml :: Program -> Configurable RamlT.Program
 compileToRaml p = do        
-  (ramlP) <- liftUnique $ globalize p
-                       >>= \p'      -> schemes prelude p'
-                       >>= instantiation
+  instDepth <- fromConfig instantiationDepth
+  logWhenVerbose $ "Instantiation using depth " ++ show instDepth
+  (ramlP)   <- liftUnique $ globalize p
+                       >>= schemes prelude 
+                       >>= instantiation instDepth
 
   logWhenVerbose $ unlines [ "## Raml ###############################"
                            , displayProgram ramlP]
@@ -120,6 +126,9 @@ when' c doThis = is c >>= \b -> if b then doThis else return ()
 
 whenNot' :: Config -> Configurable () -> Configurable ()
 whenNot' c doThis = is c >>= \b -> if not b then doThis else return ()
+
+fromConfig :: (Configs -> a) -> Configurable a
+fromConfig f = ask >>= return . f
 
 degree :: Configs -> Int
 degree cs = case cs of
@@ -159,3 +168,10 @@ isDegreeLoop cs = case cs of
   (DegreeLoop d):_ -> Just d
   []               -> Nothing
   _                -> isDegreeLoop $ tail cs
+
+defaultInstantiationDepth = 3
+instantiationDepth :: Configs -> Int
+instantiationDepth cs = case cs of
+  (InstantiationDepth d):_ -> d
+  []                       -> defaultInstantiationDepth
+  _                -> instantiationDepth $ tail cs

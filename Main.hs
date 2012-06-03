@@ -28,6 +28,8 @@ configurations =
       (ReqArg (\fp -> (:) (DumpRaml fp)) "FILE") "Dump Raml code into file"
   , Option [] ["dump-satchmo"]
       (ReqArg (\fp -> (:) (DumpSatchmo fp)) "FILE") "Dump Satchmo code into file"
+  , Option [] ["instantiation-depth"]
+      (ReqArg (\i -> (:) (InstantiationDepth $ read i)) "DEPTH") ("Maximum instantiation depth (default: " ++ show defaultInstantiationDepth ++ ")")
   ]
       
 parseArgs :: IO (Configs, FilePath)
