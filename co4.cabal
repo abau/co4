@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.2
+Version:        	0.0.3
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -51,7 +51,7 @@ Library
                     , syb == 0.3.*
                     , pretty == 1.1.*
                     , parsec == 3.1.*
-                    , raml == 0.7.1
+                    , raml == 0.7.*
                     , satchmo >= 2.1 && < 3.0
                     , haskell-src-exts == 1.13.*
                     , haskell-src-meta == 0.5.*
@@ -66,7 +66,7 @@ Executable co4
                     , syb == 0.3.*
                     , pretty == 1.1.*
                     , parsec == 3.1.*
-                    , raml == 0.7.1
+                    , raml == 0.7.*
                     , satchmo >= 2.1 && < 3.0
                     , haskell-src-exts == 1.13.*
                     , haskell-src-meta == 0.5.*
