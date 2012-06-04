@@ -12,11 +12,11 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
+                    , CO4.MonadifyTypes
   Other-Modules:      CO4.Backend
                     , CO4.Compilation
                     , CO4.Frontend
                     , CO4.Language
-                    , CO4.MonadifyTypes
                     , CO4.Names
                     , CO4.PPrint
                     , CO4.TypesUtil
