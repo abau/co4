@@ -45,6 +45,9 @@ instance ExpressionBackend R.Exp where
     EApp (EVar (Name "<"))  [x,y]  -> R.EBinOp R.Less      (display x) (display y) pos
     EApp (EVar (Name "<=")) [x,y]  -> R.EBinOp R.LessEq    (display x) (display y) pos
     EApp (EVar (Name "==")) [x,y]  -> R.EBinOp R.Eq        (display x) (display y) pos
+    EApp (EVar (Name "/=")) [x,y]  -> R.EUnaryOp R.UNot 
+                                        (R.EBinOp R.Eq     (display x) (display y) pos)
+                                        pos
     EApp (EVar (Name ">=")) [x,y]  -> R.EBinOp R.GreaterEq (display x) (display y) pos
     EApp (EVar (Name ">"))  [x,y]  -> R.EBinOp R.Greater   (display x) (display y) pos
 
