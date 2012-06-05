@@ -21,7 +21,7 @@ import           CO4.Backend.SatchmoPreprocess
 import           CO4.Algorithms.Globalize
 import           CO4.Algorithms.UniqueNames
 import           CO4.Algorithms.Monadify
-import           CO4.Algorithms.HindleyMilner (schemes,prelude)
+import           CO4.Algorithms.HindleyMilner (HMConfig (..),schemes,prelude)
 import           CO4.Algorithms.Instantiation (instantiation)
 
 data Config  = Verbose
@@ -93,7 +93,7 @@ compileToRaml p = do
   instDepth <- fromConfig instantiationDepth
   logWhenVerbose $ "Instantiation using depth " ++ show instDepth
   (ramlP)   <- liftUnique $ globalize p
-                       >>= schemes prelude 
+                       >>= schemes (HMConfig True) prelude 
                        >>= instantiation instDepth
 
   logWhenVerbose $ unlines [ "## Raml ###############################"
