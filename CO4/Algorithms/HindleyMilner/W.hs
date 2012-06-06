@@ -6,7 +6,6 @@ where
 import           Prelude hiding (lookup)
 import           Control.Monad.Identity
 import           Control.Monad.Reader
-import           Control.Applicative ((<$>))
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           Data.Graph (stronglyConnComp,flattenSCC)

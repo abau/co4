@@ -3,9 +3,7 @@ module CO4.Algorithms.EtaExpansion
   (etaExpansion)
 where
 
-import           Control.Monad.State 
-import           Control.Monad.Writer 
-import qualified Data.Map as M
+import           Control.Monad (forM)
 import           Data.Data (Data)
 import           CO4.Language
 import           CO4.Unique
