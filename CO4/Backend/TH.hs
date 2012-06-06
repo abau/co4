@@ -26,6 +26,13 @@ instance ExpressionBackend TH.Exp where
 
     EApp (ECon c) args | isTupleCon c -> TH.TupE $ map display args
 
+    EApp (EVar n) [a, ELam [bind] b] | ">>=" == fromName n ->
+      case display b of
+        TH.DoE b' -> TH.DoE $ (TH.BindS (TH.VarP (toName bind)) (display a)) : b'
+        _         -> TH.DoE $ [ TH.BindS (TH.VarP (toName bind)) (display a) 
+                              , TH.NoBindS $ display b
+                              ]
+
     EApp e args -> foldl TH.AppE (display e) $ map display args
 
     ELam ns e   -> TH.LamE (map (TH.VarP . toName) ns) $ display e
@@ -85,4 +92,5 @@ toName name | name == nilCon   = '[]
 toName name | name == consCon  = '(:)
 toName name | name == trueCon  = 'True
 toName name | name == falseCon = 'False
-toName (Name n) = TH.mkName n
+toName (Name n)                = TH.mkName n
+toName (TypedName n _)         = TH.mkName n

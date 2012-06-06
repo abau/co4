@@ -23,6 +23,7 @@ import           CO4.Algorithms.UniqueNames
 import           CO4.Algorithms.Monadify
 import           CO4.Algorithms.HindleyMilner (HMConfig (..),schemes,prelude)
 import           CO4.Algorithms.Instantiation (instantiation)
+import           CO4.Algorithms.EtaExpansion (etaExpansion)
 
 data Config  = Verbose
              | Degree Int
@@ -41,8 +42,11 @@ type Configurable = ReaderT Configs (UniqueT IO)
 compile :: (ProgramFrontend a) => a -> Configs -> IO [TH.Dec]
 compile a configs = do
   runUniqueT $ flip runReaderT configs $ do
-    uniqueProgram <- liftUnique $ parseProgram a >>= uniqueNames
-    logWhenVerbose $ unlines [ "## Parsed #############################"
+    uniqueProgram <- liftUnique $ parseProgram a 
+                                    >>= uniqueNames 
+                                    >>= schemes (HMConfig False) prelude 
+                                    >>= etaExpansion
+    logWhenVerbose $ unlines [ "## Preprocessed #######################"
                              , displayProgram uniqueProgram]
     
     whenNot' NoRaml $ do 
@@ -103,7 +107,7 @@ compileToRaml p = do
 
 compileToSatchmo :: Program -> Configurable [TH.Dec]
 compileToSatchmo p = do
-  satchmoP <- liftUnique $ monadify p >>= return . preprocessSatchmoProgram
+  satchmoP <- liftUnique $ monadify p >>= return . preprocessSatchmo
 
   logWhenVerbose $ unlines [ "## Satchmo ############################"
                            , displayProgram satchmoP]
@@ -169,7 +173,7 @@ isDegreeLoop cs = case cs of
   []               -> Nothing
   _                -> isDegreeLoop $ tail cs
 
-defaultInstantiationDepth = 3
+defaultInstantiationDepth = 10
 instantiationDepth :: Configs -> Int
 instantiationDepth cs = case cs of
   (InstantiationDepth d):_ -> d

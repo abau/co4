@@ -1,14 +1,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CO4.Backend.SatchmoPreprocess
-  (preprocessSatchmoProgram)
+  (preprocessSatchmo)
 where
 
 import           Control.Monad.Identity
 import           CO4.Language
 import           CO4.Names 
 import           CO4.Algorithms.Instantiator
+import           CO4.Algorithms.TypedNames (eraseTypedNames)
 
-newtype Preprocessor a = Preprocessor (Identity a)
+newtype Preprocessor a = Preprocessor { runPP :: Identity a }
   deriving (Functor, Monad)
 
 instance MonadInstantiator Preprocessor where
@@ -22,8 +23,5 @@ instance MonadInstantiator Preprocessor where
   instantiateCon (ECon c) | c == falseCon = return $ EVar $ Name "CO4.MonadifyTypes.false"
   instantiateCon exp = return exp
 
-preprocessSatchmoProgram :: Program -> Program
-preprocessSatchmoProgram p =
-  let Preprocessor prep = instantiateProgram p
-  in
-    runIdentity prep
+preprocessSatchmo :: Instantiable a => a -> a
+preprocessSatchmo = runIdentity . runPP . instantiate . eraseTypedNames

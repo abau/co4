@@ -13,7 +13,9 @@ newtype Monadifier a = Monadifier { runMonadifier :: Unique a }
   deriving (Functor, Monad, MonadUnique)
 
 dontMonadify :: Name -> Bool
-dontMonadify (Name n) = n `elem` no
+dontMonadify name = case name of
+  Name n        -> n `elem` no
+  TypedName n _ -> n `elem` no
   where no = [ "+","-","*","/",">",">=","==","/=","<=","<=" ]
 
 returnExpression :: Expression -> Expression

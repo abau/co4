@@ -10,7 +10,7 @@ import           Data.List (find,(\\))
 import           Data.Maybe (fromMaybe)
 import           CO4.Language
 import qualified CO4.Util as U
-import           CO4.Util (renames,boundExpression,boundName,collapseFunApps)
+import           CO4.Util (renames,boundExpression,boundName)
 import           CO4.Unique (Unique,newName,newName')
 import           CO4.Algorithms.HindleyMilner (freeInPrelude)
 import           CO4.Algorithms.Instantiator
@@ -71,7 +71,7 @@ instantiateLambdaWithName name (ELam parameters e) = do
 -- |Lifts all local function declarations to the top level. 
 -- Make sure that all bounded names are unique and all expressions uncurried.
 globalize :: Program -> Unique Program
-globalize program = (collapseFunApps . concat) <$> mapM globalizeTopLevel program
+globalize program = concat <$> mapM globalizeTopLevel program
   where 
     globalizeTopLevel declaration = case declaration of
       DBind n (ELam ns e) -> do

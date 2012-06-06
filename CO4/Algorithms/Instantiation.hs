@@ -11,7 +11,7 @@ import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromJust)
 import           CO4.Language
 import           CO4.Unique
-import           CO4.Util (boundName,collapseFunApps)
+import           CO4.Util (boundName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
 import           CO4.Names (typedName)
@@ -159,7 +159,7 @@ instantiation maxDepth p = do
       Instantiator inst = instantiateProgram rest
 
   (p',state) <- runStateT (runReaderT inst initEnv) initState
-  return $ collapseFunApps $ p' ++ (instances state)
+  return $ p' ++ (instances state)
    
 freeNames :: Expression -> Instantiator [Name]
 freeNames exp = 

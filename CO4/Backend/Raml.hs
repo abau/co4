@@ -10,14 +10,15 @@ import           CO4.PPrint (pprint)
 import           CO4.Backend
 import           CO4.Names
 import           CO4.Unique (Unique)
+import           CO4.Util (collapseApp)
 import           CO4.Backend.TH (isTupleCon)
 import           CO4.Backend.RamlPreprocess (preprocess)
 import           CO4.Algorithms.TypedNames (eraseTypedNames)
 
-pos = initialPos "RamlBackend"
+pos = initialPos "CO4.Backend.Raml"
 
 instance ExpressionBackend R.Exp where
-  displayExpression exp = case eraseTypedNames exp of
+  displayExpression exp = case collapseApp $ eraseTypedNames exp of
     -- Constants
     ECon c | c == trueCon  -> R.ETrue pos
     ECon c | c == falseCon -> R.EFalse pos

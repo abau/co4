@@ -2,7 +2,7 @@
 -- |Utility functions
 module CO4.Util
   ( everywhereM', topLevelNames, boundInProgram, boundName, boundExpression, rename, renames 
-  , collapseFunApps)
+  , collapseApp, collapseLam)
 where
 
 import           Data.Generics (GenericM,GenericT,everywhere',everywhere,mkT,gmapM)
@@ -41,8 +41,15 @@ rename :: (Name,Name) -> GenericT
 rename (old,new) = everywhere $ mkT (\name -> if name == old then new else name)
 
 -- |Collapses function applications of the form @(f xs) ys@ to @f xs ys@
-collapseFunApps :: GenericT
-collapseFunApps = everywhere' (mkT collapseExpression)
+collapseApp :: GenericT
+collapseApp = everywhere' (mkT collapseExpression)
   where 
-    collapseExpression (EApp (EApp f xs) ys)      = EApp f $ xs ++ ys
-    collapseExpression exp                        = exp
+    collapseExpression (EApp (EApp f xs) ys) = EApp f $ xs ++ ys
+    collapseExpression exp                   = exp
+  
+-- |Collapses abstractions of the form @\x -> \y -> e@ to @\x y -> e@
+collapseLam :: GenericT
+collapseLam = everywhere' (mkT collapseExpression)
+  where 
+    collapseExpression (ELam xs (ELam ys e)) = ELam (xs ++ ys) e
+    collapseExpression exp                   = exp
