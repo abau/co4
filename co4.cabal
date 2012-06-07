@@ -30,6 +30,7 @@ Library
                     , CO4.Algorithms.Instantiation
                     , CO4.Algorithms.Instantiator
                     , CO4.Algorithms.Monadify
+                    , CO4.Algorithms.SaturateApplication
                     , CO4.Algorithms.TypedNames
                     , CO4.Algorithms.UniqueNames
                     , CO4.Algorithms.HindleyMilner.Prelude
