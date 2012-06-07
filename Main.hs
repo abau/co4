@@ -2,6 +2,7 @@ import           System.Console.GetOpt
 import           System.Environment (getArgs)
 import           Control.Monad (void,when)
 import           Data.List (intercalate)
+import           Data.Maybe (fromMaybe)
 import qualified Language.Haskell.Exts as HE
 import           CO4
 
@@ -24,10 +25,12 @@ configurations =
       (ReqArg (\m -> (:) (Metric m)) "METRIC") ("Metric of Raml's analysis: " ++ show metrics)
   , Option [] ["no-raml"] (NoArg $ (:) NoRaml) "No Raml analysis"
   , Option [] ["no-satchmo"] (NoArg $ (:) NoSatchmo) "No Satchmo code generation"
+  , Option [] ["dump-intermediate"]
+      (OptArg (\fp -> (:) (DumpIntermediate $ fromMaybe "" fp)) "FILE") "Dump intermediate code"
   , Option [] ["dump-raml"]
-      (ReqArg (\fp -> (:) (DumpRaml fp)) "FILE") "Dump Raml code into file"
+      (OptArg (\fp -> (:) (DumpRaml $ fromMaybe "" fp)) "FILE") "Dump Raml code"
   , Option [] ["dump-satchmo"]
-      (ReqArg (\fp -> (:) (DumpSatchmo fp)) "FILE") "Dump Satchmo code into file"
+      (OptArg (\fp -> (:) (DumpSatchmo $ fromMaybe "" fp)) "FILE") "Dump Satchmo code"
   , Option [] ["instantiation-depth"]
       (ReqArg (\i -> (:) (InstantiationDepth $ read i)) "DEPTH") ("Maximum instantiation depth (default: " ++ show defaultInstantiationDepth ++ ")")
   ]

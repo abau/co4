@@ -33,6 +33,7 @@ data Config  = Verbose
              | Metric String
              | NoRaml
              | NoSatchmo
+             | DumpIntermediate FilePath
              | DumpRaml FilePath
              | DumpSatchmo FilePath
              | InstantiationDepth Int
@@ -48,31 +49,23 @@ compile a configs = do
                                     >>= uniqueNames 
                                     >>= schemes (HMConfig False) prelude 
                                     >>= etaExpansion
-    logWhenVerbose $ unlines [ "## Preprocessed #######################"
-                             , displayProgram uniqueProgram]
+
+    case isDumpIntermediate configs of
+       Nothing   -> return ()
+       Just ""   -> liftIO $ putStrLn $ unlines [ "## Intermediate #######################" 
+                                                , displayProgram uniqueProgram]
+       Just file -> liftIO $ writeFile file $ displayProgram uniqueProgram
     
-    whenNot' NoRaml $ do 
-      ramlP <- compileToRaml uniqueProgram 
-      case isDumpRaml configs of
-        Nothing   -> return ()
-        Just file -> lift $ lift $ writeFile file $ show $ RamlPP.pprint ramlP
-      analyseRaml ramlP $ degree configs
+    whenNot' NoRaml $ compileToRaml uniqueProgram >>= analyseRaml (degree configs)
 
     noSatchmo <- is NoSatchmo
-    result    <- if noSatchmo 
-                 then return []
-                 else do satchmo <- compileToSatchmo uniqueProgram
-                         case isDumpSatchmo configs of
-                            Nothing   -> return ()
-                            Just file -> lift $ lift $ writeFile file $ show 
-                                                     $ TH.ppr satchmo
-                         return satchmo
+    result    <- if noSatchmo then return [] else compileToSatchmo uniqueProgram
     logWhenVerbose "Compilation successful"
     return result
   where
     m = metric configs
 
-    analyseRaml (decs,main) d =
+    analyseRaml d (decs,main) =
       case RamlST.analyseDecs decs of
         Left msg    -> error $ "Raml.analyseDecs: " ++ msg
         Right decs' -> case RamlST.typeProgram decs' main of
@@ -91,31 +84,43 @@ compile a configs = do
                return ()
              else case isDegreeLoop configs of
                     Nothing  -> error $ "Raml can not infer degree " ++ show d
-                    Just max | d < max -> analyseRaml (decs,main) (d + 1)
+                    Just max | d < max -> analyseRaml (d + 1) (decs,main) 
                     Just max -> error $ "Raml can not infer degree up to " ++ show max
 
 compileToRaml :: Program -> Configurable RamlT.Program
 compileToRaml p = do        
-  instDepth <- fromConfig instantiationDepth
+  instDepth <- fromConfigs instantiationDepth
   logWhenVerbose $ "Instantiation using depth " ++ show instDepth
-  (ramlP)   <- liftUnique $ globalize p
+  ramlP     <- liftUnique $ globalize p
                        >>= schemes (HMConfig True) prelude 
                        >>= instantiation instDepth
+                       >>= displayPreprocessedRamlProgram 
 
-  logWhenVerbose $ unlines [ "## Raml ###############################"
-                           , displayProgram ramlP]
+  let stringRamlP = show $ RamlPP.pprint ramlP
 
-  liftUnique $ displayPreprocessedRamlProgram ramlP
+  dump <- fromConfigs isDumpRaml
+  case dump of
+     Nothing   -> return ()
+     Just ""   -> liftIO $ putStrLn $ unlines [ "## Raml ###############################" 
+                                              , stringRamlP]
+     Just file -> liftIO $ writeFile file stringRamlP
+
+  return ramlP
 
 compileToSatchmo :: Program -> Configurable [TH.Dec]
 compileToSatchmo p = do
-  satchmoP <- liftUnique $ saturateApplication p 
-                        >>= monadify 
-                        >>= return . preprocessSatchmo
+  satchmoP <- liftUnique $ saturateApplication p >>= monadify 
 
-  logWhenVerbose $ unlines [ "## Satchmo ############################"
-                           , displayProgram satchmoP]
-  return $ displayProgram satchmoP
+  let thSatchmoP     = displayProgram $ preprocessSatchmo satchmoP
+      stringSatchmoP = show $ TH.ppr thSatchmoP
+
+  dump <- fromConfigs isDumpSatchmo 
+  case dump of
+     Nothing   -> return ()
+     Just ""   -> liftIO $ putStrLn $ unlines [ "## Satchmo ############################" 
+                                              , stringSatchmoP]
+     Just file -> liftIO $ writeFile file stringSatchmoP
+  return thSatchmoP
 
 liftUnique :: Unique a -> Configurable a
 liftUnique = lift . mapUnique
@@ -135,8 +140,8 @@ when' c doThis = is c >>= \b -> if b then doThis else return ()
 whenNot' :: Config -> Configurable () -> Configurable ()
 whenNot' c doThis = is c >>= \b -> if not b then doThis else return ()
 
-fromConfig :: (Configs -> a) -> Configurable a
-fromConfig f = ask >>= return . f
+fromConfigs :: (Configs -> a) -> Configurable a
+fromConfigs f = ask >>= return . f
 
 degree :: Configs -> Int
 degree cs = case cs of
@@ -158,6 +163,12 @@ metric cs = case cs of
                               ]
   []                      -> error "Compilation: No metric provided"
   _                       -> metric $ tail cs
+
+isDumpIntermediate :: Configs -> Maybe FilePath
+isDumpIntermediate cs = case cs of
+  (DumpIntermediate fp):_ -> Just fp
+  []                      -> Nothing
+  _                       -> isDumpIntermediate $ tail cs
 
 isDumpRaml :: Configs -> Maybe FilePath
 isDumpRaml cs = case cs of
