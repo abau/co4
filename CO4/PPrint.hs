@@ -6,7 +6,7 @@ where
 
 import Text.PrettyPrint 
 import CO4.Language
-import CO4.Names (funType)
+import CO4.Names (funType,name)
 
 class PPrint a where
   pprint :: a -> Doc
@@ -16,10 +16,13 @@ class PPrint a where
 parensHsep :: PPrint a => (a -> Bool) -> [a] -> Doc
 parensHsep f = hsep . map (\x -> ( if f x then parens else id ) $ pprint x)
 
+instance PPrint UntypedName where
+  pprint = pprint . name
+
 instance PPrint Name where
-  pprint (Name n)        = text n
-  pprint (TypedName n _) = text n
-  --pprint (TypedName n t) = text n <+> (brackets $ pprint t)
+  pprint (NUntyped n) = text n
+  pprint (NTyped n _) = text n
+  --pprint (NTyped n s) = text n <+> (brackets $ pprint s)
 
 instance PPrint Literal where
   pprint (LInt l) | l < 0    = parens $ int $ fromIntegral l
@@ -39,7 +42,7 @@ instance PPrint Pattern where
       pprint name <+> parensHsep (not . isSimple) ps
 
 instance PPrint Match where
-  pprint (Match pat e) = hsep [pprint pat, text "->", pprint e, text ";"]
+  pprint (Match pat e) = hsep [pprint pat, text "->", pprint e]
 
 instance PPrint Expression where
   pprint (EVar name)   = pprint name
@@ -63,7 +66,7 @@ instance PPrint Expression where
 
   pprint (ECase e matches) = 
     vcat $ [hsep [text "case", pprint e, text "of {"]]
-        ++ (map (nest 2 . pprint) matches)
+        ++ (map (nest 2) $ punctuate (text " ;") $ map pprint matches)
         ++ [text "}"]
 
   pprint (ELet n e1 e2) =
@@ -86,14 +89,23 @@ instance PPrint Scheme where
   pprint (SType t)     = pprint t
   pprint (SForall n s) = hsep [ text "forall", pprint n, text ".", pprint s ]
 
-instance PPrint Declaration where
-  pprint (DBind (TypedName name t) e) = 
-    hsep [ text name, text "::", pprint t, text "="] $$ (nest 2 $ pprint e <+> (text ";"))
+instance PPrint Constructor where
+  pprint (CCon name types) = pprint $ TCon name types
 
-  pprint (DBind name e)  = hsep [ pprint name, text "="] $$ (nest 2 $ pprint e <+> (text ";"))
+instance PPrint Declaration where
+  pprint (DBind (NTyped name t) e) = 
+    hsep [ text name, text "::", pprint t, text "="] $$ (nest 2 $ pprint e)
+
+  pprint (DBind name e) = 
+    hsep [ pprint name, text "="] $$ (nest 2 $ pprint e)
+
+  pprint (DAdt name tvars cons) =
+    hsep [ text "adt", pprint name, hsep $ map pprint tvars, text "= {"] 
+      $$ (nest 2 $ vcat $ punctuate (text " ;") $ map pprint cons)
+      $$ (text "}")
 
 instance PPrint Program where 
-  pprint decs = vcat $ map pprint decs
+  pprint decs = vcat $ punctuate (text ";") $ map pprint decs
 
 instance PPrint (Name,Type) where
   pprint (n,t) = hsep [pprint n, text "=", pprint t]

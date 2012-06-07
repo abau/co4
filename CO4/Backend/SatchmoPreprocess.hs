@@ -14,13 +14,18 @@ newtype Preprocessor a = Preprocessor { runPP :: Identity a }
 
 instance MonadInstantiator Preprocessor where
 
-  instantiateVar (EVar (Name "&&"))       = return $ EVar $ Name "CO4.MonadifyTypes.and"
-  instantiateVar (EVar (Name "||"))       = return $ EVar $ Name "CO4.MonadifyTypes.or"
-  instantiateVar (EVar (Name "not"))      = return $ EVar $ Name "CO4.MonadifyTypes.not"
+  instantiateVar (EVar (NUntyped "&&"))  = 
+    return $ EVar $ NUntyped "CO4.MonadifyTypes.and"
+  instantiateVar (EVar (NUntyped "||"))  = 
+    return $ EVar $ NUntyped "CO4.MonadifyTypes.or"
+  instantiateVar (EVar (NUntyped "not")) = 
+    return $ EVar $ NUntyped "CO4.MonadifyTypes.not"
   instantiateVar exp = return exp
 
-  instantiateCon (ECon c) | c == trueCon  = return $ EVar $ Name "CO4.MonadifyTypes.true"
-  instantiateCon (ECon c) | c == falseCon = return $ EVar $ Name "CO4.MonadifyTypes.false"
+  instantiateCon (ECon c) | c == trueCon  = 
+    return $ EVar $ NUntyped "CO4.MonadifyTypes.true"
+  instantiateCon (ECon c) | c == falseCon = 
+    return $ EVar $ NUntyped "CO4.MonadifyTypes.false"
   instantiateCon exp = return exp
 
 preprocessSatchmo :: Instantiable a => a -> a

@@ -46,7 +46,7 @@ main = do
     then putStrLn "Run tests successfully" >> exitSuccess 
     else exitFailure
 
-  where mk = map (\(n,s) -> (Name n, parseScheme s))
+  where mk = map (\(n,s) -> (NUntyped n, parseScheme s))
 
 testExp :: Integer -> Q Exp -> Scheme -> IO Bool
 testExp i thExpQ scheme = do
@@ -95,9 +95,9 @@ testProgram i thDeclsQ expected = do
 
   where
     inferredInProgram p (name,scheme) =
-      case boundInProgram name p of
+      case declarationByName name p of
         Nothing -> False
-        Just (DBind (TypedName _ s) _) -> fuzzyEqScheme s scheme
+        Just (DBind (NTyped _ s) _) -> fuzzyEqScheme s scheme
 
 fuzzyEqScheme :: Scheme -> Scheme -> Bool
 fuzzyEqScheme s1 s2 = case (s1,s2) of

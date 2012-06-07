@@ -5,18 +5,19 @@ where
 import           Data.List ((\\),delete,nub)
 import           CO4.Algorithms.Bound (bound)
 import           CO4.Language
+import           CO4.Names (name)
 
 class Free a where
   -- |@free e@ returns the list of names, that appear free in @e@
   free :: a -> [Name]
 
 instance Free Type where
-  free (TVar v)    = [v]
+  free (TVar v)    = [name v]
   free (TCon _ ts) = nub $ concatMap free ts
 
 instance Free Scheme where
   free (SType t)          = free t
-  free (SForall n scheme) = delete n $ free scheme
+  free (SForall n scheme) = (delete $ name n) $ free scheme
 
 instance Free Expression where
   free (EVar v)      = [v]

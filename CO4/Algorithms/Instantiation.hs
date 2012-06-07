@@ -11,10 +11,9 @@ import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromJust)
 import           CO4.Language
 import           CO4.Unique
-import           CO4.Util (boundName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
-import           CO4.Names (typedName)
+import           CO4.Names (nTyped)
 import           CO4.TypesUtil
 
 data Env   = Env { bindings        :: M.Map Name Expression
@@ -38,7 +37,7 @@ instance MonadInstantiator Instantiator where
   instantiateVar (EVar name) = 
     M.findWithDefault (EVar name) name <$> asks bindings
 
-  instantiateTApp (ETApp (EVar fName@(TypedName fString fScheme)) typeApps) = do
+  instantiateTApp (ETApp (EVar fName@(NTyped fString fScheme)) typeApps) = do
     f' <- fromJust . M.lookup fName <$> asks bindings
     case f' of
       ETLam typeParams e -> do
@@ -49,8 +48,8 @@ instance MonadInstantiator Instantiator where
                 instanceScheme = HM.instantiateSchemeApp fScheme typeApps
             in do
               instanceName <- liftUnique $ do 
-                                untyped <- newName' $ fString ++ "Instance"
-                                return $ typedName untyped instanceScheme
+                                untyped <- newName $ fString ++ "Instance"
+                                return $ nTyped untyped instanceScheme
 
               writeCacheItem (fName, [], typeApps) instanceName 
               instantiatedE' <- local (decreaseDepth fString)
@@ -60,7 +59,7 @@ instance MonadInstantiator Instantiator where
               
       exp -> return exp
 
-  instantiateApp (EApp (ETApp (EVar fName@(TypedName fString fScheme)) typeApps) args) = do
+  instantiateApp (EApp (ETApp (EVar fName@(NTyped fString fScheme)) typeApps) args) = do
     f'    <- fromJust . M.lookup fName <$> asks bindings
     args' <- mapM instantiateExpression args
 
@@ -83,7 +82,7 @@ instance MonadInstantiator Instantiator where
             allFoArguments  = foArguments  ++ map EVar freeInHoArguments
             
             instanceScheme  = 
-              let argsT   = map (\(TypedName _ s) -> fromSType s) allFoParameters
+              let argsT   = map (\(NTyped _ s) -> fromSType s) allFoParameters
                   resultT = resultType $ fromSType monoScheme
               in
                 HM.generalizeAll $ functionType argsT resultT
@@ -92,8 +91,8 @@ instance MonadInstantiator Instantiator where
         case M.lookup (fName, hoArguments, typeApps) cache of
           Nothing -> do
             instanceName <- liftUnique $ do 
-                              untyped <- newName' $ fString ++ "Instance"
-                              return $ typedName untyped instanceScheme
+                              untyped <- newName $ fString ++ "Instance"
+                              return $ nTyped untyped instanceScheme
 
             writeCacheItem (fName, hoArguments, typeApps) instanceName
 
@@ -123,14 +122,14 @@ splitFirstHigherOrder parameters arguments =
   ) ([],[],[],[]) $ zip parameters arguments
 
 hasFunType :: Name -> Bool
-hasFunType (TypedName _ s) = isFunType $ typeOfScheme s
+hasFunType (NTyped _ s) = isFunType $ typeOfScheme s
 
 isPolymorphic :: Name -> Bool
-isPolymorphic (TypedName _ (SForall {})) = True
-isPolymorphic (TypedName _ (SType _))   = False
+isPolymorphic (NTyped _ (SForall {})) = True
+isPolymorphic (NTyped _ (SType _))   = False
 
 isHigherOrder :: Name -> Bool
-isHigherOrder (TypedName _ scheme) = 
+isHigherOrder (NTyped _ scheme) = 
   let paramTypes = argumentTypes $ typeOfScheme scheme
   in
     any isFunType paramTypes
@@ -165,8 +164,8 @@ freeNames :: Expression -> Instantiator [Name]
 freeNames exp = 
   let freeInPrelude = HM.freeInPrelude exp
   in do
-    topLevelBounds <- map boundName <$> asks notInstantiable
-    instanceNames  <- map boundName <$> gets instances
+    topLevelBounds <- map dBindName <$> asks notInstantiable
+    instanceNames  <- map dBindName <$> gets instances
     return $ freeInPrelude \\ (topLevelBounds ++ instanceNames)
 
 addBindings :: [(Name,Expression)] -> Env -> Env

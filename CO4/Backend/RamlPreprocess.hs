@@ -6,7 +6,6 @@ where
 import           CO4.Language
 import           CO4.Names 
 import           CO4.Unique
-import           CO4.Backend.TH (isTupleCon)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
 
@@ -32,7 +31,7 @@ instance MonadInstantiator Preprocessor where
       nil (TCon c [])  | c == doubleType = ELit $ LDouble 0
       nil (TCon c [])  | c == boolType   = ECon trueCon
       nil (TCon c [a]) | c == listType   = EApp (ECon consCon) [nil a, ECon nilCon]
-      nil (TCon c as)  | isTupleCon c    = EApp (ECon $ tupleCon $ length as)
+      nil (TCon c as)  | isTupleType c   = EApp (ECon $ tupleCon $ length as)
                                              $ map nil as
       
   instantiateCase (ECase e ms) = do

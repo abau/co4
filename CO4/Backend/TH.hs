@@ -52,18 +52,26 @@ instance SchemeBackend TH.Type where
           t                     -> TH.ForallT [tvar]         [] t
 
 displayDeclaration :: Declaration -> [TH.Dec]
-displayDeclaration (DBind (TypedName n t) e) = 
-  (TH.SigD (toName $ Name n) $ displayScheme t) : (displayDeclaration $ DBind (Name n) e)
+displayDeclaration (DBind (NTyped n s) e) = 
+  (TH.SigD (toName $ name n) $ displayScheme s) : (displayDeclaration $ DBind (name n) e)
 displayDeclaration (DBind n e) = 
   [ TH.ValD (TH.VarP $ toName n) (TH.NormalB $ displayExpression e) [] ]
 
+displayDeclaration (DAdt n vars cons) = 
+  [ TH.DataD [] (toName n) (map (TH.PlainTV . toName) vars) 
+                           (map displayConstructor cons) [] ]
+
+displayConstructor :: Constructor -> TH.Con
+displayConstructor (CCon n ts) = TH.NormalC (toName n) $ map displayStrictType ts
+  where displayStrictType t = (TH.NotStrict, displayType t)
+
 displayType :: Type -> TH.Type
 displayType type_ = case type_ of
-  TVar v                       -> TH.VarT $ toName v
+  TVar v                       -> TH.VarT $ toTypeName v
   TCon c [a,b] | c == funType  -> TH.AppT (TH.AppT TH.ArrowT $ display a) $ display b
   TCon c [a]   | c == listType -> TH.AppT TH.ListT $ display a
-  TCon c args  | isTupleCon c  -> foldl TH.AppT (TH.TupleT (length args)) $ map display args
-  TCon c args                  -> foldl TH.AppT (TH.ConT $ toName c) $ map display args
+  TCon c args  | isTupleType c -> foldl TH.AppT (TH.TupleT (length args)) $ map display args
+  TCon c args                  -> foldl TH.AppT (TH.ConT $ toTypeName c) $ map display args
   where
     display = displayType
 
@@ -84,13 +92,15 @@ displayLiteral literal = case literal of
   LChar l   -> TH.CharL l
   LDouble l -> TH.RationalL $ toRational l
 
-isTupleCon :: Name -> Bool
-isTupleCon name = any (== name) $ map tupleCon [2..6]
+toName :: Namelike n => n -> TH.Name
+toName n | fromName n == fromName nilCon   = '[]
+toName n | fromName n == fromName consCon  = '(:)
+toName n | fromName n == fromName trueCon  = 'True
+toName n | fromName n == fromName falseCon = 'False
+toName n | fromName n == fromName unitCon  = '()
+toName n = TH.mkName $ fromName n
 
-toName :: Name -> TH.Name
-toName name | name == nilCon   = '[]
-toName name | name == consCon  = '(:)
-toName name | name == trueCon  = 'True
-toName name | name == falseCon = 'False
-toName (Name n)                = TH.mkName n
-toName (TypedName n _)         = TH.mkName n
+toTypeName :: Namelike n => n -> TH.Name
+toTypeName n | fromName n == fromName listType = ''[]
+toTypeName n | fromName n == fromName unitType = ''()
+toTypeName n = TH.mkName $ fromName n

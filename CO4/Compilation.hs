@@ -17,6 +17,7 @@ import           CO4.Unique (Unique,UniqueT,runUniqueT,mapUnique)
 import           CO4.Frontend
 import           CO4.Backend
 import           CO4.Backend.Raml
+import           CO4.Backend.TH ()
 import           CO4.Backend.SatchmoPreprocess
 import           CO4.Algorithms.Globalize
 import           CO4.Algorithms.UniqueNames
@@ -24,6 +25,7 @@ import           CO4.Algorithms.Monadify
 import           CO4.Algorithms.HindleyMilner (HMConfig (..),schemes,prelude)
 import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
+import           CO4.Algorithms.SaturateApplication (saturateApplication)
 
 data Config  = Verbose
              | Degree Int
@@ -107,7 +109,9 @@ compileToRaml p = do
 
 compileToSatchmo :: Program -> Configurable [TH.Dec]
 compileToSatchmo p = do
-  satchmoP <- liftUnique $ monadify p >>= return . preprocessSatchmo
+  satchmoP <- liftUnique $ saturateApplication p 
+                        >>= monadify 
+                        >>= return . preprocessSatchmo
 
   logWhenVerbose $ unlines [ "## Satchmo ############################"
                            , displayProgram satchmoP]

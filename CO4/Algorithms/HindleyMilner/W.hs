@@ -9,9 +9,9 @@ import           Control.Monad.Reader
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           Data.Graph (stronglyConnComp,flattenSCC)
-import           CO4.Util (topLevelNames)
+import           CO4.Util (topLevelNames,splitDeclarations)
 import           CO4.Language
-import           CO4.Unique (MonadUnique,newName')
+import           CO4.Unique (MonadUnique,newName)
 import           CO4.Names
 import           CO4.TypesUtil
 import           CO4.Algorithms.HindleyMilner.Util
@@ -51,19 +51,20 @@ newtype TypeApplicator a = TypeApplicator { runTypeApp :: Identity a }
   deriving (Functor, Monad)
 
 instance MonadInstantiator TypeApplicator where
-  instantiateTApp (ETApp f@(EVar (TypedName _ fScheme)) [instantiatedType]) = 
+  instantiateTApp (ETApp f@(EVar (NTyped _ fScheme)) [instantiatedType]) = 
     if isFunType instantiatedType 
     then case (bound fScheme, free instantiatedType) of
       ([],[]) -> return f
       ([],fs) -> -- Nothing to unify: type app consists of all free variables
-        let typeApps = map TVar fs
+        let typeApps = map (TVar . untypedName) fs
         in
           return $ ETApp f typeApps
 
       (bs,_) -> 
         let fType    = typeOfScheme fScheme
             subst    = runIdentity $ unifyLeftOrFail fType instantiatedType
-            typeApps = map (\b -> fromJust $ L.lookup b subst) bs
+            bs'      = map untypedName bs
+            typeApps = map (\b -> fromJust $ L.lookup b subst) bs'
         in
           return $ ETApp f typeApps
     else return f
@@ -79,7 +80,7 @@ instantiate scheme = case scheme of
 
 -- |Introduce a new type variable
 newType :: MonadUnique u => HM u Type
-newType = newName' "type" >>= return . TVar
+newType = newName "type" >>= return . TVar
 
 -- |Infers the type of an expression
 w :: MonadUnique u => Context -> Expression -> HM u ([Substitution], Type, Expression)
@@ -88,13 +89,13 @@ w context exp = case exp of
                   type_   <- instantiate scheme
                   doIntro <- asks introduceTLamTApp 
                   let exp' = if doIntro
-                             then ETApp (EVar $ typedName name scheme) [type_]
-                             else        EVar $ typedName name scheme
+                             then ETApp (EVar $ nTyped name scheme) [type_]
+                             else        EVar $ nTyped name scheme
                   return ([], type_, exp')
 
   ECon name -> do scheme <- lookupName name
                   type_  <- instantiate scheme
-                  return ([], type_, ECon $ typedName name scheme)
+                  return ([], type_, ECon $ nTyped name scheme)
 
   ELit lit  -> return ([], wLit lit, exp)
 
@@ -119,8 +120,7 @@ w context exp = case exp of
     (s,t,e')     <- w (bindTypes bindings context) e
     let us'      =  map (substitutes s) us
         schemes  =  map SType us'
-
-    return (s, functionType us' t, ELam (zipWith typedName ns schemes) e')
+    return (s, functionType us' t, ELam (zipWith nTyped ns schemes) e')
 
   ECase e matches -> do
     (eSubst,eType,e') <- w context e
@@ -141,7 +141,7 @@ w context exp = case exp of
   ELet name value localExp -> do
     (subst,  [DBind name' value']) <- wBindingGroup context [DBind name value]
 
-    let TypedName _ valueScheme = name'
+    let NTyped _ valueScheme = name'
     (subst', expType, localExp') <- w (binds [(name,valueScheme)] context) localExp
 
     return $ (subst ++ subst', expType, ELet name' value' localExp')
@@ -149,21 +149,23 @@ w context exp = case exp of
   where 
     lookupName name = 
       case (lookup name context, name) of
-        (Just s, _)         -> return s
-        (_ , TypedName _ s) -> return s
-        _                   -> fail $ "Can not deduce type for '" ++ (show $ pprint name) ++ "'"
+        (Just s, _)      -> return s
+        (_ , NTyped _ s) -> return s
+        _                -> fail $ "Can not deduce type for '" ++ (show $ pprint name) ++ "'"
 
 -- |Annotates the schemes to a program
 wProgram :: MonadUnique u => Context -> Program -> HM u Program
 wProgram context program = do
-  let bgs = bindingGroups program
+  let (typeDecls, valueDecls) = splitDeclarations program
+      bgs                     = bindingGroups valueDecls
+      context'                = foldr bindAdt context typeDecls
 
   (_,_,program') <-
     foldM (\(s,ctxt,program') bg -> do 
-              (s',bg')  <- wBindingGroup ctxt bg
-              let ctxt' =  gamma $ map (\(DBind (TypedName n s) _) -> (Name n, s)) bg'
-              return (s ++ s', mappend ctxt ctxt', program' ++ bg')
-          ) ([],context,[]) bgs
+              (s',bg') <- wBindingGroup ctxt bg
+              let ctxt' = gamma $ map (\(DBind (NTyped n s) _) -> (UntypedName n, s)) bg'
+              return (s ++ s', mappend ctxt ctxt', bg' ++ program')
+          ) ([],context',[]) bgs
 
   return program'
 
@@ -191,15 +193,17 @@ wBindingGroup context decls = do
                                 -- in this binding group
                             typedNames (gamma bindings') $ substitutes subst exp' 
                     in case bound scheme of
-                        [] -> DBind (typedName name scheme) exp''
+                        [] -> DBind (nTyped name scheme) exp''
                         bs -> if doIntro
-                              then DBind (typedName name scheme) $ ETLam bs exp''
-                              else DBind (typedName name scheme)            exp''
+                              then let bs' = map untypedName bs
+                                   in
+                                    DBind (nTyped name scheme) $ ETLam bs' exp''
+                              else  DBind (nTyped name scheme)             exp''
                   ) $ zip bindings' exps' 
 
   return (subst, decls')
 
-  where wDecl extendedContext (DBind (TypedName _ scheme) exp) = do
+  where wDecl extendedContext (DBind (NTyped _ scheme) exp) = do
           providedType               <- instantiate scheme
           (subst',inferredType,exp') <- w extendedContext exp 
           subst''                    <- unifyLeftOrFail inferredType providedType
@@ -254,7 +258,7 @@ wLit lit = case lit of
 -- |Computes groups of mutually recursive declarations
 bindingGroups :: Program -> [BindingGroup]
 bindingGroups program =
-  let graph = map (\d@(DBind n e) -> (d, untypedName n, free e)) program
+  let graph = map (\d@(DBind n e) -> (d, untypedName n, map untypedName $ free e)) program
   in
     map (L.nub . flattenSCC) $ stronglyConnComp graph
 

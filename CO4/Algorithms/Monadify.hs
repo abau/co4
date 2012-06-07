@@ -8,21 +8,20 @@ import Control.Monad.Writer
 import CO4.Language
 import CO4.Unique
 import CO4.Algorithms.Instantiator
+import CO4.Names (Namelike,fromName)
 
 newtype Monadifier a = Monadifier { runMonadifier :: Unique a }
   deriving (Functor, Monad, MonadUnique)
 
-dontMonadify :: Name -> Bool
-dontMonadify name = case name of
-  Name n        -> n `elem` no
-  TypedName n _ -> n `elem` no
+dontMonadify :: Namelike n => n -> Bool
+dontMonadify n = fromName n `elem` no
   where no = [ "+","-","*","/",">",">=","==","/=","<=","<=" ]
 
 returnExpression :: Expression -> Expression
-returnExpression exp = EApp (EVar $ Name "return") [exp]
+returnExpression exp = EApp (EVar $ NUntyped "return") [exp]
 
 bindExpression :: Expression -> Name -> Expression -> Expression
-bindExpression exp name inExp = EApp (EVar $ Name ">>=") [exp, ELam [name] inExp]
+bindExpression exp name inExp = EApp (EVar $ NUntyped ">>=") [exp, ELam [name] inExp]
 
 instance MonadInstantiator Monadifier where
 
@@ -33,7 +32,7 @@ instance MonadInstantiator Monadifier where
   instantiateApp (EApp f args) = do
     f'    <- instantiateExpression f
     args' <- mapM instantiateExpression args
-    names <- forM (f':args') $ const $ newName' "bind"
+    names <- forM (f':args') $ const $ newName "bind"
 
     let (fName:argNames) = map EVar names
         app'             = case f of
@@ -50,7 +49,7 @@ instance MonadInstantiator Monadifier where
   instantiateCase (ECase exp ms) = do
     exp' <- instantiateExpression exp
     ms'  <- mapM instantiateMatch ms
-    name <- newName' "bind"
+    name <- newName "bind"
     return $ bindExpression exp' name $ ECase (EVar name) ms'
     
   instantiateLet (ELet n (ELam ns value) exp) = do
@@ -63,9 +62,9 @@ instance MonadInstantiator Monadifier where
     exp'   <- instantiateExpression exp
     return $ bindExpression value' n $ exp'
 
-  instantiateDeclaration (DBind n (ELam ns e)) = 
+  instantiateBind (DBind n (ELam ns e)) = 
     (DBind n . ELam ns) <$> instantiateExpression e
-  instantiateDeclaration (DBind n e) = 
+  instantiateBind (DBind n e) = 
     DBind n <$> instantiateExpression e
 
 monadify :: Instantiable a => a -> Unique a

@@ -1,48 +1,73 @@
+{-# LANGUAGE FlexibleInstances #-}
 module CO4.Names 
 where
 
-import CO4.Language (Name(..),Scheme)
+import CO4.Language (Name(..),UntypedName(..),Scheme)
 
--- |Builds a typed name using a name and a scheme
-typedName :: Name -> Scheme -> Name
-typedName (Name n) s        = TypedName n s
-typedName (TypedName n _) s = TypedName n s
+class Namelike a where
+  readName    :: String -> a
+  fromName    :: a -> String
+  mapName     :: (String -> String) -> a -> a
+  untypedName :: a -> UntypedName
+  name        :: a -> Name
 
--- |Builds the untyped name of a name
-untypedName :: Name -> Name
-untypedName (TypedName n _) = Name n 
-untypedName name            = name
+instance Namelike String where
+  readName    = id
+  fromName    = id
+  mapName f n = f n
+  untypedName = UntypedName
+  name n      = name $ untypedName n
 
--- |Checks whether a name is typed
-isTypedName :: Name -> Bool
-isTypedName (TypedName {}) = True
-isTypedName _              = False
+instance Namelike UntypedName where
+  readName                    = UntypedName
+  fromName  (UntypedName n)   = n
+  mapName f (UntypedName n)   = UntypedName $ f n
+  untypedName                 = id
+  name (UntypedName n)        = NUntyped n
 
--- |Gets the string componenet of a name
-fromName :: Name -> String
-fromName (Name n)        = n
-fromName (TypedName n _) = n
+instance Namelike Name where
+  readName                 = NUntyped
+  fromName (NUntyped n)    = n
+  fromName (NTyped n _)    = n
+  mapName f (NUntyped n)   = NUntyped $ f n
+  mapName f (NTyped n s)   = NTyped (f n) s
+  untypedName (NUntyped n) = UntypedName n
+  untypedName (NTyped n _) = UntypedName n
+  name                     = id
+
+nTyped :: Name -> Scheme -> Name
+nTyped n = NTyped $ fromName n
+
+nUntyped :: Name -> Name
+nUntyped = name . untypedName
 
 -- Type names
-listType, boolType, funType, intType, charType, doubleType :: Name
-listType   = Name "List"
-boolType   = Name "Bool"
-funType    = Name "->"
-intType    = Name "Int"
-charType   = Name "Char"
-doubleType = Name "Double"
+listType, boolType, funType, intType, charType, doubleType :: UntypedName
+listType   = UntypedName "List"
+boolType   = UntypedName "Bool"
+funType    = UntypedName "->"
+intType    = UntypedName "Int"
+charType   = UntypedName "Char"
+doubleType = UntypedName "Double"
+unitType   = UntypedName "Unit"
 
-tupleType :: Int -> Name
-tupleType = tupleCon
+tupleType :: Int -> UntypedName
+tupleType = untypedName . tupleCon
+
+isTupleType :: UntypedName -> Bool
+isTupleType = isTupleCon . name
 
 -- Constructor names
 consCon, nilCon, trueCon, falseCon :: Name
-consCon  = Name "Cons"
-nilCon   = Name "Nil"
-trueCon  = Name "True"
-falseCon = Name "False"
+consCon  = NUntyped "Cons"
+nilCon   = NUntyped "Nil"
+trueCon  = NUntyped "True"
+falseCon = NUntyped "False"
+unitCon  = NUntyped "Unit"
 
 tupleCon :: Int -> Name
 tupleCon 1 = error "tupleCon: 1"
-tupleCon n = Name $ "Tuple" ++ show n
+tupleCon n = NUntyped $ "Tuple" ++ show n
 
+isTupleCon :: Name -> Bool
+isTupleCon name = any (== name) $ map tupleCon [2..6]

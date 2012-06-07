@@ -15,11 +15,12 @@ $([d|
     simple_constraint bs =  
       let bla = True 
       in
-        -- head ( map head [bs] ) && True
-        head ( map (\b -> b || bla) bs )
+        head ( map (\b -> b || bla) bs ) && foo (head bs)
 
     map f xs = case xs of [] -> [] ; x : xs -> f x : map f xs          
     head (x:xs) = x
+
+    foo x = if x then False else True
   |] >>= \p -> TH.runIO ( compile p [Verbose, Metric "heap-space", Degree 2] )
   )
 

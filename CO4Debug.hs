@@ -18,6 +18,7 @@ module CO4Debug
   , module CO4.Algorithms.HindleyMilner
   , module CO4.Algorithms.TypedNames
   , module CO4.Algorithms.Instantiation
+  , module CO4.Algorithms.EtaExpansion
   , module CO4.Algorithms.SaturateApplication
   ) 
 where
@@ -42,4 +43,5 @@ import           CO4.Algorithms.Bound
 import           CO4.Algorithms.HindleyMilner
 import           CO4.Algorithms.TypedNames
 import           CO4.Algorithms.Instantiation
+import           CO4.Algorithms.EtaExpansion
 import           CO4.Algorithms.SaturateApplication

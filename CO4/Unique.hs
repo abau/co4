@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving  #-}
 module CO4.Unique
-  ( MonadUnique(..), UniqueT, Unique, runUnique, runUniqueT, mapUnique
-  , newName, newName')
+  ( MonadUnique(..), UniqueT, Unique, runUnique, runUniqueT, mapUnique, newName)
 where
 
 import Control.Monad.Identity
@@ -10,7 +9,7 @@ import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.RWS (RWST)
 import Data.Monoid (Monoid)
-import CO4.Language (Name(..))
+import CO4.Names (Namelike,mapName,fromName,readName)
 
 class Monad m => MonadUnique m where
   newString :: String -> m String
@@ -40,20 +39,13 @@ mapUnique (Unique (UniqueT (StateT (run)))) =
   UniqueT $ StateT $ return . runIdentity . run
 
 -- |@newName n@ returns an unique name with prefix @n@
-newName :: MonadUnique m => Name -> m Name
-newName name = newName' $ (\name -> case name of
-                                Name n -> n
-                                TypedName n _ -> n
-                          ) $ nameOriginal name
-
-newName' :: MonadUnique m => String -> m Name
-newName' prefix = newString prefix >>= return . Name
+newName :: (MonadUnique m, Namelike n, Namelike o) => n -> m o
+newName prefix = newString (fromName $ nameOriginal prefix) >>= return . readName
 
 -- |Gets the original name, i.e. the common prefix of an unique name
 -- TODO: what about variable names that contain separator
-nameOriginal :: Name -> Name
-nameOriginal (Name n)        = Name $ takeWhile (/= separator) n
-nameOriginal (TypedName n s) = TypedName (takeWhile (/= separator) n) s
+nameOriginal :: Namelike n => n -> n
+nameOriginal = mapName $ takeWhile (/= separator)
 
 instance (MonadUnique m) => MonadUnique (ReaderT r m) where
   newString x = lift $ newString x
