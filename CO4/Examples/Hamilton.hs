@@ -100,7 +100,7 @@ knight h w =
 for = flip P.map
 
 main = do
-    let h = 4 ; w = 3
+    let h = 6 ; w = 6
         g = knight h w
     out :: Maybe Map <- solve $ do    
           f :: [[Boolean]] <- forM g   $ \ row -> 

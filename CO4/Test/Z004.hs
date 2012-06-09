@@ -89,7 +89,7 @@ $([d|
                                         (ys,m') -> (x:ys,xs:m')
 
   |] >>= \p -> TH.runIO $ compile p [ Verbose, Metric "heap-space", Degree 5
-                                    , DumpSatchmo "z004.satchmo", DumpRaml "z004.raml"]
+                                    , DumpSatchmo "", DumpRaml "", DumpIntermediate ""]
   )
 
 testSimple :: IO ()
