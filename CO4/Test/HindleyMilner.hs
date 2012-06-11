@@ -8,7 +8,7 @@ import           System.Exit (exitSuccess,exitFailure)
 import qualified Data.Map as M
 import           Language.Haskell.TH (Q,Dec,Exp,runQ)
 import qualified Language.Haskell.TH as TH
-import           CO4
+import           CO4Debug
 
 main :: IO ()
 main = do
@@ -46,7 +46,7 @@ main = do
     then putStrLn "Run tests successfully" >> exitSuccess 
     else exitFailure
 
-  where mk = map (\(n,s) -> (NUntyped n, parseScheme s))
+  where mk = map (\(n,s) -> (name n, parseScheme s))
 
 testExp :: Integer -> Q Exp -> Scheme -> IO Bool
 testExp i thExpQ scheme = do
@@ -74,14 +74,14 @@ testExp i thExpQ scheme = do
 testProgram :: Integer -> Q [Dec] -> [(Name,Scheme)] -> IO Bool
 testProgram i thDeclsQ expected = do
   thDecls <- runQ thDeclsQ
-  let run = runUnique $ parseProgram thDecls >>= uniqueNames >>= schemes prelude
+  let run = runUnique $ parseProgram thDecls >>= uniqueNames 
+                                             >>= schemes (HMConfig False) prelude
   mProg <- catch (Just <$> evaluate run)
                  (\msg -> putStrLn (unlines 
                       [ "Declarations test case: " ++ show i
                       , "Expected: " ++ (show $ pprint $ gamma expected)
                       , "Error: "    ++ show (msg :: ErrorCall)
                       ]) >> return Nothing)
-
   case mProg of
     Nothing   -> return False
     Just prog -> if all (inferredInProgram prog) expected 

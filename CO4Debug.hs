@@ -5,6 +5,7 @@ module CO4Debug
   , module CO4.Names
   , module CO4.PPrint
   , module CO4.Unique
+  , module CO4.Util
   , module CO4.Frontend
   , module CO4.Frontend.String
   , module CO4.Backend
@@ -30,6 +31,7 @@ import           CO4.Language
 import           CO4.Names
 import           CO4.PPrint
 import           CO4.Unique
+import           CO4.Util
 import           CO4.Frontend
 import           CO4.Frontend.String
 import           CO4.Frontend.TH ()
