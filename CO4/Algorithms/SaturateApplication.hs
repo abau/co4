@@ -10,7 +10,7 @@ import           CO4.Language
 import           CO4.Unique
 import           CO4.Names
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)
-import           CO4.Util (collapseApp)
+import           CO4.Algorithms.Collapse (collapseApp)
 import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemeOfExp, prelude)
 

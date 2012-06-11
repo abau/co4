@@ -1,17 +1,11 @@
 {-# LANGUAGE Rank2Types #-}
 -- |Utility functions
 module CO4.Util
-  ( everywhereM', topLevelNames, declarationByName, splitDeclarations, rename, renames 
-  , collapseApp, collapseLam, dAdt)
+  (topLevelNames, declarationByName, splitDeclarations, dAdt)
 where
 
-import           Data.Generics (GenericM,GenericT,everywhere',everywhere,mkT,gmapM)
 import           Data.Maybe (mapMaybe)
 import           CO4.Language
-
--- | Monadic variation of 'Data.Generics.everywhere'', i.e. a monadic top-down transformation
-everywhereM' :: Monad m => GenericM m -> GenericM m
-everywhereM' f x = f x >>= gmapM (everywhereM' f)
 
 -- |Gets all names that are bound on the top level
 topLevelNames :: Program -> [Name]
@@ -32,28 +26,6 @@ splitDeclarations :: Program -> ([Declaration], [Declaration])
 splitDeclarations = foldl split ([],[])
   where split (types, vals) d@(DAdt {}) = (types ++ [d], vals)
         split (types, vals) d           = (types, vals ++ [d])
-
--- |List version of @rename@
-renames :: [(Name,Name)] -> GenericT
-renames = flip (foldr rename) 
-
--- |@rename (old,new)@ renames all occurences of @old@ to @new@ 
-rename :: (Name,Name) -> GenericT
-rename (old,new) = everywhere $ mkT (\name -> if name == old then new else name)
-
--- |Collapses function applications of the form @(f xs) ys@ to @f xs ys@
-collapseApp :: GenericT
-collapseApp = everywhere' (mkT collapseExpression)
-  where 
-    collapseExpression (EApp (EApp f xs) ys) = EApp f $ xs ++ ys
-    collapseExpression exp                   = exp
-  
--- |Collapses abstractions of the form @\x -> \y -> e@ to @\x y -> e@
-collapseLam :: GenericT
-collapseLam = everywhere' (mkT collapseExpression)
-  where 
-    collapseExpression (ELam xs (ELam ys e)) = ELam (xs ++ ys) e
-    collapseExpression exp                   = exp
 
 -- |Returns the algebraic data type in terms of a @Type@ instance
 dAdt :: Declaration -> Type

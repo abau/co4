@@ -1,35 +1,38 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CO4.Algorithms.UniqueNames
   (uniqueNames)
 where
 
-import           Data.Generics (GenericM,mkM,everywhereM)
 import           CO4.Language
-import           CO4.Unique (Unique,newName)
-import           CO4.Util (rename,renames)
+import           CO4.Unique 
+import           CO4.Algorithms.Instantiator
+import           CO4.Algorithms.Rename (renameList)
 import           CO4.Algorithms.Bound (bound)
 
--- |Makes all bounded names unique 
-uniqueNames :: GenericM Unique
-uniqueNames a = everywhereM (mkM uniqueNamesInExpression) a 
-            >>= everywhereM (mkM uniqueNamesInMatch)
+newtype Instantiator u a = Instantiator { runInstantiator :: u a }
+  deriving ( Functor, Monad, MonadUnique )
 
-uniqueNamesInExpression :: Expression -> Unique Expression
-uniqueNamesInExpression expression = case expression of
-  ELam names e -> do
+instance MonadUnique u => MonadInstantiator (Instantiator u) where
+  instantiateLam (ELam names e) = do
     names' <- mapM newName names
-    return $ ELam names' $ renames (zip names names') e
+    e'     <- instantiate $ renameList (zip names names') e 
+    return $ ELam names' e' 
 
-  ELet n v e -> do
+  instantiateLet (ELet n v e) = do
     n' <- newName n
-    return $ ELet n' (rename (n,n') v) (rename (n,n') e)
+    v' <- instantiate $ renameList [(n,n')] v
+    e' <- instantiate $ renameList [(n,n')] e
+    return $ ELet n' v' e'
 
-  _ -> return expression
+  instantiateMatch (Match p e) =
+    let names = bound p
+    in do
+      names' <- mapM newName names
+      let p' =  renameList (zip names names') p
+      e'     <- instantiate $ renameList (zip names names') e
+      return $ Match p' e'
+
+-- |Makes all bounded names unique 
+uniqueNames :: (Instantiable a, MonadUnique u) => a -> u a
+uniqueNames = runInstantiator . instantiate
   
-uniqueNamesInMatch :: Match -> Unique Match
-uniqueNamesInMatch (Match p e) = 
-  let names = bound p
-  in do
-    names' <- mapM newName names
-    let renamings = zip names names'
-    return $ Match (renames renamings p) $ renames renamings e

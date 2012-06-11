@@ -10,8 +10,8 @@ import           CO4.PPrint (pprint)
 import           CO4.Backend
 import           CO4.Names
 import           CO4.Unique (Unique)
-import           CO4.Util (collapseApp)
 import           CO4.Backend.RamlPreprocess (preprocess)
+import           CO4.Algorithms.Collapse (collapseApp)
 import           CO4.Algorithms.TypedNames (eraseTypedNames)
 
 pos = initialPos "CO4.Backend.Raml"

@@ -8,7 +8,7 @@ import           Data.Data (Data)
 import           CO4.Language
 import           CO4.Unique
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)
-import           CO4.Util (collapseLam,collapseApp)
+import           CO4.Algorithms.Collapse (collapseLam,collapseApp)
 import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemeOfExp, prelude)
 

@@ -2,6 +2,7 @@
 -- appear in release packages (no exposed module).
 module CO4Debug
   ( module CO4.Language
+  , module CO4.Names
   , module CO4.PPrint
   , module CO4.Unique
   , module CO4.Frontend
@@ -20,10 +21,13 @@ module CO4Debug
   , module CO4.Algorithms.Instantiation
   , module CO4.Algorithms.EtaExpansion
   , module CO4.Algorithms.SaturateApplication
+  , module CO4.Algorithms.Rename
+  , module CO4.Algorithms.Collapse
   ) 
 where
 
 import           CO4.Language
+import           CO4.Names
 import           CO4.PPrint
 import           CO4.Unique
 import           CO4.Frontend
@@ -45,3 +49,5 @@ import           CO4.Algorithms.TypedNames
 import           CO4.Algorithms.Instantiation
 import           CO4.Algorithms.EtaExpansion
 import           CO4.Algorithms.SaturateApplication
+import           CO4.Algorithms.Rename
+import           CO4.Algorithms.Collapse

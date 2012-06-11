@@ -10,10 +10,10 @@ import           Data.List (find,(\\))
 import           Data.Maybe (fromMaybe)
 import           CO4.Language
 import qualified CO4.Util as U
-import           CO4.Util (renames)
 import           CO4.Unique (Unique,newName)
 import           CO4.Algorithms.HindleyMilner (freeInPrelude)
 import           CO4.Algorithms.Instantiator
+import           CO4.Algorithms.Rename (renameList)
 
 data Env = Env { bindings      :: [Declaration]
                , topLevelNames :: [Name]
@@ -61,7 +61,7 @@ instantiateLambdaWithName name (ELam parameters e) = do
   local (addBinding name result) $ do
     e'          <- instantiateExpression e
     free'       <- liftUnique $ mapM newName free
-    let e''     =  renames (zip free free') e'
+    let e''     =  renameList (zip free free') e'
         newDec  =  case free' ++ parameters of
                     [] -> DBind name e''
                     p  -> DBind name $ ELam p e''
