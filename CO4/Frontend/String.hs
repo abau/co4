@@ -12,7 +12,8 @@ import           Text.Parsec.Language (haskellStyle)
 import           Text.Parsec.String (Parser)
 import           CO4.Language
 import           CO4.Frontend
-import           CO4.Names (name,fromName,funType,untypedName,nTyped)
+import           CO4.Util (programFromDeclarations)
+import           CO4.Names (name,fromName,funName,untypedName)
 
 parseProgramFromFile :: FilePath -> IO Program
 parseProgramFromFile filePath = unsafeParse pProgram False <$> readFile filePath
@@ -26,19 +27,22 @@ unsafeParse p showInError s = either (error . msg) id $ parse p' "" s
                                else show m
 
 instance ProgramFrontend String where
-  parseProgram     s = return $ unsafeParse pProgram False s
+  parseProgram     s = unsafeParse pProgram False s
 
 instance ExpressionFrontend String where
-  parseExpression  s = return $ unsafeParse pExpression True s
+  parseExpression  s = unsafeParse pExpression True s
 
+{-
 instance SchemeFrontend String where
   parseScheme      s = unsafeParse pScheme True s
+-}
 
 pProgram :: Parser Program
-pProgram = sepBy1 pDeclaration $ reservedOp ";"
+pProgram = programFromDeclarations mainName <$> (sepBy1 pDeclaration $ reservedOp ";")
+  where mainName = name "main"
 
 pDeclaration :: Parser Declaration
-pDeclaration = pAdt <|> pBinding <?> "declaration"
+pDeclaration = pAdt <|> pBind <?> "declaration"
 
 pAdt :: Parser Declaration
 pAdt = do
@@ -46,35 +50,31 @@ pAdt = do
   n    <- pTypeName
   vars <- many pTypeVarName
   reservedOp "="
-  DAdt n vars <$> (braces $ sepBy1 pConstructor $ reservedOp ";")
+  DAdt n vars <$> (braces $ sepBySemicolon pConstructor)
 
   where pConstructor = do
           TCon n ts <- pTConMono
           return $ CCon n ts
 
-pBinding :: Parser Declaration
+pBind :: Parser Declaration
+pBind = DBind <$> pBinding
+
+pBinding :: Parser Binding
 pBinding = do
   var  <- pVarName
-  name <- option var $ reservedOp "::" >> pScheme >>= return . nTyped var
   reservedOp "="
-  DBind name <$> pExpression
+  Binding var <$> pExpression
 
 pExpression :: Parser Expression
 pExpression = (try pEApp) <|> pELam <|> pEVar <|> pECon <|> pECase <|> pELet 
-              <|> pESignedLit <|> parens pExpression <?> "expression"
+              <|> pEUndefined <|> parens pExpression <?> "expression"
 
 pEVar, pECon , pEApp :: Parser Expression
 pEVar = EVar <$> pVarName
 pECon = ECon . name <$> pConName
 
-pESignedLit :: Parser Expression
-pESignedLit = ELit <$> pSignedLiteral
-
-pEUnsignedLit :: Parser Expression
-pEUnsignedLit = ELit <$> pUnsignedLiteral
-
 pEApp = 
-  let simpleE = pEVar <|> pECon <|> pEUnsignedLit <|> parens pExpression 
+  let simpleE = pEVar <|> pECon <|> parens pExpression 
                 <?> "variable, constructor, expression in parentheses"
   in do
     f    <- simpleE
@@ -97,28 +97,22 @@ pECase =
     reserved "case"
     e <- pExpression 
     reserved "of"
-    ECase e <$> (braces $ sepBy1 pMatch $ reservedOp ";")
+    ECase e <$> (braces $ sepBySemicolon pMatch)
 
 pELet = do
   reserved "let"
-  name <- pVarName
-  reservedOp "="
-  value <- pExpression
+  binding <- braces $ sepBySemicolon pBinding 
   reserved "in"
-  ELet name value <$> pExpression
+  ELet binding <$> pExpression
+
+pEUndefined = reserved "_|_" >> return EUndefined
 
 pPattern :: Parser Pattern
-pPattern = pPVar <|> pPSignedLit <|> try pPCon <|> pNonArgPCon <|> parens pPattern 
+pPattern = pPVar <|> try pPCon <|> pNonArgPCon <|> parens pPattern 
            <?> "pattern"
 
 pPVar :: Parser Pattern
 pPVar = PVar <$> pVarName
-
-pPSignedLit :: Parser Pattern
-pPSignedLit = PLit <$> pSignedLiteral
-
-pPUnsignedLit :: Parser Pattern
-pPUnsignedLit = PLit <$> pUnsignedLiteral
 
 pNonArgPCon :: Parser Pattern
 pNonArgPCon = do 
@@ -127,7 +121,7 @@ pNonArgPCon = do
 
 pPCon :: Parser Pattern
 pPCon = 
-  let simpleP = pPVar <|> pPUnsignedLit <|> pNonArgPCon <|> parens pPattern 
+  let simpleP = pPVar <|> pNonArgPCon <|> parens pPattern 
                 <?> "variable pattern, unsigned literal pattern, non argument constructor pattern, pattern in parentheses"
   in do
     n <- name <$> pConName
@@ -138,7 +132,7 @@ pType = (try pFunctionTCon) <|> pNonFunctionalType <?> "type"
 
 pNonFunctionalType :: Parser Type
 pNonFunctionalType = pTCon <|> pTVar <|> parens pType <?> "non-functional type"
-
+ 
 pTVar :: Parser Type
 pTVar = TVar <$> pTypeVarName
 
@@ -151,12 +145,12 @@ pSimpleType = pTVar <|> pNonArgTCon <|> parens pType
 
 pTCon :: Parser Type
 pTCon = choice [ pTConMono, try pTConPoly ]
-
+ 
 pTConMono :: Parser Type
 pTConMono = do 
   c <- pTypeName
   TCon c <$> many pSimpleType
-
+ 
 pTConPoly :: Parser Type
 pTConPoly = do 
   c <- pTypeVarName
@@ -166,10 +160,10 @@ pTConPoly = do
 pFunctionTCon :: Parser Type
 pFunctionTCon = do
   a <- pNonFunctionalType
-  reservedOp $ fromName funType
+  reservedOp $ fromName (funName :: Name)
   b <- pType
-  return $ TCon (untypedName funType) [a,b]
-
+  return $ TCon funName [a,b]
+{-
 pScheme :: Parser Scheme
 pScheme = pSForall <|> pSType <|> parens pScheme <?> "scheme"
 
@@ -181,30 +175,12 @@ pSForall = do
   TVar v <- reserved "forall" >> pTVar
   reservedOp "." 
   SForall v <$> pScheme
-
-pSignedLiteral :: Parser Literal
-pSignedLiteral = signedNumberLiteral <|> LChar <$> char <?> "(signed) literal"
-
-pUnsignedLiteral :: Parser Literal
-pUnsignedLiteral = unsignedNumberLiteral <|> LChar <$> char <?> "unsigned literal"
-
-unsignedNumberLiteral :: Parser Literal
-unsignedNumberLiteral = do
-  nOrD <- naturalOrDouble
-  return $ case nOrD of
-            Left  n -> LInt n
-            Right d -> LDouble d
-
-signedNumberLiteral :: Parser Literal
-signedNumberLiteral = do
-  sign <- option 1 $ choice [ symbol "+" >> return 1
-                            , symbol "-" >> return (-1)]
-  lit  <- unsignedNumberLiteral
-  case lit of
-    LInt i    -> return $ LInt    $ i * sign
-    LDouble d -> return $ LDouble $ d * (fromIntegral sign)
+-}
 
 -- Utilities
+sepBySemicolon :: Parser a -> Parser [a]
+sepBySemicolon p = sepBy1 p $ reservedOp ";"
+
 pTypeName :: Parser UntypedName
 pTypeName = untypedName <$> pConName
 
@@ -226,7 +202,7 @@ pConName = try $ do i <- identifier
 lexer           = T.makeTokenParser $ haskellStyle
                     { T.reservedOpNames= ["::", "=", "\\", "->", ";", "."]
                     , T.reservedNames  = ["let","in","case","of","if","then","else",
-                                          "adt","forall"
+                                          "adt","forall","_|_"
                                          ]
                     }
 parens          = T.parens lexer
@@ -236,6 +212,3 @@ reserved        = T.reserved lexer
 whiteSpace      = T.whiteSpace lexer
 reservedOp      = T.reservedOp lexer
 operator        = T.operator lexer
-symbol          = T.symbol lexer
-naturalOrDouble = T.naturalOrFloat lexer
-char            = T.charLiteral lexer

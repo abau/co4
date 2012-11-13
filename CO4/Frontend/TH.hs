@@ -1,56 +1,51 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- |Template Haskell front end
 module CO4.Frontend.TH
   ()
 where
 
-import qualified Data.Map as M
-import           Data.List (partition)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
+import           CO4.Util (programFromDeclarations)
 import           CO4.Frontend
 import           CO4.Names
-import           CO4.Frontend.THCheck (check)
+import           CO4.Frontend.THCheck (check,checkProgram)
 import           CO4.Frontend.THPreprocess (preprocess)
 
 instance ProgramFrontend [TH.Dec] where
-  parseProgram decs = do
-    check decs
-    decs' <- preprocess decs
+  parseProgram decs = 
+    if checkProgram decs then parseTHDeclarations decs 
+    else error "Frontend.TH.parseProgram: check failed"
 
-    let isSignature (TH.SigD {}) = True
-        isSignature _            = False
-        mkSignatureMap    = foldr (\(TH.SigD n t) -> M.insert (fromTHName n) 
-                                      $ parseTHType t) M.empty
-
-        (signatures,rest) = partition isSignature decs'
-        rest'             = map parseTHDeclaration rest
-
-        applySignature (DBind n v) = 
-          case M.lookup n $ mkSignatureMap signatures of 
-            Nothing -> DBind n v
-            Just s  -> DBind (nTyped n s) v
-
-        applySignature dec = dec
-
-    return $ map applySignature rest'
+  parsePreprocessedProgram decs = 
+    if checkProgram decs then preprocess decs >>= return . parseTHDeclarations
+    else error "Frontend.TH.parsePreprocessedProgram: check failed"
 
 instance ExpressionFrontend TH.Exp where
-  parseExpression exp = do
-    check exp
-    exp' <- preprocess exp
-    return $ parseTHExpression exp'
+  parseExpression exp = 
+    if check exp then parseTHExpression exp
+    else error "Frontend.TH.parseExpression: check failed"
 
+  parsePreprocessedExpression exp =
+    if check exp then preprocess exp >>= return . parseTHExpression
+    else error "Frontend.TH.parsePreprocessedExpression: check failed"
+
+{-
 instance SchemeFrontend TH.Type where
   parseScheme type_ = parseTHType type_
+-}
+
+parseTHDeclarations :: [TH.Dec] -> Program
+parseTHDeclarations = programFromDeclarations (name "main") . map parseTHDeclaration
 
 parseTHDeclaration :: TH.Dec -> Declaration
 parseTHDeclaration dec = case dec of
   TH.FunD n [TH.Clause ps (TH.NormalB e) []] -> 
-    DBind (fromTHName n) (parseTHExpression $ TH.LamE ps e)
+    DBind $ Binding (fromTHName n) (parseTHExpression $ TH.LamE ps e)
 
-  TH.ValD (TH.VarP n) (TH.NormalB e) [] -> DBind (fromTHName n) 
-                                                 (parseTHExpression e)
+  TH.ValD (TH.VarP n) (TH.NormalB e) [] -> 
+    DBind $ Binding (fromTHName n) (parseTHExpression e)
 
   TH.DataD [] n tVars cons [] ->
     let n'     = untypedName $ fromTHName n
@@ -75,10 +70,11 @@ parseTHConstructor con = case con of
 
 parseTHExpression :: TH.Exp -> Expression
 parseTHExpression expression = case expression of
-  TH.VarE n              -> EVar $ fromTHName n
-  TH.ConE n              -> ECon $ fromTHName n
-  TH.LitE (TH.StringL s) -> parse $ TH.ListE $ map (TH.LitE . TH.CharL) s
-  TH.LitE l              -> ELit $ parseTHLiteral l
+  TH.VarE n | n == 'undefined -> EUndefined
+
+  TH.VarE n -> EVar $ fromTHName n
+  TH.ConE n -> ECon $ fromTHName n
+
   TH.AppE a b ->
     let (f,args) = gatherApplication a b
     in
@@ -88,20 +84,12 @@ parseTHExpression expression = case expression of
     in
       ELam names' $ parse e
        
-  TH.TupE es       -> EApp (ECon (tupleCon $ length es)) $ map parse es
-  TH.CondE c p n   -> 
-    ECase (parse c) [ Match (PCon trueCon  []) $ parse p
-                    , Match (PCon falseCon []) $ parse n
-                    ]
-  TH.LetE [] e     -> parse e
-  TH.LetE (x:xs) e -> 
-    let DBind n e' = parseTHDeclaration x
+  TH.LetE decls e -> 
+    let bindings = map (\d -> case parseTHDeclaration d of DBind b -> b) decls
     in
-      ELet n e' $ parse $ TH.LetE xs e
+      ELet bindings $ parse e
 
   TH.CaseE e matches -> ECase (parse e) $ map parseTHMatch matches
-  TH.ListE xs        -> foldr (\x rest -> EApp (ECon consCon) [x,rest]) 
-                          (ECon nilCon) $ map parse xs
 
   _ -> notSupported "parseTHExpression" expression
   
@@ -120,25 +108,12 @@ parseTHMatch (TH.Match p (TH.NormalB e) []) =
 
 parseTHPattern :: TH.Pat -> Pattern
 parseTHPattern pattern = case pattern of
-  TH.LitP l       -> 
-    case l of TH.StringL s -> parse $ TH.ListP $ map (TH.LitP . TH.CharL) s
-              _            -> PLit $ parseTHLiteral l
   TH.VarP n       -> PVar $ fromTHName n
-  TH.TupP ts      -> PCon (tupleCon $ length ts) $ map parse ts
   TH.ConP n ps    -> PCon (fromTHName n) $ map parse ps
   TH.InfixP a n b -> PCon (fromTHName n) $ map parse [a,b]
-  TH.ListP ps     -> foldr (\x rest -> PCon consCon [x,rest]) 
-                      (PCon nilCon []) $ map parse ps
   _               -> notSupported "parseTHPattern" pattern
 
   where parse = parseTHPattern
-
-parseTHLiteral :: TH.Lit -> Literal
-parseTHLiteral literal = case literal of
-  TH.CharL l       -> LChar l
-  TH.IntegerL l    -> LInt l
-  TH.RationalL l   -> LDouble $ fromRational l
-  _                -> notSupported "parseTHLiteral" $ TH.LitE literal
 
 parseTHType :: TH.Type -> Scheme
 parseTHType type_ = case type_ of
@@ -149,13 +124,10 @@ parseTHType type_ = case type_ of
     parse type_ = case type_ of
       TH.VarT v   -> TVar $ untypedName $ fromTHName v
       TH.ConT c   -> TCon (untypedName $ fromTHName c) []
-      TH.TupleT i -> TCon (untypedName $ tupleType i) []
       TH.AppT a b -> case gatherApplication a b of
         (TH.ArrowT, args) -> 
-          foldr1 (\arg result -> TCon (untypedName funType) [arg,result]) 
+          foldr1 (\arg result -> TCon funName [arg,result]) 
             $ map parse args
-
-        (TH.ListT, args) -> TCon (untypedName listType) $ map parse args
 
         (f, args) -> case parse f of
                         TCon c [] -> TCon c $ map parse args
@@ -175,11 +147,8 @@ fromTHTyVarBndr bndr = case bndr of
   _            -> notSupported "fromTHTyVarBndr" bndr
 
 fromTHName :: TH.Name -> Name
-fromTHName thName = case TH.nameBase thName of
-  ":"   -> consCon
-  "[]"  -> nilCon
-  other -> name other
+fromTHName = name . TH.nameBase 
 
 notSupported :: (TH.Ppr a, Show a) => String -> a -> b
 notSupported funName a = 
-  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported", show a]
+  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported"]

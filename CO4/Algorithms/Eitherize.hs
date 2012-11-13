@@ -1,122 +1,159 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 module CO4.Algorithms.Eitherize
   (eitherize)
 where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad.Identity
-import           Control.Monad.Reader
-import           Data.List (find,findIndex)
+import           Control.Monad.Writer
+import           Data.List (isPrefixOf)
+import           Data.Char (toUpper)
+import qualified Language.Haskell.TH as TH
 import           CO4.Language
-import           CO4.Names (Namelike,name,mapName,unitType,unitCon)
-import           CO4.Algorithms.Instantiator
-import           CO4.Frontend (parseProgram)
-import           CO4.Frontend.String ()
-import           CO4.PPrint (pprint)
+import           CO4.Util
+import           CO4.THUtil
+import           CO4.Names 
+import           CO4.Algorithms.THInstantiator
+import           CO4.Algorithms.Collector
 import           CO4.Unique
+import           CO4.Backend (displayExpression)
+import           CO4.Backend.TH ()
+import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
+import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
+import           CO4.Algorithms.Eitherize.SizedGadt (sizedGadts)
+import           CO4.Algorithms.Eitherize.Util
 
--- import Debug.Trace
+noEitherize :: Namelike a => a -> Bool
+noEitherize a = "Param" `isPrefixOf` (fromName a)
 
-eitherAdt :: Unique [Declaration]
-eitherAdt = 
-  parseProgram $ unlines 
-    [ "adt EncEither a b    = { EncEither Boolean a b } ;"
-    , "booleanFromEncEither = \\e -> case e of { EncEither b x y -> b }"
-    ]
+noEitherizeScheme :: Scheme -> Bool
+noEitherizeScheme (SType (TCon n [])) = noEitherize n
+noEitherizeScheme _                   = False
 
-newtype Instantiator a = Instantiator 
-  { runInstantiator :: ReaderT [Declaration] Unique a } 
-  deriving (Functor, Monad, MonadReader [Declaration], MonadUnique)
+encodedConsCallName :: Namelike a => a -> a
+encodedConsCallName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "ConsCall") 
 
-instance MonadInstantiator Instantiator where
+encodedFunName :: Namelike a => a -> a
+encodedFunName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns)) 
 
-  instantiateCon (ECon consName) = do
-    Just adt <- findAdtByConstructorName consName <$> ask
-    let Just consIndex    = findConstructorIndexByName consName adt
-        callEncEitherCons = EApp $ ECon $ name "EncEither"
+newtype AdtInstantiator u a = AdtInstantiator 
+  { runAdtInstantiator :: WriterT [TH.Dec] u a } 
+  deriving ( Functor, Monad, MonadWriter [TH.Dec], MonadUnique)
 
-    case constructorArguments adt of
-      [TCon left [], TCon right []] | left == unitType && right == unitType ->
-        case consIndex of
-          0 -> return $ callEncEitherCons [booleanTrue,unit,unit]
-          1 -> return $ callEncEitherCons [booleanFalse,unit,unit]
+instance MonadUnique u => MonadCollector (AdtInstantiator u) where
 
-  instantiateCase exp@(ECase e ms) = do
-    e'  <- instantiate e
-    [Match p1 m1, Match _ m2] <- instantiate ms
-    Just adt@(DAdt _ [] cons) <- findAdtByPattern p1 <$> ask
+  collectAdt (DAdt name [] _) | noEitherize name = return ()
 
-    when (length cons /= length ms) $ error $ "No partial pattern match '" ++ (show $ pprint exp) ++ "' allowed"
-    (pattern, flag) <- makeSatchmoConstructorPattern adt
-    let callEncEitherCons = EApp $ ECon $ name "EncEither"
-    return $ ECase e' 
-      [Match pattern $ 
-        ELet (name "left")  (EApp (EVar $ name "booleanFromEncEither") [m1]) $
-        ELet (name "right") (EApp (EVar $ name "booleanFromEncEither") [m2]) $
-        callEncEitherCons
-          [ EApp (EVar $ name "&&")
-              [ implies (EVar flag) (EVar $ name "left")
-              , implies (EApp (EVar $ name "not") [EVar flag]) (EVar $ name "right")
-              ]
-          , unit
-          , unit
-          ]
-      ]
+  collectAdt adt = do
+    forM_ (zip [0..] $ dAdtConstructors adt) mkEncodedConstructor
+    mkDecodeInstance
 
-implies :: Expression -> Expression -> Expression
-implies a b = EApp (EVar $ name "||") [ EApp (EVar $ name "not") [a] , b ]
+    where 
+      mkDecodeInstance = decodeInstance adt >>= tellOne
 
-constructorArguments :: Declaration -> [Type]
-constructorArguments = map toConsArg . dAdtConstructors
-  where toConsArg (CCon _ [])  = TCon unitType []
-        toConsArg (CCon _ [x]) = x
-        toConsArg _            = error $ "Only one constructor argument allowed"
+      mkEncodedConstructor (i,CCon name []) = 
+        let args = replaceAt i (varE "encUnit") dontCareArgs
+            exp  = returnE $ appsE (varE "encodedConsCall") [ intE i, TH.ListE args ]
+        in
+          tellOne $ valD' (encodedConsCallName name) exp
 
-makeSatchmoConstructorPattern :: MonadUnique u => Declaration -> u (Pattern,Name)
-makeSatchmoConstructorPattern adt =
-  case constructorArguments adt of
-    [TCon left [], TCon right []] | left == unitType && right == unitType -> do
-      
-      boolean <- newName "boolean"
-      return ( PCon (name "EncEither") [PVar boolean, PCon unitCon [], PCon unitCon []]
-             , boolean
-             )
+      mkEncodedConstructor (i,CCon name args) = do
+        paramNames <- forM args $ const $ newName "x"
 
-booleanTrue, booleanFalse, unit :: Expression
-booleanTrue  = EApp (ECon $ name "Satchmo.Boolean.Constant") [ECon $ name "True"]
-booleanFalse = EApp (ECon $ name "Satchmo.Boolean.Constant") [ECon $ name "False"]
-unit         = ECon unitCon
+        let args = replaceAt i (appsE (varE "encArgs") [TH.ListE $ map varE paramNames])
+                               dontCareArgs
+            exp  = returnE $ appsE (varE "encodedConsCall") [ intE i, TH.ListE args ]
+        
+        tellOne $ valD' (encodedConsCallName name) $ lamE' paramNames exp
 
---findAdtByMatch :: Match -> [Declaration] -> Maybe Declaration
---findAdtByMatch (Match pat _) = findAdtByPattern pat 
+      dontCareArgs = replicate (length $ dAdtConstructors adt) $ varE "encDontCareArgs"
+      tellOne x    = tell [x]
 
-findAdtByPattern :: Pattern -> [Declaration] -> Maybe Declaration
-findAdtByPattern pat = case pat of
-  PCon pConName _ -> findAdtByConstructorName pConName
-  _               -> const Nothing
+newtype ExpInstantiator u a = ExpInstantiator { runExpInstantiator :: u a } 
+  deriving ( Functor, Monad, MonadUnique )
 
-findAdtByConstructorName :: Name -> [Declaration] -> Maybe Declaration
-findAdtByConstructorName consName  = find byName
-  where byName (DAdt _ _ cons) = any (eqConstructor consName) cons 
+instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
+  
+  instantiateVar (EVar n) = return $ TH.AppE (TH.VarE 'return) $ varE n
 
---findConstructorByName :: Name -> Declaration -> Maybe Constructor
---findConstructorByName n = find (eqConstructor n) . dAdtConstructors
+  instantiateCon (ECon n) = return $ varE $ encodedConsCallName n
 
-findConstructorIndexByName :: Name -> Declaration -> Maybe Int
-findConstructorIndexByName n = findIndex (eqConstructor n) . dAdtConstructors
+  instantiateApp (EApp f args) = do
+    args'    <- instantiate args
+    case f of
+      EVar fName -> instantiateApplication (encodedFunName      fName) args'
+      ECon cName -> instantiateApplication (encodedConsCallName cName) args'
 
-eqConstructor :: Name -> Constructor -> Bool
-eqConstructor n (CCon consName _) = n == name consName 
-    
---satchmoConstructorName :: Namelike n => n -> Name   
---satchmoConstructorName = name . mapName ("Encoded" ++)
+    where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-eitherize :: Program -> Unique Program
-eitherize program = 
-  let isAdt (DAdt {}) = True
-      isAdt _         = False
-      adts            = filter isAdt program 
-  in do
-    pEither  <- eitherAdt 
-    program' <- runReaderT (runInstantiator $ instantiate program) adts
-    return $ pEither ++ program'
+  instantiateUndefined = return $ returnE $ varE "encUndefined"
+
+  instantiateBinding (Binding name exp) = do
+    exp' <- instantiate exp
+    return [valD' (encodedFunName name) exp']
+
+  instantiateCase (ECase e ms) = do
+    eScheme <- schemeOfExp e
+    if noEitherizeScheme eScheme
+      then return (TH.CaseE (displayExpression e)) `ap` instantiate ms
+      else do
+        e'Name <- newName "bindCase"
+        e'     <- instantiate e
+        ms'    <- mapM (instantiateMatchToExp e'Name) $ zip [0..] ms
+
+        let binding = bindS' e'Name e'
+
+        if lengthOne ms'
+          then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
+
+          else do switchByE <- bindAndApply (\ms'Names -> [ varE e'Name
+                                                          , TH.ListE $ map varE ms'Names
+                                                          ])
+                                            (appsE $ varE "switchBy") ms'
+
+                  return $ TH.DoE [ binding, TH.NoBindS $ dontCareMatch e'Name 
+                                                        $ switchByE ]
+    where 
+      -- |If the matched constructor has no arguments, just instantiate expression of match
+      instantiateMatchToExp _ (_, Match (PCon _ []) match) = instantiate match
+
+      -- |Otherwise, bind the constructor's arguments to new names
+      instantiateMatchToExp e'Name (j, Match (PCon _ patVars) match) = 
+        lets <$> instantiate match
+          
+        where 
+          lets                = letE' (map mkBinding $ zip [0..] patVarNames)
+          mkBinding (ith,var) = (var, eConstructorArg ith)
+
+          eConstructorArg i   = appsE (varE "constructorArgument") 
+                                      [ intE i, intE j, varE e'Name ]
+
+          patVarNames         = map (\(PVar n) -> nUntyped n) patVars
+
+      dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
+          [ TH.Match (conP "EncDontCare" []) 
+                     (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
+          , TH.Match (conP "EncUndefined" []) 
+                     (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
+          , TH.Match TH.WildP (TH.NormalB doCareBranch) [] ]
+
+  instantiateLet (ELet bindings exp) = do
+    exp'      <- instantiate exp 
+    bindings' <- mapM bindValue bindings
+    return $ TH.DoE $ bindings' ++ [ TH.NoBindS exp' ]
+
+    where bindValue (Binding name value) = return (bindS' name) `ap` instantiate value
+
+-- |Passed program must be first order.
+-- Note that @eitherize@ produces a Template-Haskell program
+eitherize :: MonadUnique u => Program -> u [TH.Dec]
+eitherize program = do
+  typedProgram <- schemes program
+  let (adts,values) = splitDeclarations typedProgram 
+
+  gadts <- sizedGadts adts
+
+  decls   <- execWriterT $ runAdtInstantiator $ collect     adts
+  values' <- concat <$>  ( runExpInstantiator $ instantiate values )
+  return $ gadts ++ decls ++ (deleteSignatures values')

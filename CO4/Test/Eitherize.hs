@@ -1,46 +1,54 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module CO4.Test.Eitherize
 where
 
-import           Prelude hiding (not,(&&),(||))
+import           Prelude hiding (Bool(..),and,not,(&&),(||))
+import           Control.Applicative ((<$>))
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Boolean
-import           Satchmo.Code (decode)
-import           Satchmo.SAT.Mini (solve)
+import           Satchmo.Boolean (assert)
+import           Satchmo.Code (Decode,decode)
+import           Satchmo.SAT.Mini (SAT,solve)
 import           CO4
-import           CO4.MonadifyTypes
+import           CO4.EncodedAdt
 
-$([d| data MyBool = Wahr | Falsch
+$([d|
+      data Boolean = True   | False 
+      data Fuzzy   = Fuzzy  | NotFuzzy Boolean
+      data Param   = Param1 | Param2 
 
-      myNot b = case b of Wahr -> Falsch
-                          Falsch -> Wahr
+      not a = case a of True -> False ; False -> True
 
-      myAnd a b = case a of 
-        Wahr   -> 
-          case b of 
-            Wahr   -> Wahr
-            Falsch -> Falsch
-        Falsch -> Falsch
+      and x y = case x of True  -> case y of True  -> True
+                                             False -> False
+                          False -> False
 
-      foo a  b = myAnd (myNot a) b
+      fuzzyAnd x y = case x of 
+        Fuzzy       -> Fuzzy
+        NotFuzzy x' -> case y of Fuzzy       -> Fuzzy
+                                 NotFuzzy y' -> NotFuzzy (and x' y')
+                  
+      isFuzzy x = case x of Fuzzy      -> True
+                            NotFuzzy _ -> False
 
-   |] >>= \p -> TH.runIO $ compile p [ Verbose, NoRaml ]
+      main p u v = case p of Param1 ->      isFuzzy (fuzzyAnd u v)
+                             Param2 -> not (isFuzzy (fuzzyAnd u v))
+
+   |] >>= \p -> TH.runIO $ compile p [ Verbose, NoRaml --,    NoSatchmo
+                                     , DumpAll ""]
   )
 
-test :: IO ()
-test = do
-  mResult <- solve ( do a <- boolean
-                        b <- boolean
-                        let encA = EncEither a () ()
-                            encB = EncEither b () ()
-                        --notA <- myNot encA
-                        EncEither r () () <- foo encB encA
-                        assert [r]
-                        return ( decode [a,b] )
-                 ) :: IO (Maybe [Bool])
-  putStrLn (unwords 
-    [ "Test:"
-    , show mResult
-    ] )
+invMain :: Param -> IO ()
+invMain param = do
+  mResult <- solve ( do u <- unknownAdt (undefined :: Fuzzy) 2
+                        v <- unknownAdt (undefined :: Fuzzy) 3
+                        a <- encMain param u v
+                        assert [flag a]
+                        return ( decode [u,v] )
+                 ) :: IO (Maybe [Fuzzy])
+  putStrLn $ show mResult
 
+deriving instance Show Fuzzy
+deriving instance Show Boolean

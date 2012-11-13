@@ -1,151 +1,26 @@
 module CO4.Algorithms.Instantiator
-  (MonadInstantiator(..), Instantiable (..))
+  (MonadInstantiator(..), Instantiable(..), instantiateSubexpressions)
 where
 
 import CO4.Language
 
 class Monad m => MonadInstantiator m where
 
-  -- |Instantiate schemes. Default is @return@.
   instantiateScheme :: Scheme -> m Scheme
   instantiateScheme = return
 
-  -- |Instantiate types. Default is @return@.
   instantiateType :: Type -> m Type
   instantiateType = return
 
-  -- |Instantiate names. Default instantiates scheme of typed-names.
+  instantiateUntypedName :: UntypedName -> m UntypedName
+  instantiateUntypedName = return
+
   instantiateName :: Name -> m Name
   instantiateName (NTyped n s) = do
     s' <- instantiate s
     return $ NTyped n s'
-
   instantiateName name = return name
 
-  -- |Instantiate untyped names. Default is @return@.
-  instantiateUntypedName :: UntypedName -> m UntypedName
-  instantiateUntypedName = return
-
-  -- |Instantiates variables.
-  -- Default instantiates name.
-  instantiateVar :: Expression -> m Expression
-  instantiateVar (EVar n) = do
-    n' <- instantiate n
-    return $ EVar n'
-
-  -- |Instantiates constructors.
-  -- Default instantiates name.
-  instantiateCon :: Expression -> m Expression
-  instantiateCon (ECon n) = do
-    n' <- instantiate n
-    return $ ECon n'
-
-  -- |Instantiates literals.
-  -- Default is @return@.
-  instantiateLit :: Expression -> m Expression
-  instantiateLit = return
-
-  -- |Instantiates function applications @f xs@. 
-  -- Default instantiates sub-expressions and calls @postprocessLambdaApp@ if
-  -- @f@ results in a lambda expression
-  instantiateApp :: Expression -> m Expression
-  instantiateApp (EApp f args) = do
-    f'    <- instantiate f
-    args' <- instantiate args
-    case f' of
-      ELam {} -> postprocessLambdaApp f' args'
-      _       -> return $ EApp f' args'
-    
-  -- |@postprocessLambdaApp (\...->...) args@ postprocesses a lambda application 
-  -- resulting from @instantiateApp@. Default is @return $ EApp f args@
-  postprocessLambdaApp :: Expression -> [Expression] -> m Expression
-  postprocessLambdaApp f args = return $ EApp f args
-    
-  -- |Instantiates type application. Default instantiates sub-expression and types.
-  instantiateTApp :: Expression -> m Expression
-  instantiateTApp (ETApp e types) = do
-    e'     <- instantiate e
-    types' <- instantiate types
-    return $ ETApp e' types'
-
-  -- |Instantiates let-expressions. Default instantiates sub-expressions and name.
-  instantiateLet :: Expression -> m Expression
-  instantiateLet (ELet n v e) = do
-    n' <- instantiate n
-    v' <- instantiate v
-    e' <- instantiate e
-    return $ ELet n' v' e'
-
-  -- |Instantiates lambda-expressions. Default instantiates sub-expression and names.
-  instantiateLam :: Expression -> m Expression
-  instantiateLam (ELam ns e) = do
-    ns' <- instantiate ns
-    e'  <- instantiate e 
-    return $ ELam ns' e'
-
-  -- |Instantiates type-abstraction. Default instantiates sub-expression.
-  instantiateTLam :: Expression -> m Expression
-  instantiateTLam (ETLam ns e) = do
-    ns' <- instantiate ns
-    e'  <- instantiate e 
-    return $ ETLam ns' e'
-
-  -- |Instantiates case-expressions. Default instantiates the matched expression 
-  -- and all matches
-  instantiateCase :: Expression -> m Expression
-  instantiateCase (ECase e ms) = do
-    e'  <- instantiate e
-    ms' <- instantiate ms
-    return $ ECase e' ms'
-
-  -- |Instantiates pattern-match. Default instantiates pattern and subexpression.
-  instantiateMatch :: Match -> m Match
-  instantiateMatch (Match p e) = do
-    p' <- instantiate p
-    e' <- instantiate e 
-    return $ Match p' e'
-
-  -- |Instantiates program. Default instantiates declarations.
-  instantiateProgram :: Program -> m Program
-  instantiateProgram = mapM instantiate
-
-  -- |Instantiate value-declaration. Default instantiates names and subexpression.
-  instantiateBind :: Declaration -> m Declaration
-  instantiateBind (DBind name exp) = do
-    name' <- instantiate name
-    exp'  <- instantiate exp
-    return $ DBind name' exp' 
-    
-  -- |Instantiate adt-declaration. Default instantiates names and constructors.
-  instantiateAdt :: Declaration -> m Declaration
-  instantiateAdt (DAdt name ts cons) = do
-    name' <- instantiate name
-    ts'   <- instantiate ts
-    cons' <- instantiate cons
-    return $ DAdt name' ts' cons'
-
-  -- |Instantiates declaration. Default calls @instantiate...@ according
-  -- to the matched constructor.
-  instantiateDeclaration :: Declaration -> m Declaration
-  instantiateDeclaration decl = case decl of
-    DBind {} -> instantiateBind decl
-    DAdt {}  -> instantiateAdt decl
-
-  -- |Instantiates expression. Default calls @instantiate...@ according
-  -- to the matched constructor.
-  instantiateExpression :: Expression -> m Expression
-  instantiateExpression exp = case exp of
-    EVar {}  -> instantiateVar exp
-    ECon {}  -> instantiateCon exp
-    ELit {}  -> instantiateLit exp
-    EApp {}  -> instantiateApp exp
-    ETApp {} -> instantiateTApp exp
-    ELam {}  -> instantiateLam exp
-    ETLam {} -> instantiateTLam exp
-    ECase {} -> instantiateCase exp
-    ELet {}  -> instantiateLet exp
-
-  -- |Instantiates pattern. Default instantiates names.
   instantiatePattern :: Pattern -> m Pattern
   instantiatePattern pat = case pat of
     PVar n    -> instantiate n >>= return . PVar
@@ -154,12 +29,114 @@ class Monad m => MonadInstantiator m where
       ps' <- instantiate ps
       return $ PCon n' ps'
 
-  -- |Instantiates constructor. Default instantiates name and types.
+  instantiateMatch :: Match -> m Match
+  instantiateMatch (Match p e) = do
+    p' <- instantiate p
+    e' <- instantiate e 
+    return $ Match p' e'
+
+  instantiateBinding :: Binding -> m Binding
+  instantiateBinding (Binding n e) = do
+    n' <- instantiate n
+    e' <- instantiate e
+    return $ Binding n' e'
+
+  instantiateVar :: Expression -> m Expression
+  instantiateVar (EVar n) = do
+    n' <- instantiate n
+    return $ EVar n'
+
+  instantiateCon :: Expression -> m Expression
+  instantiateCon (ECon n) = do
+    n' <- instantiate n
+    return $ ECon n'
+
+  instantiateApp :: Expression -> m Expression
+  instantiateApp (EApp f args) = do
+    f'    <- instantiate f
+    args' <- instantiate args
+    return $ EApp f' args'
+
+  instantiateTApp :: Expression -> m Expression
+  instantiateTApp (ETApp e types) = do
+    e'     <- instantiate e
+    types' <- instantiate types
+    return $ ETApp e' types'
+
+  instantiateLam :: Expression -> m Expression
+  instantiateLam (ELam ns e) = do
+    ns' <- instantiate ns
+    e'  <- instantiate e 
+    return $ ELam ns' e'
+
+  instantiateTLam :: Expression -> m Expression
+  instantiateTLam (ETLam ns e) = do
+    ns' <- instantiate ns
+    e'  <- instantiate e 
+    return $ ETLam ns' e'
+
+  instantiateCase :: Expression -> m Expression
+  instantiateCase (ECase e ms) = do
+    e'  <- instantiate e
+    ms' <- instantiate ms
+    return $ ECase e' ms'
+
+  instantiateLet :: Expression -> m Expression
+  instantiateLet (ELet b e) = do
+    b' <- instantiate b
+    e' <- instantiate e
+    return $ ELet b' e'
+
+  instantiateUndefined :: m Expression
+  instantiateUndefined = return EUndefined
+
+  instantiateExpression :: Expression -> m Expression
+  instantiateExpression = instantiateSubexpressions
+
   instantiateConstructor :: Constructor -> m Constructor
   instantiateConstructor (CCon name types) = do
     name'  <- instantiate name
     types' <- instantiate types
     return $ CCon name' types'
+
+  instantiateBind :: Declaration -> m Declaration
+  instantiateBind (DBind b) = instantiateBinding b >>= return . DBind
+
+  instantiateAdt :: Declaration -> m Declaration
+  instantiateAdt (DAdt name ts cons) = do
+    name' <- instantiate name
+    ts'   <- instantiate ts
+    cons' <- instantiate cons
+    return $ DAdt name' ts' cons'
+
+  instantiateDeclaration :: Declaration -> m Declaration
+  instantiateDeclaration decl = case decl of
+    DBind {} -> instantiateBind decl
+    DAdt {}  -> instantiateAdt decl
+    DTH {}   -> return decl
+
+  instantiateMain :: Binding -> m Binding
+  instantiateMain main = do
+    DBind main' <- instantiateDeclaration $ DBind main
+    return main'
+
+  instantiateProgram :: Program -> m Program
+  instantiateProgram (Program main decls) = do
+    main'  <- instantiateMain main
+    decls' <- instantiate     decls
+    return $ Program main' decls'
+
+instantiateSubexpressions :: MonadInstantiator m => Expression -> m Expression
+instantiateSubexpressions exp = case exp of
+  EVar {}    -> instantiateVar exp
+  ECon {}    -> instantiateCon exp
+  EApp {}    -> instantiateApp exp
+  ETApp {}   -> instantiateTApp exp
+  ELam {}    -> instantiateLam exp
+  ETLam {}   -> instantiateTLam exp
+  ECase {}   -> instantiateCase exp
+  ELet {}    -> instantiateLet exp
+  EUndefined -> instantiateUndefined 
 
 class Instantiable a where
   instantiate :: MonadInstantiator m => a -> m a
@@ -185,11 +162,17 @@ instance Instantiable Pattern where
 instance Instantiable Match where
   instantiate = instantiateMatch
 
+instance Instantiable Binding where
+  instantiate = instantiateBinding
+
 instance Instantiable Declaration where
   instantiate = instantiateDeclaration
 
 instance Instantiable Constructor where
   instantiate = instantiateConstructor
+
+instance Instantiable Program where
+  instantiate = instantiateProgram
 
 instance (Instantiable a) => Instantiable [a] where
   instantiate = mapM instantiate

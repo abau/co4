@@ -2,7 +2,6 @@ import           System.Console.GetOpt
 import           System.Environment (getArgs)
 import           Control.Monad (void,when)
 import           Data.List (intercalate)
-import           Data.Maybe (fromMaybe)
 import qualified Language.Haskell.Exts as HE
 import           CO4
 
@@ -25,16 +24,23 @@ configurations =
       (ReqArg (\m -> (:) (Metric m)) "METRIC") ("Metric of Raml's analysis: " ++ show metrics)
   , Option [] ["no-raml"] (NoArg $ (:) NoRaml) "No Raml analysis"
   , Option [] ["no-satchmo"] (NoArg $ (:) NoSatchmo) "No Satchmo code generation"
-  , Option [] ["dump-intermediate"]
-      (OptArg (\fp -> (:) (DumpIntermediate $ fromMaybe "" fp)) "FILE") "Dump intermediate code"
-  , Option [] ["dump-raml"]
-      (OptArg (\fp -> (:) (DumpRaml $ fromMaybe "" fp)) "FILE") "Dump Raml code"
-  , Option [] ["dump-satchmo"]
-      (OptArg (\fp -> (:) (DumpSatchmo $ fromMaybe "" fp)) "FILE") "Dump Satchmo code"
+  , Option [] ["dump-after"]
+      (ReqArg (\s -> (:) (parseDumpAfter s)) "STAGE[.FILE]") ("Dump code. STAGE=" ++ show stageNames)
+  , Option [] ["dump-all"]
+      (ReqArg (\fp -> (:) (DumpAll fp)) "FILE") ("Dump code of all intermediate stages")
   , Option [] ["instantiation-depth"]
       (ReqArg (\i -> (:) (InstantiationDepth $ read i)) "DEPTH") ("Maximum instantiation depth (default: " ++ show defaultInstantiationDepth ++ ")")
   ]
-      
+
+  where
+    parseDumpAfter string = case break (== '.') string of
+      (stage,[])   -> checkStage stage $ DumpAfter stage ""
+      (stage,rest) -> checkStage stage $ DumpAfter stage $ tail rest
+
+      where checkStage s = if s `elem` stageNames then id 
+                           else error $ concat [ "Unknown stage '",s,"'. "
+                                               , "Available stages: ", show stageNames
+                                               ]
 parseArgs :: IO (Configs, FilePath)
 parseArgs = do
   args <- getArgs

@@ -51,7 +51,7 @@ main = do
 testExp :: Integer -> Q Exp -> Scheme -> IO Bool
 testExp i thExpQ scheme = do
   thExp <- runQ thExpQ
-  let run = runUnique $ parseExpression thExp >>= schemeOfExp prelude
+  let run = runUnique $ parseExpression thExp >>= schemeOfExp emptyContext
   mType <- catch (Just <$> evaluate run)
                  (\msg -> putStrLn (unlines 
                       [ "Expressions test case: " ++ show i
@@ -75,7 +75,7 @@ testProgram :: Integer -> Q [Dec] -> [(Name,Scheme)] -> IO Bool
 testProgram i thDeclsQ expected = do
   thDecls <- runQ thDeclsQ
   let run = runUnique $ parseProgram thDecls >>= uniqueNames 
-                                             >>= schemes (HMConfig False) prelude
+                                             >>= schemes (HMConfig False) emptyContext
   mProg <- catch (Just <$> evaluate run)
                  (\msg -> putStrLn (unlines 
                       [ "Declarations test case: " ++ show i

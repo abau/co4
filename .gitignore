@@ -4,3 +4,5 @@
 *.clp
 *.lp
 dist/
+archive/
+scheme/

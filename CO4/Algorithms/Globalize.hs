@@ -4,89 +4,113 @@ module CO4.Algorithms.Globalize
 where
 
 import           Control.Applicative ((<$>))
-import           Control.Monad.Reader 
-import           Control.Monad.Writer
-import           Data.List (find,(\\))
-import           Data.Maybe (fromMaybe)
+import           Control.Monad.State
+import           Data.List (partition,(\\),nub)
+import qualified Data.Map as M
 import           CO4.Language
-import qualified CO4.Util as U
-import           CO4.Unique (Unique,newName)
-import           CO4.Algorithms.HindleyMilner (freeInPrelude)
+import           CO4.Util (addDeclarations)
+import           CO4.Unique (MonadUnique,newName)
+import           CO4.Algorithms.Free (Free,free)
+import           CO4.Algorithms.Bound (boundToplevel)
 import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.Rename (renameList)
+import           CO4.Algorithms.Replace (replaceExpressions)
+import           CO4.Algorithms.Util (collapseApplications)
+import           CO4.Algorithms.TopologicalSort (bindingGroups)
 
-data Env = Env { bindings      :: [Declaration]
-               , topLevelNames :: [Name]
+data Env = Env { callGlobal       :: M.Map Name Expression 
+               , globalBindings   :: [Binding]
+               , originalToplevel :: [Name]
                }
 
-newtype Instantiator a = Instantiator (ReaderT Env (WriterT [Declaration] Unique) a)
-  deriving (Functor, Monad, MonadReader Env, MonadWriter [Declaration])
+newtype Globalizer u a = Globalizer { runGlobalizer :: StateT Env u a }
+  deriving (Functor, Monad, MonadState Env, MonadUnique)
 
-instance MonadInstantiator Instantiator where
+instance MonadUnique u => MonadInstantiator (Globalizer u) where
 
-  instantiateVar (EVar name) = do
-    bs <- asks bindings
-    return $ fromMaybe (EVar name) 
-           $ fmap dBindExpression 
-           $ find (\d -> dBindName d == name) bs
+  instantiateVar (EVar name) = M.findWithDefault (EVar name) name <$> gets callGlobal
 
-  instantiateLam exp = 
-    newGlobalName >>= \name -> instantiateLambdaWithName name exp
+  instantiateLam (ELam parameters e) = do
+    e'         <- instantiateExpression  e
+    globalName <- newName "globalLambda"
+    freeNames  <- getFreeNames $ ELam parameters e'
+    freeNames' <- forM freeNames newName
 
-  -- This rule is not neccessary for globalization itself, but it's a convenient
-  -- shortcut and it prevents currying: otherwise @let n = \foo -> bar@ would
-  -- result in two declarations @global = \foo -> bar@ and @n = global@.
-  instantiateLet (ELet name v@(ELam {}) e) = do
-    v' <- instantiateLambdaWithName name v
-    local (addBinding name v') $ instantiateExpression e
+    addGlobalBinding $ Binding globalName 
+                     $ ELam (freeNames' ++ parameters) 
+                     $ renameList (zip freeNames freeNames') e'
 
-  instantiateLet (ELet name v e) = do
-    v' <- instantiateExpression v
-    e' <- instantiateExpression e
-    return $ ELet name v' e'
-    
-newGlobalName :: Instantiator Name
-newGlobalName = liftUnique $ newName "global" 
+    case freeNames of
+      [] -> return $       EVar globalName
+      _  -> return $ EApp (EVar globalName) $ map EVar freeNames
 
-liftUnique :: Unique a -> Instantiator a
-liftUnique = Instantiator . lift . lift
+  instantiateLet (ELet bindings e) = 
+    let (funBindings,otherBindings) = partition isFunctionBinding bindings
+        funBindingGroups            = bindingGroups funBindings
+    in do
+      oldCalls <- gets callGlobal
 
-instantiateLambdaWithName :: Name -> Expression -> Instantiator Expression
-instantiateLambdaWithName name (ELam parameters e) = do
-  nonFree     <- (name :) <$> asks topLevelNames 
-  let free    =  freeInPrelude (ELam parameters e) \\ nonFree
-      result  =  if null free then EVar name 
-                              else EApp (EVar name) $ map EVar free
+      forM_ funBindingGroups globalizeFunBindingGroup
 
-  local (addBinding name result) $ do
-    e'          <- instantiateExpression e
-    free'       <- liftUnique $ mapM newName free
-    let e''     =  renameList (zip free free') e'
-        newDec  =  case free' ++ parameters of
-                    [] -> DBind name e''
-                    p  -> DBind name $ ELam p e''
-    tell [newDec]
-    return result
+      otherBindings' <- forM otherBindings instantiateBinding
+
+      result <- case otherBindings' of
+                  [] -> instantiate e
+                  _  -> ELet otherBindings <$> instantiate e
+
+      modify $ \env -> env { callGlobal = oldCalls }
+      return result
+
+    where 
+      isFunctionBinding (Binding _ (ELam {})) = True
+      isFunctionBinding _                     = False
+
+      globalizeFunBindingGroup bGroup = do
+        let boundNames  = map boundName bGroup
+            boundExps   = map boundExpression bGroup
+
+        boundExps' <- forM boundExps $ \(ELam p exp) -> ELam p <$> instantiate exp
+
+        freeNames <- do all <- forM boundExps' getFreeNames 
+                        return $ nub (concat all) \\ boundNames
+
+        let globalCall name = EApp (EVar name) $ map EVar freeNames
+
+        forM_ boundNames $ \n -> addGlobalCall n $ globalCall n
+
+        let replacements = map (\n -> (EVar n, globalCall n) ) boundNames 
+
+        forM_ (zip boundNames boundExps') $ \(name, ELam params exp) -> do
+          freeNames' <- forM freeNames newName
+          let exp' = replaceExpressions replacements 
+                        $ renameList (zip freeNames freeNames')
+                        $ exp
+          addGlobalBinding $ Binding name $ ELam (freeNames' ++ params) exp'
+
+  instantiateBind (DBind binding) = case binding of
+      Binding n (ELam ns e) -> DBind . Binding n . ELam ns <$> instantiate e
+      Binding n e           -> DBind . Binding n <$> instantiate e
+
+getFreeNames :: (Free a,Functor m,Monad m) => a -> Globalizer m [Name]
+getFreeNames a = do
+  globalNames   <- gets (map boundName . globalBindings)
+  toplevelNames <- gets originalToplevel
+  return $ free a \\ (globalNames ++ toplevelNames)
+
+addGlobalCall :: Monad m => Name -> Expression -> Globalizer m ()
+addGlobalCall name exp = 
+  modify ( \state -> state { callGlobal = M.insert name exp $ callGlobal state } )
+
+addGlobalBinding :: Monad m => Binding -> Globalizer m ()
+addGlobalBinding b = 
+  modify ( \state -> state { globalBindings = globalBindings state ++ [b] } )
 
 -- |Lifts all local function declarations to the top level. 
 -- Make sure that all bounded names are unique and all expressions uncurried.
-globalize :: Program -> Unique Program
-globalize program = concat <$> mapM globalizeTopLevel program
-  where 
-    globalizeTopLevel declaration = case declaration of
-      DBind n (ELam ns e) -> do
-        (e',decs) <- runInstantiator (instantiateExpression e) tlNames
-        return $ (DBind n $ ELam ns e') : decs 
-      DBind n e -> do
-        (e',decs) <- runInstantiator (instantiateExpression e) tlNames
-        return $ (DBind n e') : decs 
-
-    tlNames = U.topLevelNames program
-
-runInstantiator :: Instantiator a -> [Name] -> Unique (a,[Declaration])
-runInstantiator (Instantiator inst) tlNames =
-  runWriterT $ runReaderT inst (Env [] tlNames)
-
-addBinding :: Name -> Expression -> Env -> Env
-addBinding n e env = 
-  env { bindings = (DBind n e) : (bindings env) }
+globalize :: MonadUnique u => Program -> u Program
+globalize program = do
+  (program',state) <- runStateT ( runGlobalizer $ instantiate program ) 
+                                $ Env M.empty []
+                                $ boundToplevel program
+  return $ collapseApplications 
+         $ addDeclarations (map DBind $ globalBindings state) program' 

@@ -9,10 +9,11 @@ import qualified Data.Map as M
 import           CO4.Language
 import           CO4.Unique
 import           CO4.Names
+import           CO4.Util (programDeclarations,mainName,programFromDeclarations)
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)
-import           CO4.Algorithms.Collapse (collapseApp)
+import           CO4.Algorithms.Util (sanitize,eraseTypedNames)
 import           CO4.Algorithms.Instantiator
-import           CO4.Algorithms.HindleyMilner (schemeOfExp, prelude)
+import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 
 type CacheKey   = (Expression,Int) -- (Applied expression, number of passed arguments)
 type CacheValue = Expression
@@ -29,7 +30,7 @@ instance MonadUnique u => MonadInstantiator (Instantiator u) where
     f'    <- instantiate f
     args' <- instantiate args
 
-    scheme <- schemeOfExp prelude f
+    scheme <- schemeOfExp f
 
     let numParams = length (argumentTypes $ typeOfScheme scheme)
         numArgs   = length args
@@ -60,12 +61,20 @@ newInstance f args numParameters = do
       exp     = ELam availableParams $ ELam missingParams $ EApp f allArgs
 
   modify $ M.insert (f, length args) (EVar name)
-  tell [ DBind name exp ]
+  tell [ DBind $ Binding name exp ]
 
   return $ EApp (EVar name) args
 
+-- |Saturates partial applications. Do not collapse abstractions afterwards as
+-- this would infer partial applications again.
 saturateApplication :: (MonadUnique u) => Program -> u Program
 saturateApplication program = do
+  typedProgram <- schemes program 
   (program',decls') <- runWriterT $ evalStateT 
-                       (runInstantiator $ instantiate $ collapseApp program) M.empty
-  return $ program' ++ decls'
+                        (runInstantiator $ instantiate 
+                                         $ sanitize
+                                         $ programDeclarations typedProgram) 
+                        M.empty
+  return $ eraseTypedNames 
+         $ programFromDeclarations (mainName program) 
+         $ program' ++ decls'

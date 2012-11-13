@@ -1,7 +1,8 @@
-{-# LANGUAGE FlexibleInstances, DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
 module CO4.Algorithms.HindleyMilner.Util
-  ( Context (..), Substitution, Free (..), Substitutable (..), mappend
-  , substitutes, binds, bindTypes, bindAdt, generalize, generalizeAll, gamma
+  ( Context (..), Substitution, Substitutable (..), mappend
+  , substitutes, binds, bindTypes, bindAdt, bindTypedBindings
+  , generalize, generalizeAll, gamma
   , emptyContext, lookup, unsafeLookup, hasScheme, toList, instantiateSchemeApp
   , unifyOrFail, unifyLeftOrFail, unifiesOrFail)
 where
@@ -17,8 +18,7 @@ import           CO4.Algorithms.Instantiator
 import           CO4.Language 
 import           CO4.PPrint (PPrint (..))
 import           CO4.Names (Namelike,untypedName)
-import           CO4.TypesUtil (functionType)
-import           CO4.Util (dAdt)
+import           CO4.TypesUtil (functionType,typeOfAdt)
 
 -- |A context is a mapping from names to schemes
 data Context = Gamma (M.Map UntypedName Scheme) deriving Show
@@ -28,16 +28,19 @@ type Substitution  = (UntypedName,Type)
 class Substitutable a where
   substitute :: Substitution -> a -> a
 
+instance Substitutable Scheme where
+  substitute s     (SType t)                 = SType $ substitute s t
+  substitute (n,_) (SForall f x) | n == f    = SForall f x
+  substitute (n,t) (SForall f x)             = SForall f $ substitute (n,t) x
+
 instance Substitutable Type where
   substitute (n,t') (TVar v) | v == n = t'
   substitute _      (TVar v)          = TVar v
   substitute s      (TCon n ts)       = TCon n $ map (substitute s) ts
 
-instance Substitutable Scheme where
-  substitute s     (SType t)      = SType $ substitute s t
-  substitute (n,t) (SForall f x) = 
-    if n == f then  SForall f x
-              else  SForall f $ substitute (n,t) x
+instance Substitutable Name where
+  substitute s (NTyped n t) = NTyped n $ substitute s t
+  substitute _ name         = name
 
 instance Free Context where
   free (Gamma c) = nub $ M.fold (\p -> (++) (free p)) [] c
@@ -55,10 +58,6 @@ instance PPrint Context where
     where
       ppBinding (name,scheme) = hsep [pprint name, text "::", pprint scheme]
 
-instance Substitutable Name where
-  substitute s (NTyped n t) = NTyped n $ substitute s t
-  substitute _ name         = name
-
 -- Expression substitution is done by an Instantiator monad
 newtype Substituter a = Substituter { runSubstituter :: Reader Substitution a }
   deriving (Functor, Monad, MonadReader Substitution)
@@ -72,11 +71,16 @@ instance MonadInstantiator Substituter where
     subst <- ask
     return $ substitute subst t
 
+-- We would like to write @instance Instantiable i => Substitutable i@ but
+-- this needs undecidable instances
 instance Substitutable Expression where
-  substitute s exp = runReader (runSubstituter $ instantiateExpression exp) s
+  substitute s a = runReader (runSubstituter $ instantiate a) s
 
 instance Substitutable Declaration where
-  substitute s decl = runReader (runSubstituter $ instantiateDeclaration decl) s
+  substitute s a = runReader (runSubstituter $ instantiate a) s
+
+instance Substitutable Pattern where
+  substitute s a = runReader (runSubstituter $ instantiate a) s
 
 instance Substitutable a => Substitutable [a] where
   substitute s as = map (substitute s) as
@@ -96,9 +100,15 @@ bindTypes bindings context =
 
 bindAdt :: Declaration -> Context -> Context
 bindAdt adt context = foldr bindConstructor context $ dAdtConstructors adt
-  where bindConstructor (CCon name types) =
-          binds [(name, foldr SForall (SType $ functionType types $ dAdt adt) 
-                                      (dAdtTypeVariables adt))]
+  where bindConstructor (CCon name types) = 
+          let scheme = foldr SForall (SType $ functionType types $ typeOfAdt adt) 
+                                     (dAdtTypeVariables adt)
+          in
+            binds [(name, scheme)]
+
+bindTypedBindings :: [Binding] -> Context -> Context
+bindTypedBindings b = binds (map toContextBinding b)
+  where toContextBinding (Binding (NTyped n s) _) = (UntypedName n, s)
 
 generalize :: Context -> Type -> Scheme
 generalize context t =

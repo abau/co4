@@ -2,12 +2,13 @@
 module CO4.Language
   ( Type (..), Scheme (..)
   , Name (..), UntypedName (..)
-  , Literal (..), Pattern (..), Match (..), Expression (..)
-  , Constructor (..), Declaration (..), Program
+  , Pattern (..), Match (..), Binding (..), Expression (..)
+  , Constructor (..), Declaration (..), Program (..)
   ) 
 where
 
 import           Data.Data (Data,Typeable)
+import qualified Language.Haskell.TH as TH
 
 data Type = TVar UntypedName
           | TCon UntypedName [Type]
@@ -36,38 +37,41 @@ instance Ord Name where
                   in
                     compare (string a) (string b)
 
-data Literal = LInt    Integer
-             | LChar   Char
-             | LDouble Double
-             deriving (Show,Eq,Ord,Data,Typeable)
-
 data Pattern = PVar Name
-             | PLit Literal
              | PCon Name [Pattern]
              deriving (Show,Eq,Ord,Data,Typeable)
 
 data Match = Match Pattern Expression
              deriving (Show,Eq,Ord,Data,Typeable)
 
+data Binding = Binding { boundName       :: Name 
+                       , boundExpression :: Expression }
+             deriving (Show,Eq,Ord,Data,Typeable)
+
 data Expression = EVar  Name
                 | ECon  Name
-                | ELit  Literal
                 | EApp  Expression [Expression]
                 | ETApp Expression [Type]
                 | ELam  [Name] Expression
                 | ETLam [UntypedName] Expression
                 | ECase Expression [Match]
-                | ELet  Name Expression Expression
+                | ELet  [Binding] Expression
+                | EUndefined
                 deriving (Show,Eq,Ord,Data,Typeable)
 
-data Constructor = CCon UntypedName [Type]
+data Constructor = CCon { cConName          :: UntypedName 
+                        , cConArgumentTypes :: [Type]
+                        }
                 deriving (Show,Eq,Ord,Data,Typeable)
 
-data Declaration = DBind { dBindName :: Name , dBindExpression :: Expression }
+data Declaration = DBind Binding
                  | DAdt  { dAdtName          ::  UntypedName 
                          , dAdtTypeVariables :: [UntypedName] 
                          , dAdtConstructors  :: [Constructor] }
+                 | DTH   TH.Dec
                 deriving (Show,Eq,Data,Typeable)
 
-type Program     = [Declaration]
+data Program = Program { pMain  :: Binding
+                       , pDecls :: [Declaration] } 
+             deriving (Show,Eq,Data,Typeable)
 

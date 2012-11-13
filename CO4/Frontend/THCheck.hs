@@ -1,6 +1,6 @@
 -- |Template Haskell compatibility checks
 module CO4.Frontend.THCheck
-  (check)
+  (check, checkProgram)
 where
 
 import           Language.Haskell.TH 
@@ -10,30 +10,42 @@ import           Debug.Trace (trace)
 
 data Message = Error String
              | Warning String
-             deriving (Show)
+
+instance Show Message where
+  show (Error msg)   = "Frontend.THCheck (Error): "   ++ msg
+  show (Warning msg) = "Frontend.THCheck (Warning): " ++ msg
+
 type Check   = [Message]
 
-check :: Monad m => GenericQ (m ())
-check a = case partition isError (checkMsg a) of
-  ([],[]) -> return ()
-  ([],ws) -> trace (unlines $ map show ws) $ return ()
-  (es,ws) -> error $ concat $ (map show ws) ++ (map show es)
+checkProgram :: [Dec] -> Bool
+checkProgram program = check program && containsMain 
+  where containsMain = case any isMain program of
+                        False -> error $ show $ Error "No 'main' binding found"
+                        True  -> True
 
-checkMsg :: GenericQ Check
-checkMsg a = concat  [ and' noGuardedBody a
-                     , and' noBoundPatternsInValueDeclaration a
-                     , and' validDeclaration a
-                     , and' unresolvedInfixExp a
-                     , and' unresolvedInfixPat a
-                     ]
+        isMain (FunD name _) = nameBase name == "main"
+        isMain _             = False
+
+check :: GenericQ Bool
+check a = case partition isError (checks a) of
+  ([],[]) -> True
+  ([],ws) -> trace (unlines $ map show ws) $ True
+  (es,ws) -> error $ unlines $ map show $ ws ++ es
+
+checks :: GenericQ Check
+checks a = concat  [ and' noGuardedBody a
+                   , and' noBoundPatternsInValueDeclaration a
+                   , and' validDeclaration a
+                   , and' unresolvedInfixExp a
+                   , and' unresolvedInfixPat a
+                   ]
 
 validDeclaration :: Dec -> Check
 validDeclaration dec = case dec of
   FunD {}  -> []
   ValD {}  -> []
-  SigD {}  -> []
   DataD {} -> []
-  _        -> [Error "Only function declarations, value declarations, signatures and data declarations are allowed"]
+  _        -> [Error "Only function declarations, value declarations and data declarations are allowed"]
 
 noGuardedBody :: Body -> Check
 noGuardedBody (NormalB  _) = []

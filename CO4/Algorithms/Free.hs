@@ -3,7 +3,7 @@ module CO4.Algorithms.Free
 where
 
 import           Data.List ((\\),delete,nub)
-import           CO4.Algorithms.Bound (bound)
+import           CO4.Algorithms.Bound (boundInPattern)
 import           CO4.Language
 import           CO4.Names (name)
 
@@ -20,15 +20,19 @@ instance Free Scheme where
   free (SForall n scheme) = (delete $ name n) $ free scheme
 
 instance Free Expression where
-  free (EVar v)      = [v]
-  free (ECon _)      = []
-  free (ELit _)      = []
-  free (EApp f args) = nub $ concatMap free (f:args)
-  free (ETApp f _)   = free f
-  free (ELam ns e)   = free e \\ ns
-  free (ETLam _ e)   = free e
-  free (ECase e ms)  = nub $ free e ++ (concatMap free ms)
-  free (ELet n v e)  = delete n $ nub $ free v ++ (free e)
+  free (EVar v)               = [v]
+  free (ECon _)               = []
+  free (EApp f args)          = nub $ concatMap free (f:args)
+  free (ETApp f _)            = free f
+  free (ELam ns e)            = free e \\ ns
+  free (ETLam _ e)            = free e
+  free (ECase e ms)           = nub $ free e ++ (concatMap free ms)
+  free (ELet bs e)   = 
+    let boundNames = map boundName bs
+        freeInBs   = concatMap (free . boundExpression) bs
+    in
+      (nub $ free e ++ freeInBs) \\ boundNames
+  free EUndefined             = []
 
 instance Free Match where
-  free (Match pat exp) = free exp \\ (bound pat)
+  free (Match pat exp) = free exp \\ (boundInPattern pat)

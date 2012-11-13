@@ -12,43 +12,46 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
-                    , CO4.MonadifyTypes
   Other-Modules:      CO4.Backend
                     , CO4.Compilation
+                    , CO4.EncodedAdt
                     , CO4.Frontend
                     , CO4.Language
                     , CO4.Names
                     , CO4.PPrint
+                    , CO4.THUtil
                     , CO4.TypesUtil
                     , CO4.Unique
                     , CO4.Util
                     , CO4.Algorithms.Bound
+                    , CO4.Algorithms.Collector
+                    , CO4.Algorithms.Eitherize
                     , CO4.Algorithms.EtaExpansion
                     , CO4.Algorithms.Free
                     , CO4.Algorithms.Globalize
                     , CO4.Algorithms.HindleyMilner
                     , CO4.Algorithms.Instantiation
                     , CO4.Algorithms.Instantiator
-                    , CO4.Algorithms.Monadify
+                    , CO4.Algorithms.Rename
+                    , CO4.Algorithms.Replace
                     , CO4.Algorithms.SaturateApplication
-                    , CO4.Algorithms.TypedNames
+                    , CO4.Algorithms.THInstantiator
+                    , CO4.Algorithms.TopologicalSort
                     , CO4.Algorithms.UniqueNames
-                    , CO4.Algorithms.HindleyMilner.Prelude
+                    , CO4.Algorithms.Utility
+                    , CO4.Algorithms.Eitherize.DecodedAdtTypeFamily
+                    , CO4.Algorithms.Eitherize.DecodeInstance
+                    , CO4.Algorithms.Eitherize.SizedGadt
+                    , CO4.Algorithms.Eitherize.Solve
+                    , CO4.Algorithms.Eitherize.UnknownGadtInstance
+                    , CO4.Algorithms.Eitherize.Util
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
-                    , CO4.Backend.Raml
-                    , CO4.Backend.RamlPreprocess
-                    , CO4.Backend.SatchmoPreprocess
-                    , CO4.Backend.TH
-                    , CO4.Frontend.String
-                    , CO4.Frontend.TH
-                    , CO4.Frontend.THCheck
-                    , CO4.Frontend.THPreprocess
-                    , CO4.Frontend.HaskellSrcExts
+
   Ghc-options:        -W -fno-warn-incomplete-patterns
   Build-Depends:      base >= 4.2 && < 5.0
-                    , template-haskell == 2.7.*
-                    , containers == 0.4.*
+                    , template-haskell == 2.8.*
+                    , containers == 0.5.*
                     , mtl == 2.1.*
                     , syb == 0.3.*
                     , pretty == 1.1.*
@@ -56,14 +59,14 @@ Library
                     , raml == 0.7.*
                     , satchmo >= 2.1 && < 3.0
                     , haskell-src-exts == 1.13.*
-                    , haskell-src-meta == 0.5.*
+                    , haskell-src-meta == 0.6.*
 
 Executable co4 
   Main-Is:          Main.hs
   Ghc-options:        -W -fno-warn-incomplete-patterns
   Build-Depends:      base >= 4.2 && < 5.0
-                    , template-haskell == 2.7.*
-                    , containers == 0.4.*
+                    , template-haskell == 2.8.*
+                    , containers == 0.5.*
                     , mtl == 2.1.*
                     , syb == 0.3.*
                     , pretty == 1.1.*
@@ -71,4 +74,4 @@ Executable co4
                     , raml == 0.7.*
                     , satchmo >= 2.1 && < 3.0
                     , haskell-src-exts == 1.13.*
-                    , haskell-src-meta == 0.5.*
+                    , haskell-src-meta == 0.6.*

@@ -13,5 +13,9 @@ instance ProgramFrontend HE.Module where
   parseProgram (HE.Module _ _ [] Nothing _ [] decs) =
     parseProgram $ HM.toDecs decs
 
-  parseProgram _ = error $ "Frontend.HaskellSrcExts: no pragmas, warning texts or import declarations allowed"
-    
+  parseProgram _ = error $ "Frontend.HaskellSrcExts.parseProgram: no pragmas, warning texts or import declarations allowed"
+
+  parsePreprocessedProgram (HE.Module _ _ [] Nothing _ [] decs) =
+    parsePreprocessedProgram $ HM.toDecs decs
+
+  parsePreprocessedProgram _ = error $ "Frontend.HaskellSrcExts.parsePreprocessedProgram: no pragmas, warning texts or import declarations allowed"

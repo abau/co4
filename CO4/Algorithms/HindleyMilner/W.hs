@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CO4.Algorithms.HindleyMilner.W
-  (HMConfig (..), schemeOfExp, schemes)
+  ( HMConfig (..), IntroduceTLamTApp (..) 
+  , schemeOfExp, schemesConfig, schemes, withSchemes)
 where
   
 import           Prelude hiding (lookup)
@@ -8,42 +9,79 @@ import           Control.Monad.Identity
 import           Control.Monad.Reader
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
-import           Data.Graph (stronglyConnComp,flattenSCC)
-import           CO4.Util (topLevelNames,splitDeclarations)
+import           CO4.Util 
 import           CO4.Language
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Names
 import           CO4.TypesUtil
 import           CO4.Algorithms.HindleyMilner.Util
-import           CO4.Algorithms.Bound (bound)
+import           CO4.Algorithms.Bound (boundInScheme)
 import           CO4.PPrint
 import           CO4.Algorithms.Instantiator hiding (instantiate)
-import           CO4.Algorithms.TypedNames (typedNames)
+import           CO4.Algorithms.Util (introduceTypedNames,eraseTypedNames)
+import           CO4.Algorithms.TopologicalSort (bindingGroups)
 
-data HMConfig     = HMConfig { introduceTLamTApp :: Bool }
+-- |Options whether and how to introduce type applications and type abstractions
+data IntroduceTLamTApp = IntroduceAllTLamTApp  -- ^For all polymorphic expressions
+                       | IntroduceVarTLamTApp  -- ^For polymorphic variables
+                       | IntroduceConTLamTApp  -- ^For polymorphic constructors
+                       | DontIntroduceTLamTApp -- ^Don't introduce any type applications or type abstractions
+
+data HMConfig     = HMConfig { introduceTLamTApp :: IntroduceTLamTApp }
 type HM u a       = ReaderT HMConfig u a
-type BindingGroup = [Declaration]
+type BindingGroup = [Binding]
+
+introduceVarTLamTApp :: Monad u => HM u Bool
+introduceVarTLamTApp = do
+  intro <- asks introduceTLamTApp
+  return $ case intro of
+    IntroduceAllTLamTApp -> True
+    IntroduceVarTLamTApp -> True
+    _                    -> False
+
+introduceConTLamTApp :: Monad u => HM u Bool
+introduceConTLamTApp = do
+  intro <- asks introduceTLamTApp
+  return $ case intro of
+    IntroduceAllTLamTApp -> True
+    IntroduceConTLamTApp -> True
+    _                    -> False
 
 runHm :: MonadUnique u => HMConfig -> HM u a -> u a
 runHm = flip runReaderT
 
 -- |Infers the scheme of an expression without introducing type abstractions
 -- and type applications
-schemeOfExp :: MonadUnique u => Context -> Expression -> u Scheme
-schemeOfExp context exp = do
-  (subst,t,_) <- runHm (HMConfig False) $ w context exp
+schemeOfExp :: MonadUnique u => Expression -> u Scheme
+schemeOfExp exp = do
+  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp) $ w context exp
   let t' = generalize (substitutes subst context) t
   return t'
 
+  where context = emptyContext
+
 -- |Annotates the scheme to all named expressions/declarations 
-schemes :: MonadUnique u => HMConfig -> Context -> Program -> u Program
-schemes hmConfig context program = do
-  program' <- runHm hmConfig $ wProgram context program
-  return $ runIdentity $ runTypeApp $ instantiateProgram program'
+schemes :: MonadUnique u => Program -> u Program
+schemes = schemesConfig (HMConfig DontIntroduceTLamTApp) emptyContext
+
+-- |@withSchemes f p@ applies @f@ to @p'@, where @p'@ equals @p@ after type inference.
+-- Returns the result of @f p'@ with erased type information.
+withSchemes :: MonadUnique u => (Program -> u Program) -> Program -> u Program
+withSchemes f program = schemes program >>= f >>= return . eraseTypedNames
+
+schemesConfig :: MonadUnique u => HMConfig -> Context -> Program -> u Program
+schemesConfig hmConfig context program = do
+  program'         <- runHm hmConfig $ wProgram context program
+
+  let schemeOfMain =  schemeOfName $ boundName $ pMain program'
+
+  case boundInScheme schemeOfMain of
+    [] -> return $ runIdentity $ runTypeApp $ instantiateProgram program'
+    _  -> error $ "Algorithms.HindleyMilner: main must not have the polymorphic type '" ++ show (pprint schemeOfMain) ++ "'"
 
 -- | While introducing explicit type applications, we apply an instantiated
 -- type @t@ to polymorphic function symbols in the first place:
--- @map not xs -> map <(Bool -> Bool) -> [Bool] -> [Bool]> not xs@
+-- @map not xs@ becomes @map <(Bool -> Bool) -> [Bool] -> [Bool]> not xs@
 -- @TypeApplicator@ unifies @t@ with the general type of @map@.
 -- The final type application consists of the substituted variables:
 -- @map <Bool,Bool> not xs@.
@@ -52,22 +90,20 @@ newtype TypeApplicator a = TypeApplicator { runTypeApp :: Identity a }
 
 instance MonadInstantiator TypeApplicator where
   instantiateTApp (ETApp f@(EVar (NTyped _ fScheme)) [instantiatedType]) = 
-    if isFunType instantiatedType 
-    then case (bound fScheme, free instantiatedType) of
-      ([],[]) -> return f
-      ([],fs) -> -- Nothing to unify: type app consists of all free variables
-        let typeApps = map (TVar . untypedName) fs
-        in
-          return $ ETApp f typeApps
+    return $ applyInstantiatedTypeToInferredScheme instantiatedType fScheme f
 
-      (bs,_) -> 
-        let fType    = typeOfScheme fScheme
-            subst    = runIdentity $ unifyLeftOrFail fType instantiatedType
-            bs'      = map untypedName bs
-            typeApps = map (\b -> fromJust $ L.lookup b subst) bs'
-        in
-          return $ ETApp f typeApps
-    else return f
+  instantiateTApp (ETApp f@(ECon (NTyped _ fScheme)) [instantiatedType]) = 
+    return $ applyInstantiatedTypeToInferredScheme instantiatedType fScheme f
+
+applyInstantiatedTypeToInferredScheme :: Type -> Scheme -> Expression -> Expression
+applyInstantiatedTypeToInferredScheme instantiatedType scheme exp = 
+  case boundInScheme scheme of
+    []            -> exp  
+    boundInScheme -> 
+      let subst    = runIdentity $ unifyLeftOrFail (typeOfScheme scheme) instantiatedType
+          typeApps = map (\b -> fromJust $ L.lookup (untypedName b) subst) boundInScheme
+      in
+        ETApp exp typeApps
 
 -- |Instantiate a scheme to a new type
 instantiate :: MonadUnique u => Scheme -> HM u Type
@@ -80,24 +116,26 @@ instantiate scheme = case scheme of
 
 -- |Introduce a new type variable
 newType :: MonadUnique u => HM u Type
-newType = newName "type" >>= return . TVar
+newType = newName "type" >>= return . tVar
 
 -- |Infers the type of an expression
 w :: MonadUnique u => Context -> Expression -> HM u ([Substitution], Type, Expression)
 w context exp = case exp of
   EVar name -> do scheme  <- lookupName name
                   type_   <- instantiate scheme
-                  doIntro <- asks introduceTLamTApp 
+                  doIntro <- introduceVarTLamTApp 
                   let exp' = if doIntro
                              then ETApp (EVar $ nTyped name scheme) [type_]
                              else        EVar $ nTyped name scheme
                   return ([], type_, exp')
 
-  ECon name -> do scheme <- lookupName name
-                  type_  <- instantiate scheme
-                  return ([], type_, ECon $ nTyped name scheme)
-
-  ELit lit  -> return ([], wLit lit, exp)
+  ECon name -> do scheme  <- lookupName name
+                  type_   <- instantiate scheme
+                  doIntro <- introduceConTLamTApp 
+                  let exp' = if doIntro
+                             then ETApp (ECon $ nTyped name scheme) [type_]
+                             else        ECon $ nTyped name scheme
+                  return ([], type_, exp')
 
   EApp f args -> do
     (s1, tArgs, args') <- foldM (\(subst,ts,args') arg -> 
@@ -138,13 +176,17 @@ w context exp = case exp of
     
     return (subst,resultT,ECase e' matches')
 
-  ELet name value localExp -> do
-    (subst,  [DBind name' value']) <- wBindingGroup context [DBind name value]
+  ELet bindings localExp -> do
+    (subst,  bindings') <- wBindingGroup context bindings
 
-    let NTyped _ valueScheme = name'
-    (subst', expType, localExp') <- w (binds [(name,valueScheme)] context) localExp
+    let context' = bindTypedBindings bindings' context
 
-    return $ (subst ++ subst', expType, ELet name' value' localExp')
+    (subst', expType, localExp') <- w context' localExp
+
+    return $ (subst ++ subst', expType, ELet bindings' localExp')
+
+  EUndefined -> do type_   <- newType
+                   return ([], type_, EUndefined)
 
   where 
     lookupName name = 
@@ -160,105 +202,79 @@ wProgram context program = do
       bgs                     = bindingGroups valueDecls
       context'                = foldr bindAdt context typeDecls
 
-  (_,_,program') <-
-    foldM (\(s,ctxt,program') bg -> do 
+  (_,_,valueDecls') <-  
+    foldM (\(s,ctxt,valueDecls') bg -> do
               (s',bg') <- wBindingGroup ctxt bg
-              let ctxt' = gamma $ map (\(DBind (NTyped n s) _) -> (UntypedName n, s)) bg'
-              return (s ++ s', mappend ctxt ctxt', bg' ++ program')
+              let ctxt' = bindTypedBindings bg' ctxt 
+              return (s ++ s', ctxt', bg' ++ valueDecls')
           ) ([],context',[]) bgs
 
-  return program'
+  return $ programFromDeclarations   (mainName program) 
+                                   $ typeDecls ++ (map DBind valueDecls')
 
 -- |Annotates the schemes to a mutually recursive binding group 
 wBindingGroup :: MonadUnique u => Context -> BindingGroup 
                                -> HM u ([Substitution], BindingGroup)
 wBindingGroup context decls = do
-  types   <- forM decls $ const newType
-  doIntro <- asks introduceTLamTApp 
+  newTypes <- forM decls $ const newType
+  doIntro  <- introduceVarTLamTApp 
 
-  let bindings        = zip (topLevelNames decls) types
+  let bindings        = zip (map boundName decls) newTypes
       extendedContext = bindTypes bindings context
 
   (subst,exps') <- 
-       foldM (\(subst,exps') (decl, typeVar) -> do
-                  (s',t',exp') <- wDecl (substitutes subst extendedContext) decl
-                  s''          <- unifyOrFail (substitutes (subst ++ s') typeVar) t'
+       foldM (\(subst,exps') (Binding _ exp, newType) -> do
+                  (s',t',exp') <- w (substitutes subst extendedContext) exp
+                  s''          <- unifyOrFail (substitutes (subst ++ s') newType) t'
                   return (subst ++ s' ++ s'', exps' ++ [exp'])
-             ) ([],[]) $ zip decls types
+             ) ([],[]) $ zip decls newTypes
 
   let context'  = substitutes subst context 
       bindings' = map (\(n, t) -> (n, generalize context' $ substitutes subst t)) bindings
       decls'    = map (\((name, scheme), exp') -> 
                     let exp'' = -- Annotate generalized schemes to recursive calls 
                                 -- in this binding group
-                            typedNames (gamma bindings') $ substitutes subst exp' 
-                    in case bound scheme of
-                        [] -> DBind (nTyped name scheme) exp''
+                                introduceTypedNames (gamma bindings') 
+                                                  $ substitutes subst exp' 
+                    in case boundInScheme scheme of
+                        [] -> Binding (nTyped name scheme) exp''
                         bs -> if doIntro
                               then let bs' = map untypedName bs
                                    in
-                                    DBind (nTyped name scheme) $ ETLam bs' exp''
-                              else  DBind (nTyped name scheme)             exp''
+                                    Binding (nTyped name scheme) $ ETLam bs' exp''
+                              else  Binding (nTyped name scheme)             exp''
                   ) $ zip bindings' exps' 
 
   return (subst, decls')
-
-  where wDecl extendedContext (DBind (NTyped _ scheme) exp) = do
-          providedType               <- instantiate scheme
-          (subst',inferredType,exp') <- w extendedContext exp 
-          subst''                    <- unifyLeftOrFail inferredType providedType
-
-          let inferredType' = substitutes subst'' inferredType
-
-          return (subst' ++ subst'', inferredType', exp')
-
-        wDecl extendedContext (DBind _ exp) = w extendedContext exp 
 
 -- |Infers the type of a case's match. The type of the pattern-matched expression 
 -- @matchedType@ must be provided in order to restrict the pattern's type.
 wMatch :: MonadUnique u => Context -> Type -> Match -> HM u ([Substitution], Type, Match)
 wMatch context matchedType (Match pat exp) = do
-  (patType,bindings)      <- wPat context pat
+  (patType,bindings,pat') <- wPat context pat
   s                       <- unifyOrFail patType matchedType 
   (s',t,exp')             <- w (bindTypes (substitutes s bindings) context) exp
-  return (s ++ s', t, Match pat exp')
+  return (s ++ s', t, Match pat' exp')
 
--- |Infers the type of a pattern. Also returns the bindings of
--- names that are bound in the pattern
-wPat :: MonadUnique u => Context -> Pattern -> HM u (Type,[(Name,Type)])
+-- |Infers the type of expressions that a given pattern matches. 
+-- Also returns the bindings of names that are bound in the pattern.
+wPat :: MonadUnique u => Context -> Pattern -> HM u (Type,[(Name,Type)],Pattern)
 wPat context pat = case pat of
-  PLit lit -> return (wLit lit, [])
   PVar var -> do t <- newType
-                 return (t, [(var, t)])
+                 return (t, [(var, t)], PVar $ nTyped var $ sType t)
 
-  PCon _ ps -> do
-    bindings <- foldM (\bindings p -> do
-                          (_,bs) <- wPat context p
-                          return $ bindings ++ bs
-                       ) [] ps
+  PCon n ps -> do
+    (bindings,ps')  <- foldM (\(bindings,ps') p -> do
+                          (_,bs,p') <- wPat context p
+                          return (bindings ++ bs, ps' ++ [p'])
+                       ) ([],[]) ps
 
-    (subst,type_,_) <- w (bindTypes bindings context) $ pat2exp pat
+    let exp = patternToExpression $ PCon n ps'
+    (subst,type_,exp') <- withoutTLamTApp $ w (bindTypes bindings context) exp
 
     let bindings' = map (\(n,b) -> (n, substitutes subst b)) bindings
-    return (type_, bindings')
+        pat'      = substitutes subst $ expressionToPattern exp'
+    return (type_, bindings', pat')
 
-    where 
-      pat2exp (PVar name)    = EVar name
-      pat2exp (PLit lit)     = ELit lit
-      pat2exp (PCon name []) = ECon name
-      pat2exp (PCon name ps) = EApp (ECon name) $ map pat2exp ps
- 
--- |Infers the type of a literal
-wLit :: Literal -> Type
-wLit lit = case lit of
-  LInt _     -> TCon intType []
-  LChar _    -> TCon charType []
-  LDouble _  -> TCon doubleType []
-
--- |Computes groups of mutually recursive declarations
-bindingGroups :: Program -> [BindingGroup]
-bindingGroups program =
-  let graph = map (\d@(DBind n e) -> (d, untypedName n, map untypedName $ free e)) program
-  in
-    map (L.nub . flattenSCC) $ stronglyConnComp graph
+  where withoutTLamTApp = local (const $ HMConfig DontIntroduceTLamTApp)
 

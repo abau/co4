@@ -1,9 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Compilation
-  (Config(..), Configs, compile, metrics, defaultInstantiationDepth)
+  (Config(..), Configs, compile, metrics, defaultInstantiationDepth, stageNames)
 where
 
-import           Prelude hiding (catch)
 import           Control.Exception (catch,ErrorCall(..))
 import           Control.Monad.Reader hiding (liftIO)
 import           Control.Applicative ((<$>))
@@ -16,26 +15,46 @@ import           CO4.Language (Program)
 import           CO4.Unique (Unique,UniqueT,runUniqueT,mapUnique)
 import           CO4.Frontend
 import           CO4.Backend
-import           CO4.Backend.Raml
 import           CO4.Backend.TH ()
-import           CO4.Backend.SatchmoPreprocess
-import           CO4.Algorithms.Globalize
-import           CO4.Algorithms.UniqueNames
-import           CO4.Algorithms.Monadify
-import           CO4.Algorithms.HindleyMilner (HMConfig (..),schemes,prelude)
+import           CO4.Algorithms.Globalize (globalize)
+import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
 import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
+import           CO4.Algorithms.Eitherize (eitherize)
+import           CO4.Algorithms.HindleyMilner (schemes)
+import           CO4.Algorithms.Util (eraseTypedNames)
 
+stageParsed                 = "parsed"
+stageUniqueLocalNames       = "uniqueLocalNames"
+stageTypeInference          = "typeInference"
+stageEtaExpansion           = "etaExpansion"
+stageCloseLocalAbstractions = "closeLocalAbstractions"
+stageGlobalize              = "globalize"
+stageSaturateApplication    = "saturateApplication"
+stageInstantiation          = "instantiation"
+stageSatchmo                = "satchmo"
+
+stageNames                  = [ stageParsed
+                              , stageUniqueLocalNames
+                              , stageTypeInference
+                              , stageEtaExpansion
+                              , stageCloseLocalAbstractions
+                              , stageGlobalize
+                              , stageSaturateApplication
+                              , stageInstantiation
+                              , stageSatchmo
+                              ]
+
+type Stage   = String
 data Config  = Verbose
              | Degree Int
              | DegreeLoop Int
              | Metric String
              | NoRaml
              | NoSatchmo
-             | DumpIntermediate FilePath
-             | DumpRaml FilePath
-             | DumpSatchmo FilePath
+             | DumpAfter Stage FilePath
+             | DumpAll FilePath
              | InstantiationDepth Int
              deriving (Eq)
 
@@ -45,25 +64,40 @@ type Configurable = ReaderT Configs (UniqueT IO)
 compile :: (ProgramFrontend a) => a -> Configs -> IO [TH.Dec]
 compile a configs = do
   runUniqueT $ flip runReaderT configs $ do
-    uniqueProgram <- liftUnique $ parseProgram a 
-                                    >>= uniqueNames 
-                                    >>= schemes (HMConfig False) prelude 
-                                    >>= etaExpansion
+    parsedProgram <- liftUnique $ parsePreprocessedProgram a 
 
-    case isDumpIntermediate configs of
-       Nothing   -> return ()
-       Just ""   -> liftIO $ putStrLn $ unlines [ "## Intermediate #######################" 
-                                                , displayProgram uniqueProgram]
-       Just file -> liftIO $ writeFile file $ displayProgram uniqueProgram
-    
+    uniqueProgram <-  dumpAfterStage' stageParsed parsedProgram
+
+                  >>= liftUnique      .    uniqueLocalNames 
+                  >>= dumpAfterStage' stageUniqueLocalNames
+
+                  >>= liftUnique      . schemes
+                  >>= dumpAfterStage'   stageTypeInference
+                  >>= return          . eraseTypedNames
+
+                  >>= liftUnique      .    etaExpansion
+                  >>= dumpAfterStage' stageEtaExpansion
+
+                  >>= liftUnique      .    globalize 
+                  >>= dumpAfterStage' stageGlobalize
+
+                  >>= liftUnique      .    saturateApplication
+                  >>= dumpAfterStage' stageSaturateApplication
+
+                  >>= liftUnique      .    instantiation (instantiationDepth configs)
+                  >>= dumpAfterStage' stageInstantiation
+
     whenNot' NoRaml $ compileToRaml uniqueProgram >>= analyseRaml (degree configs)
 
     noSatchmo <- is NoSatchmo
     result    <- if noSatchmo then return [] else compileToSatchmo uniqueProgram
+
     logWhenVerbose "Compilation successful"
-    return result
+    return $ displayProgram parsedProgram ++ result
   where
-    m = metric configs
+    m                             = metric configs
+    dumpAfterStage' stage program = 
+      dumpAfterStage stage (displayProgram program) >> return program
 
     analyseRaml d (decs,main) =
       case RamlST.analyseDecs decs of
@@ -88,39 +122,29 @@ compile a configs = do
                     Just max -> error $ "Raml can not infer degree up to " ++ show max
 
 compileToRaml :: Program -> Configurable RamlT.Program
-compileToRaml p = do        
+compileToRaml _ = error "Raml compilation is out of order"
+
+{-
+do        
   instDepth <- fromConfigs instantiationDepth
   logWhenVerbose $ "Instantiation using depth " ++ show instDepth
   ramlP     <- liftUnique $ globalize p
-                       >>= schemes (HMConfig True) prelude 
+                       >>= schemes (HMConfig IntroduceVarTLamTApp) emptyContext 
                        >>= instantiation instDepth
                        >>= displayPreprocessedRamlProgram 
 
   let stringRamlP = show $ RamlPP.pprint ramlP
 
-  dump <- fromConfigs isDumpRaml
-  case dump of
-     Nothing   -> return ()
-     Just ""   -> liftIO $ putStrLn $ unlines [ "## Raml ###############################" 
-                                              , stringRamlP]
-     Just file -> liftIO $ writeFile file stringRamlP
-
+  dumpWhenConfig isDumpRaml "Raml" stringRamlP
   return ramlP
+  -}
 
 compileToSatchmo :: Program -> Configurable [TH.Dec]
-compileToSatchmo p = do
-  satchmoP <- liftUnique $ saturateApplication p >>= monadify 
+compileToSatchmo program = do
+  thProgram <- liftUnique $ eitherize program
 
-  let thSatchmoP     = displayProgram $ preprocessSatchmo satchmoP
-      stringSatchmoP = show $ TH.ppr thSatchmoP
-
-  dump <- fromConfigs isDumpSatchmo 
-  case dump of
-     Nothing   -> return ()
-     Just ""   -> liftIO $ putStrLn $ unlines [ "## Satchmo ############################" 
-                                              , stringSatchmoP]
-     Just file -> liftIO $ writeFile file stringSatchmoP
-  return thSatchmoP
+  dumpAfterStage stageSatchmo $ show $ TH.ppr thProgram
+  return thProgram
 
 liftUnique :: Unique a -> Configurable a
 liftUnique = lift . mapUnique
@@ -130,6 +154,20 @@ liftIO = lift . lift
 
 logWhenVerbose :: String -> Configurable ()
 logWhenVerbose msg = when' Verbose $ liftIO $ putStrLn msg
+
+dumpAfterStage :: Stage -> String -> Configurable ()
+dumpAfterStage stage content = do
+  stageDump <- fromConfigs $ isStageDump stage
+  case stageDump of
+    Just filePath -> liftIO $ dump stage content filePath 
+    Nothing       -> return ()
+
+dump :: String -> String -> FilePath -> IO ()
+dump title content filePath = case filePath of
+  "" -> putStrLn $ unwords [ "##", title, replicate (30 - length title) '#', "\n"
+                           , content]
+  _  -> writeFile filePath content
+
 
 is :: Config -> Configurable Bool
 is c = elem c <$> ask
@@ -164,24 +202,6 @@ metric cs = case cs of
   []                      -> error "Compilation: No metric provided"
   _                       -> metric $ tail cs
 
-isDumpIntermediate :: Configs -> Maybe FilePath
-isDumpIntermediate cs = case cs of
-  (DumpIntermediate fp):_ -> Just fp
-  []                      -> Nothing
-  _                       -> isDumpIntermediate $ tail cs
-
-isDumpRaml :: Configs -> Maybe FilePath
-isDumpRaml cs = case cs of
-  (DumpRaml fp):_ -> Just fp
-  []              -> Nothing
-  _               -> isDumpRaml $ tail cs
-
-isDumpSatchmo :: Configs -> Maybe FilePath
-isDumpSatchmo cs = case cs of
-  (DumpSatchmo fp):_ -> Just fp
-  []                 -> Nothing
-  _                  -> isDumpSatchmo $ tail cs
-
 isDegreeLoop :: Configs -> Maybe Int
 isDegreeLoop cs = case cs of
   (DegreeLoop d):_ -> Just d
@@ -193,4 +213,11 @@ instantiationDepth :: Configs -> Int
 instantiationDepth cs = case cs of
   (InstantiationDepth d):_ -> d
   []                       -> defaultInstantiationDepth
-  _                -> instantiationDepth $ tail cs
+  _                        -> instantiationDepth $ tail cs
+
+isStageDump :: Stage -> Configs -> Maybe FilePath
+isStageDump stage cs = case cs of
+  (DumpAfter s fp):_ | s == stage -> Just fp
+  (DumpAll         fp):_          -> Just fp
+  []                              -> Nothing
+  _                               -> isStageDump stage $ tail cs

@@ -1,10 +1,11 @@
 module CO4.TypesUtil
   ( splitScheme, quantifiedNames, typeOfScheme, isFunType, splitFunType
-  , argumentTypes, resultType, functionType, fromSType)
+  , argumentTypes, resultType, functionType, fromSType, typeOfAdt, schemeOfName
+  , countTCon)
 where
 
 import           CO4.Language
-import           CO4.Names (funType)
+import           CO4.Names (funName)
 import           CO4.PPrint (PPrint (..))
 
 -- |Returns the quantified names and the embedded type of a scheme 
@@ -24,13 +25,13 @@ typeOfScheme = snd . splitScheme
 -- |Returns whether top level type constructor is a function constructor
 isFunType :: Type -> Bool
 isFunType scheme = case scheme of
-  TCon c [_,_] -> c == funType
+  TCon c [_,_] -> c == funName
   _            -> False
 
 -- |Splits a function type @a -> b -> c@ in @([a,b],c)@
 splitFunType :: Type -> ([Type],Type)
 splitFunType type_ = case type_ of
-  (TCon c [a,b]) | c == funType -> let (parametersT,resultT) = splitFunType b
+  (TCon c [a,b]) | c == funName -> let (parametersT,resultT) = splitFunType b
                                    in 
                                      (a : parametersT, resultT)
   t                             -> ([],t)
@@ -45,8 +46,23 @@ resultType = snd . splitFunType
 
 -- |Builds a function scheme from a list of parameter types and a result type
 functionType :: [Type] -> Type -> Type
-functionType = flip $ foldr (\a b -> TCon funType [a,b]) 
+functionType = flip $ foldr (\a b -> TCon funName [a,b]) 
 
 fromSType :: Scheme -> Type
 fromSType (SType t) = t
 fromSType scheme = error $ "TypesUtil: fromSType (" ++ show (pprint scheme) ++ ")"
+
+-- |Returns the algebraic data type in terms of a @Type@ instance
+typeOfAdt :: Declaration -> Type
+typeOfAdt adt = TCon (dAdtName adt) $ map TVar $ dAdtTypeVariables adt
+
+-- |Returns the scheme of a typed name
+schemeOfName :: Name -> Scheme
+schemeOfName (NTyped _ s) = s
+schemeOfName (NUntyped n) = error $ "TypesUtil.schemeOfName: " ++ n ++ " is untyped"
+
+-- |Counts how often a certain type constructor is present in a type.
+countTCon :: UntypedName -> Type -> Int
+countTCon name (TCon n ts) | n == name = foldl (+) 1 $ map (countTCon name) ts
+countTCon name (TCon _ ts)             = foldl (+) 0 $ map (countTCon name) ts
+countTCon _    _                       = 0

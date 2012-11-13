@@ -7,32 +7,33 @@ import qualified Raml.RAMLTypes as R
 import           Text.Parsec.Pos (initialPos)
 import           CO4.Language
 import           CO4.PPrint (pprint)
+import           CO4.Names (fromName,funName)
 import           CO4.Backend
-import           CO4.Names
 import           CO4.Unique (Unique)
 import           CO4.Backend.RamlPreprocess (preprocess)
 import           CO4.Algorithms.Collapse (collapseApp)
 import           CO4.Algorithms.TypedNames (eraseTypedNames)
+import qualified CO4.HsPrelude as Hs
 
 pos = initialPos "CO4.Backend.Raml"
 
 instance ExpressionBackend R.Exp where
   displayExpression exp = case collapseApp $ eraseTypedNames exp of
     -- Constants
-    ECon c | c == trueCon  -> R.ETrue pos
-    ECon c | c == falseCon -> R.EFalse pos
-    ELit (LInt i)          -> R.EToInt (R.ENum (fromIntegral i) pos) pos
+    ECon c | c == Hs.trueName  -> R.ETrue pos
+    ECon c | c == Hs.falseName -> R.EFalse pos
+    ELit (LInt i)              -> R.EToInt (R.ENum (fromIntegral i) pos) pos
 
     -- Variables
-    EVar v                 -> R.EVar (fromName v) pos
+    EVar v -> R.EVar (fromName v) pos
 
     -- Lists
-    ECon c | c == nilCon   -> R.ENil pos
-    EApp (ECon c) [head',tail'] | c == consCon ->
+    ECon c | c == nilName   -> R.ENil pos
+    EApp (ECon c) [head',tail'] | c == consName ->
       R.ECons (display head') (display tail') pos
 
     -- Tuples
-    EApp (ECon c) es | isTupleCon c -> R.ETuple (map display es) pos
+    EApp (ECon c) es | isTupleName c -> R.ETuple (map display es) pos
 
     -- Functions
     EApp (EVar (NUntyped "not"))  [x]  -> R.EUnaryOp R.UNot    (display x)             pos
@@ -60,7 +61,7 @@ instance ExpressionBackend R.Exp where
     -- Matches
     ECase exp [ Match (PCon nil []) nilExp
               , Match (PCon cons [PVar x, PVar xs]) consExp
-              ] | (nil == nilCon && cons == consCon) ->
+              ] | (nil == nilName && cons == consName) ->
                     R.EMatchL R.NonDest (display exp) (display nilExp)
                       (fromName x) (fromName xs) (display consExp) pos
 
@@ -71,17 +72,17 @@ instance ExpressionBackend R.Exp where
 
     ECase exp [ Match (PCon true  []) trueExp
               , Match (PCon false []) falseExp
-              ] | true == trueCon && false == falseCon ->
+              ] | true == trueName && false == falseName ->
                   R.ECond (display exp) (display trueExp) (display falseExp) pos
 
     ECase _ [ Match (PCon tuple [PVar _, PVar _]) _ 
-            ] | isTupleCon tuple -> tupleCase exp pos
+            ] | isTupleName tuple -> tupleCase exp pos
     ECase _ [ Match (PCon tuple [PVar _, PVar _,PVar _]) _ 
-            ] | isTupleCon tuple -> tupleCase exp pos
+            ] | isTupleName tuple -> tupleCase exp pos
     ECase _ [ Match (PCon tuple [PVar _, PVar _,PVar _,PVar _]) _ 
-            ] | isTupleCon tuple -> tupleCase exp pos
+            ] | isTupleName tuple -> tupleCase exp pos
     ECase _ [ Match (PCon tuple [PVar _, PVar _,PVar _,PVar _,PVar _]) _ 
-            ] | isTupleCon tuple -> tupleCase exp pos
+            ] | isTupleName tuple -> tupleCase exp pos
 
     -- Local binding
     ELet name value exp -> R.ELet (fromName name) (display value) (display exp) pos
@@ -99,7 +100,7 @@ instance ExpressionBackend R.Exp where
 instance SchemeBackend R.FunType where
   displayScheme scheme = case scheme of
     SForall _ _ -> error $ "Backend.Raml: can't display forall-quantified scheme '" ++ (show $ pprint scheme) ++ "'"
-    SType (TCon c [a,b]) | c == funType ->
+    SType (TCon c [a,b]) | c == funName ->
       case gatherFunType a b of
         ([p],result) -> R.FunType (displayType p) (displayType result)
         (ps ,result) -> R.FunType (R.TTuple $ map displayType ps) (displayType result)
@@ -107,14 +108,14 @@ instance SchemeBackend R.FunType where
     SType type_ -> R.FunType R.TUnit (displayType type_)
 
     where displayType type_ = case type_ of
-            TCon c []  | c == intType   -> R.TInt
-            TCon c []  | c == boolType  -> R.TBool
-            TCon c [t] | c == listType  -> R.TList $ displayType t
-            TCon c ts  | isTupleType c  -> R.TTuple $ map displayType ts
+            TCon c []  | c == intName   -> R.TInt
+            TCon c []  | c == boolName  -> R.TBool
+            TCon c [t] | c == listName  -> R.TList $ displayType t
+            TCon c ts  | isTupleName c  -> R.TTuple $ map displayType ts
             _ -> error $ "Backend.Raml: don't know how to display scheme '" ++ (show $ pprint scheme) ++ "'"
 
           gatherFunType a b =
-            let gatherFunType' as (TCon c [a',b']) | c == funType = 
+            let gatherFunType' as (TCon c [a',b']) | c == funName = 
                   gatherFunType' (as ++ [a']) b'
                 gatherFunType' as b'                              = (as,b')
             in

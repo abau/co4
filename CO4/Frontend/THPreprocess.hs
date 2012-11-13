@@ -6,10 +6,10 @@ where
 import           Control.Applicative ((<$>))
 import           Data.Generics (GenericM,everywhere,everywhereM,mkM,mkT)
 import           Language.Haskell.TH 
-import           CO4.Unique (Unique,newString)
+import           CO4.Unique (MonadUnique,newString)
   
 -- |Performs preprocessing on TH's AST 
-preprocess :: GenericM Unique
+preprocess :: MonadUnique u => GenericM u
 preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noWhereInDec) 
   >>= return . everywhere  (mkT noWhereInMatch) 
@@ -24,7 +24,7 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
 
 -- |Transforms multiple clauses of a function declaration into a single declaration
 -- with a case expression as outermost expression
-noMultipleClauses :: [Clause] -> Unique [Clause]
+noMultipleClauses :: MonadUnique u => [Clause] -> u [Clause]
 noMultipleClauses []      = return [] 
 noMultipleClauses [x]     = return [x] 
 noMultipleClauses clauses = 
@@ -67,7 +67,7 @@ mapBodyExps f body = case body of
 
 
 -- |Transforms infix applications to prefix applications
-noInfixApp :: Exp -> Unique Exp
+noInfixApp :: MonadUnique u => Exp -> u Exp
 noInfixApp exp = case exp of
   InfixE (Just a) op (Just b) -> return $ AppE (AppE op a) b
   InfixE (Just a) op Nothing  -> 
@@ -104,19 +104,19 @@ noInfixPattern pat = case pat of
 
 -- |Transforms complex patterns in arguments of function clauses into case expression
 -- over those arguments
-noComplexPatternsInClauseParameters :: Clause -> Unique Clause
+noComplexPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
 noComplexPatternsInClauseParameters (Clause ps (NormalB e) d) = do
   (ps',e') <- noComplexPatterns ps e
   return $ Clause ps' (NormalB e') d
 
-noComplexPatternsInLambdaParameters :: Exp -> Unique Exp
+noComplexPatternsInLambdaParameters :: MonadUnique u => Exp -> u Exp
 noComplexPatternsInLambdaParameters exp = case exp of
   LamE ps e -> do
     (ps',e') <- noComplexPatterns ps e
     return $ LamE ps' e'
   _ -> return exp
 
-noComplexPatterns :: [Pat] -> Exp -> Unique ([Pat],Exp)
+noComplexPatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
 noComplexPatterns [VarP p] exp = return ([VarP p],exp)
 noComplexPatterns [p]      exp = do
   n <- newTHName "noVar"
@@ -127,10 +127,10 @@ noComplexPatterns (p:ps)   exp = do
   return (p' ++ ps', e'')
 
 -- |Removes wildcard patterns by introducting new pattern variables
-noWildcardPattern :: Pat -> Unique Pat
+noWildcardPattern :: MonadUnique u => Pat -> u Pat
 noWildcardPattern pat = case pat of
   WildP -> VarP <$> newTHName "wildcard"
   _     -> return pat
 
-newTHName :: String -> Unique Name
+newTHName :: MonadUnique u => String -> u Name
 newTHName name = mkName <$> newString name
