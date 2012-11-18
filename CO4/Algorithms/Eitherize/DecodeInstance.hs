@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 module CO4.Algorithms.Eitherize.DecodeInstance
+  (decodeInstance)
 where
 
 import           Control.Monad (forM)
@@ -12,19 +13,19 @@ import           CO4.THUtil
 import           CO4.EncodedAdt (EncodedAdt)
 
 -- |Generates a @Decode@ instance of an ADT
--- @
--- instance Decode SAT EncodedAdt <Type> where
---    decode p = do
---      i <- toIntermediateAdt p
---      case i of
---        IntermediateConstructorIndex 0 <args> -> do
---          p0 <- decode arg0
---          p1 <- decode arg1
---          ...
---          return (<Cons0> p0 p1 ...)
---        IntermediateConstructorIndex 1 <args> -> 
---        ...
--- @
+-- 
+-- > instance Decode SAT EncodedAdt <Type> where
+-- >    decode p = do
+-- >      i <- toIntermediateAdt p
+-- >      case i of
+-- >        IntermediateConstructorIndex 0 <args> -> do
+-- >          p0 <- decode arg0
+-- >          p1 <- decode arg1
+-- >          ...
+-- >          return (<Cons0> p0 p1 ...)
+-- >        IntermediateConstructorIndex 1 <args> -> 
+-- >        ...
+-- 
 decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
 decodeInstance (DAdt name vars conss) = do
   paramName        <- newName "p"

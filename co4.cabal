@@ -12,7 +12,7 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
-  Other-Modules:      CO4.Backend
+                    , CO4.Backend
                     , CO4.Compilation
                     , CO4.EncodedAdt
                     , CO4.Frontend
@@ -38,7 +38,7 @@ Library
                     , CO4.Algorithms.THInstantiator
                     , CO4.Algorithms.TopologicalSort
                     , CO4.Algorithms.UniqueNames
-                    , CO4.Algorithms.Utility
+                    , CO4.Algorithms.Util
                     , CO4.Algorithms.Eitherize.DecodedAdtTypeFamily
                     , CO4.Algorithms.Eitherize.DecodeInstance
                     , CO4.Algorithms.Eitherize.SizedGadt

@@ -89,7 +89,8 @@ replaceBy f y (x:xs) | otherwise = x : ( replaceBy f y xs )
 lengthOne :: [a] -> Bool
 lengthOne l = case l of [_] -> True ; _ -> False
 
--- |Smart constructors using @Namelike@. There are also redefinitions of constructors
+-- * Smart constructors using 'Namelike'
+-- There are also redefinitions of constructors
 -- without namelike parameters, for the sake of consistent code.
 
 tVar :: Namelike n => n -> Type

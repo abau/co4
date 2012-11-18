@@ -5,7 +5,6 @@ module CO4.Algorithms.Eitherize.UnknownGadtInstance
 where
 
 import           Satchmo.SAT.Mini (SAT)
-import           Control.Applicative ((<$>))
 import           Control.Monad.Writer
 import           Data.List (nub)
 import           Data.Either (rights)
@@ -22,6 +21,20 @@ class Unknown a where
   unknown :: a -> SAT EncodedAdt
 
 -- |Builds an instance of the @Unknown@ class for an ADT.
+-- There are two cases:
+-- 
+-- @Foo@ is a non-recursive ADT.
+--
+-- > instance Unknown (SizedFoo Nat0 <size-parameters> <type-parameters>) where
+-- >  unknown (_ :: SizedFoo Nat0 <size-parameters> <type-parameters>) =
+-- >    _11 <- unknown (undefined :: <type of 1st  argument of 1st constructor of foo>)
+-- >    _12 <- unknown (undefined :: <type of 2snd argument of 1st constructor of foo>)
+-- >    ...
+-- >    unknownConstructor [ Just $ encArgs [_11,_12,...], ... ]
+--
+-- @Foo@ is a recursive ADT. Two @Unknown@ instances are built in this case:
+-- an instance for @Foo@ of size @Nat0@ (c.f. the non-recursive case) and an
+-- instance for @Foo@ of size @NatSucc n@.
 unknownGadtInstances :: MonadUnique u => Declaration -> Gadt u [TH.Dec]
 unknownGadtInstances adt = sequence $
   if isRecursiveAdt adt 
@@ -31,7 +44,7 @@ unknownGadtInstances adt = sequence $
 unknownGadtInstance :: MonadUnique u => Bool -> Declaration -> Gadt u TH.Dec
 unknownGadtInstance doRecursions adt = do
   resetSizeArgumentCounter 
-  gadtArgs      <- collectGadtArgs adt
+  gadtArgs      <- gadtConstructorArgs adt
   exp           <- unknownConstructorCall doRecursions gadtArgs
   sizeParams    <- getSizeParameters
   mRecSizeParam <- getRecursiveSizeParameter
@@ -57,28 +70,31 @@ unknownGadtInstance doRecursions adt = do
                         (TH.AppT (TH.ConT ''Unknown) instanceType)
                         [declaration] 
 
-collectGadtArgs :: (Functor m, Monad m) => Declaration -> Gadt m [Either [TH.Type] [TH.Type]]
-collectGadtArgs (DAdt adtName _ adtConss) = mapM fromCons adtConss
+-- |Builds a list of constructor arguments of the GADT from an ADT.
+-- @Left@ indicates recursive constructors.
+gadtConstructorArgs :: Monad m => Declaration -> Gadt m [Either [TH.Type] [TH.Type]]
+gadtConstructorArgs (DAdt adtName _ adtConss) = mapM fromCons adtConss
   where
     fromCons cons = 
       if countTConInConstructor adtName cons > 0
-      then Left  <$> mapM fromType (cConArgumentTypes cons)
-      else Right <$> mapM fromType (cConArgumentTypes cons)
+      then Left  `liftM` mapM fromType (cConArgumentTypes cons)
+      else Right `liftM` mapM fromType (cConArgumentTypes cons)
 
     fromType type_ = case type_ of
       TVar v -> return $ varT v
 
       TCon c ts | c == adtName -> do
-        recParam   <- varT . fromJust <$> getRecursiveSizeParameter
-        sizeParams <- map varT <$> getSizeParameters
+        recParam   <- (varT . fromJust) `liftM` getRecursiveSizeParameter
+        sizeParams <- map varT `liftM` getSizeParameters
         ts' <- mapM fromType ts
         return $ appsT (conT $ sizedName c) $ recParam : sizeParams ++ ts'
 
       TCon c ts | otherwise -> do
-        sizeParams <- map varT <$> nextConstructorSizeParameters c
+        sizeParams <- map varT `liftM` nextConstructorSizeParameters c
         ts' <- mapM fromType ts
         return $ appsT (conT $ sizedName c) $ sizeParams ++ ts'
 
+-- |Builds a list of @Unknown <type>@ predicates
 classPredicates :: [TH.Type] -> [TH.Pred]
 classPredicates = map (\t -> TH.ClassP ''Unknown [t]) . filter isParametrized
   where 
@@ -86,7 +102,9 @@ classPredicates = map (\t -> TH.ClassP ''Unknown [t]) . filter isParametrized
     isParametrized (TH.AppT a b) = isParametrized a || isParametrized b
     isParametrized _             = False
 
-unknownConstructorCall :: MonadUnique u => Bool -> [Either [TH.Type] [TH.Type]] -> u TH.Exp
+-- |Builds the body of the @unknown@ function
+unknownConstructorCall :: MonadUnique u => Bool -> [Either [TH.Type] [TH.Type]] 
+                                                -> u TH.Exp
 unknownConstructorCall doRecursions argss = do
   bindings <- mapM mkBindings boundExpss
 
