@@ -10,7 +10,6 @@ import           CO4.Names
 import           CO4.Unique
 import           CO4.Language
 import           CO4.THUtil
-import           CO4.EncodedAdt (EncodedAdt)
 
 -- |Generates a @Decode@ instance of an ADT
 -- 
@@ -31,8 +30,7 @@ decodeInstance (DAdt name vars conss) = do
   paramName        <- newName "p"
   intermediateName <- newName "i"
 
-  let instanceType t     = appsT (TH.ConT ''Decode) [ conT "SAT", conT "EncodedAdt", t ]
-      instancePredicates = map (\v ->
+  let instancePredicates = map (\v ->
                             TH.ClassP ''Decode [conT "SAT", conT "EncodedAdt", varT v]
                            ) vars
   

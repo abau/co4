@@ -8,14 +8,14 @@ import           Satchmo.SAT.Mini (SAT)
 import           Control.Monad.Writer
 import           Data.List (nub)
 import           Data.Either (rights)
-import           Data.Maybe (fromJust,catMaybes)
+import           Data.Maybe (catMaybes)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Unique
 import           CO4.EncodedAdt (EncodedAdt,unknownConstructor,encArgs)
 import           CO4.Algorithms.Eitherize.Util
 import           CO4.THUtil
-import           CO4.Util (isRecursiveAdt,countTConInConstructor)
+import           CO4.Util (isRecursiveAdt)
 
 class Unknown a where
   unknown :: a -> SAT EncodedAdt
@@ -69,30 +69,6 @@ unknownGadtInstance doRecursions adt = do
   return $ TH.InstanceD (classPredicates constraints)
                         (TH.AppT (TH.ConT ''Unknown) instanceType)
                         [declaration] 
-
--- |Builds a list of constructor arguments of the GADT from an ADT.
--- @Left@ indicates recursive constructors.
-gadtConstructorArgs :: Monad m => Declaration -> Gadt m [Either [TH.Type] [TH.Type]]
-gadtConstructorArgs (DAdt adtName _ adtConss) = mapM fromCons adtConss
-  where
-    fromCons cons = 
-      if countTConInConstructor adtName cons > 0
-      then Left  `liftM` mapM fromType (cConArgumentTypes cons)
-      else Right `liftM` mapM fromType (cConArgumentTypes cons)
-
-    fromType type_ = case type_ of
-      TVar v -> return $ varT v
-
-      TCon c ts | c == adtName -> do
-        recParam   <- (varT . fromJust) `liftM` getRecursiveSizeParameter
-        sizeParams <- map varT `liftM` getSizeParameters
-        ts' <- mapM fromType ts
-        return $ appsT (conT $ sizedName c) $ recParam : sizeParams ++ ts'
-
-      TCon c ts | otherwise -> do
-        sizeParams <- map varT `liftM` nextConstructorSizeParameters c
-        ts' <- mapM fromType ts
-        return $ appsT (conT $ sizedName c) $ sizeParams ++ ts'
 
 -- |Builds a list of @Unknown <type>@ predicates
 classPredicates :: [TH.Type] -> [TH.Pred]

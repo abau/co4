@@ -7,11 +7,12 @@ import           Control.Applicative ((<$>))
 import           Control.Monad.Reader
 import           Control.Monad.State
 import qualified Data.Map as M
+import           Data.Maybe (fromJust)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language 
 import           CO4.Unique
 import           CO4.THUtil
-import           CO4.Util (isRecursiveAdt)
+import           CO4.Util (isRecursiveAdt,countTConInConstructor)
 import           CO4.Names (Namelike,mapName)
 
 data Nat0
@@ -23,6 +24,8 @@ type Nat3 = NatSucc Nat2
 type Nat4 = NatSucc Nat3
 type Nat5 = NatSucc Nat4
 type Nat6 = NatSucc Nat5
+
+-- * 'SizedTypes'
 
 -- |Mapping from type name to the number of size arguments of its sized equivalent
 newtype SizedTypes = SizedTypes (M.Map UntypedName Int)
@@ -46,6 +49,8 @@ countSizeParameters sizedTypes (DAdt adtName _ adtConss) = sum $ map inCons adtC
         inType (TCon c ts) | otherwise    = 
          (numSizeParameters c sizedTypes) + (sum $ map inType ts)
 
+-- * 'Gadt'
+
 -- |Environment when handling sized types
 data GadtEnv = GadtEnv { sizedTypes              :: SizedTypes
                        , sizeParameters          :: [UntypedName]
@@ -53,7 +58,7 @@ data GadtEnv = GadtEnv { sizedTypes              :: SizedTypes
                        }
 
 -- |Stateful monad that counts the number of consumed size parameters when
--- traversing the constructors of ADT
+-- traversing the constructors of an ADT
 newtype Gadt u a = Gadt { fromGadt :: ReaderT GadtEnv (StateT Int u) a }
   deriving (Monad, Functor, MonadUnique, MonadReader GadtEnv, MonadState Int)
 
@@ -71,15 +76,15 @@ getAllSizeParameters = do
     Nothing -> return sizeParams
     Just p  -> return $ p : sizeParams
 
--- |Consumes the next @n@ size parameters, where @n@ depends on the constructor's
--- name, that is currently traversed (see @SizedTypes@ mapping).
+-- |Consumes the next @n@ size parameters, where @n@ depends on the passed constructor
+-- name (see @SizedTypes@ mapping).
 nextConstructorSizeParameters :: Monad m => UntypedName -> Gadt m [UntypedName]
 nextConstructorSizeParameters conName = do
   n <- asks sizedTypes >>= return . numSizeParameters conName 
-  forM [1..n] $ const $ nextSizeArgument
+  forM [1..n] $ const $ nextSizeParameter
 
-nextSizeArgument :: Monad m => Gadt m UntypedName
-nextSizeArgument = do
+nextSizeParameter :: Monad m => Gadt m UntypedName
+nextSizeParameter = do
   i <- get
   sizeArg <- asks $ \env -> sizeParameters env !! i
   modify (+1)
@@ -91,6 +96,8 @@ sizedName = mapName ("Sized" ++)
 resetSizeArgumentCounter :: Monad m => Gadt m ()
 resetSizeArgumentCounter = put 0
 
+-- |@runGadt s d a@ runs an action @a@ on an ADT @d@ inside the 'Gadt' monad.
+-- All types, on which @d@ depends on, must appear in the 'SizedTypes' @s@.
 runGadt :: MonadUnique u => SizedTypes -> Declaration -> Gadt u a -> u a
 runGadt sizedTypes adt f = do
   let numSizeParams = countSizeParameters sizedTypes adt
@@ -102,6 +109,32 @@ runGadt sizedTypes adt f = do
 
   evalStateT ( runReaderT (fromGadt f) gadtEnv) 0
 
+-- |Builds a list of constructor arguments of the GADT from an ADT.
+-- @Left@ indicates recursive constructors.
+-- @gadtConstructorArgs@ consumes all size parameters of 'Gadt'.
+gadtConstructorArgs :: Monad m => Declaration -> Gadt m [Either [TH.Type] [TH.Type]]
+gadtConstructorArgs (DAdt adtName _ adtConss) = mapM fromCons adtConss
+  where
+    fromCons cons = 
+      if countTConInConstructor adtName cons > 0
+      then Left  `liftM` mapM fromType (cConArgumentTypes cons)
+      else Right `liftM` mapM fromType (cConArgumentTypes cons)
+
+    fromType type_ = case type_ of
+      TVar v -> return $ varT v
+
+      TCon c ts | c == adtName -> do
+        recParam   <- (varT . fromJust) `liftM` getRecursiveSizeParameter
+        sizeParams <- map varT `liftM` getSizeParameters
+        ts' <- mapM fromType ts
+        return $ appsT (conT $ sizedName c) $ recParam : sizeParams ++ ts'
+
+      TCon c ts | otherwise -> do
+        sizeParams <- map varT `liftM` nextConstructorSizeParameters c
+        ts' <- mapM fromType ts
+        return $ appsT (conT $ sizedName c) $ sizeParams ++ ts'
+
+-- * Various utilities
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and
