@@ -13,7 +13,7 @@
 module CO4.Test.Eitherize3
 where
 
-import           Prelude hiding (Maybe (..),length,Bool(..),and,not,(&&),(||),head,foldl,concat)
+import           Prelude hiding (Either (..),Maybe (..),length,Bool(..),and,not,(&&),(||),head,foldl,concat)
 import           Control.Applicative ((<$>))
 import qualified Language.Haskell.TH as TH
 import           Satchmo.SAT.Mini (SAT)
@@ -28,15 +28,21 @@ import           CO4.Algorithms.Eitherize.Solve (solve)
 import           CO4.Algorithms.Eitherize.Util
 import           CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (DecodedAdt)
 
-$([d| data Boolean = T | F 
+$([d| data Bool    = T | F 
       data Nat     = Z | S Nat
       data List a  = Nil | Cons a (List a)
+
+      data Pair a b = Pair a b
+      data Either a b = Left a | Right b
 
       and x y = case x of
         T -> case y of
               T -> T
               F -> F
         F -> F
+
+      not x = case x of T -> F
+                        F -> T
 
       gt x y = case x of
         Z    -> F
@@ -56,17 +62,22 @@ $([d| data Boolean = T | F
         S n' -> case xs of Nil       -> F
                            Cons _ ys -> length n' ys
 
-      main xs = and ( length (S ( S ( S Z))) xs )
-                    (        monotone xs        )
+      main x = case x of
+        Left y -> y
+        Right y -> case y of Pair a b -> and a b
+
+      -- main xs = and ( length (S ( S ( S Z))) xs )
+      --               (        monotone xs        )
 
       -- main x = gt x (S ( S Z )) -- SizedNat Nat2
-
 
    |] >>= \p -> TH.runIO $ compile p [ Verbose, NoRaml, DumpAll ""]
   )
 
-result = solve (undefined :: SizedList Nat3 (SizedNat Nat5)) encMain >>= putStrLn . show
+result = solve (undefined :: SizedEither SizedBool (SizedPair SizedBool SizedBool)) encMain >>= putStrLn . show
 
-deriving instance Show Boolean
+deriving instance Show Bool
 deriving instance Show Nat
 deriving instance Show a => Show (List a)
+deriving instance (Show a, Show b) => Show (Pair a b)
+deriving instance (Show a, Show b) => Show (Either a b)

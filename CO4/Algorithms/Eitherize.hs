@@ -89,7 +89,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-  instantiateUndefined = return $ returnE $ TH.VarE 'EncUndefined
+  instantiateUndefined = return $ returnE $ TH.ConE 'EncUndefined
 
   instantiateBinding (Binding name exp) = do
     exp' <- instantiate exp
@@ -134,9 +134,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
           patVarNames         = map (\(PVar n) -> nUntyped n) patVars
 
       dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
-          [ TH.Match (TH.ConP 'EncDontCare []) 
-                     (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
-          , TH.Match (TH.ConP 'EncUndefined []) 
+          [ TH.Match (TH.ConP 'EncUndefined []) 
                      (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
           , TH.Match TH.WildP (TH.NormalB doCareBranch) [] ]
 

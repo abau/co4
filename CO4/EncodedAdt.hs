@@ -1,6 +1,6 @@
 {-# language MultiParamTypeClasses #-}
 module CO4.EncodedAdt
-  ( EncodedAdt (EncUndefined,EncDontCare), unknown, flags, switchBy, encodedConsCall
+  ( EncodedAdt (EncUndefined), unknown, flags, switchBy, encodedConsCall
   , constructorArgument
   , IntermediateAdt (..), toIntermediateAdt
   )
@@ -22,14 +22,11 @@ import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgumen
                                                              ,constructorArguments)
 import           CO4.Util (maximumBy',replaceAt)
 
-import Debug.Trace
-
 data EncodedAdt =
     EncAdt { bits    :: [Boolean]
            , indexed :: IndexedGadt
            }
   | EncUndefined 
-  | EncDontCare
 
 instance Show EncodedAdt where
   show (EncAdt bs ix) = concat $ [ "EncAdt { bits = "
@@ -48,7 +45,6 @@ unknown indexed = do
 flags :: EncodedAdt -> [Boolean]
 flags adt = bits adt `atIndex` (flagIndex $ indexed adt)
 
--- TODO undefined dontCare
 switchBy :: EncodedAdt -> [EncodedAdt] -> SAT EncodedAdt
 switchBy adt branches = Exception.assert areFlagsEqualWidth $
   if null definedBranches 
@@ -57,7 +53,7 @@ switchBy adt branches = Exception.assert areFlagsEqualWidth $
     premisses <- mkPremisses
     bits'     <- mkBits premisses
     excludeUndefinedFlags (bits adt) undefinedBranchIndices
-    return $ widthestBranch { bits = bits' }
+    return $ EncAdt bits' mergedIndices
   where
     areFlagsEqualWidth = all (\b -> length (flags b) == n) definedBranches
       where n = length $ flags $ head definedBranches
@@ -77,7 +73,8 @@ switchBy adt branches = Exception.assert areFlagsEqualWidth $
         mkImplications = mapM (uncurry implies) . zip premisses
 
     equalWidthBranches =
-      let maxWidth       = gadtWidth $ indexed widthestBranch
+      let widthestBranch = maximumBy' (gadtWidth . indexed) definedBranches
+          maxWidth       = gadtWidth $ indexed widthestBranch
           padding branch = 
             let n = maxWidth - (gadtWidth $ indexed branch)
             in
@@ -85,7 +82,7 @@ switchBy adt branches = Exception.assert areFlagsEqualWidth $
       in
         map padding definedBranches
     
-    widthestBranch  = maximumBy' (gadtWidth . indexed) definedBranches
+    mergedIndices   = foldl1 merge $ map indexed definedBranches
     definedBranches = filter isDefined branches
 
     undefinedBranchIndices = map fst $ filter (P.not . isDefined . snd) 
@@ -113,9 +110,9 @@ encodedConsCall index numCons args = Exception.assert (index < numCons)
 constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
 constructorArgument i j adt = case adt of
   EncUndefined -> EncUndefined
-  EncDontCare  -> EncDontCare
-  EncAdt bs ix -> maybe EncUndefined (EncAdt bs) ix'
-    where ix' = IG.constructorArgument i j ix
+  EncAdt bs ix -> case IG.constructorArgument i j ix of
+    Nothing  -> EncUndefined
+    Just ix' -> EncAdt (bs `atIndex` (indexOfGadt ix')) $ normalize ix'
 
 -- |The construction of an intermediate ADT simplifies the derivation of the
 -- actual @Decode@ instance.
@@ -124,12 +121,15 @@ data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
 
 toIntermediateAdt :: EncodedAdt -> SAT IntermediateAdt 
 toIntermediateAdt adt = case adt of
-  EncUndefined -> return IntermediateUndefined
-  EncAdt bs ix -> do
-    conIndex <- return fromBinary `ap` decode (flags adt)
-    return $ maybe IntermediateUndefined
-             ( IntermediateConstructorIndex conIndex . map (EncAdt bs) )  
-           $ IG.constructorArguments conIndex ix
+  EncUndefined                 -> return IntermediateUndefined
+  EncAdt {} | null (flags adt) -> return $ intermediate 0
+  EncAdt {}                    -> 
+    return (intermediate . fromBinary) `ap` decode (flags adt)
+  where 
+    intermediate :: Int -> IntermediateAdt
+    intermediate i = maybe IntermediateUndefined
+                     ( IntermediateConstructorIndex i . map (EncAdt $ bits adt) )  
+                   $ IG.constructorArguments i $ indexed adt
 
 toBinary :: Int -> Int -> [Bool]
 toBinary n i = result ++ replicate (n - length result) False 
@@ -152,8 +152,8 @@ fromBinary = go 0
 binaries :: Int -> [[Bool]]
 binaries 1 = [[False],[True]]
 binaries i = do
-  x <- [False,True]
   y <- binaries $ i - 1
+  x <- [False,True]
   return $ x : y
 
 isDefined :: EncodedAdt -> Bool

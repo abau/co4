@@ -2,18 +2,23 @@
 module CO4.Algorithms.Eitherize.IndexedGadt
   ( IndexedGadt (flagIndex), Indexed(..), Index, IndexedWrapper(..)
   , indexedGadt, gadtWidth, constructorArgument, constructorArguments
-  , undefinedConstructors, atIndex, indexOfGadt, offset)
+  , undefinedConstructors, atIndex, indexOfGadt, offset, normalize, merge)
 where
+
+import           Control.Exception (assert)
+
+
+import Debug.Trace
 
 data IndexedGadt = IndexedGadt { flagIndex    :: Index
                                , constructors :: [IndexedConstructor] 
-                               } deriving Show
+                               } deriving (Eq,Show)
 
 data IndexedConstructor = ConsNormal [IndexedGadt]
                         | ConsUndefined 
-                        deriving Show
+                        deriving (Eq,Show)
 
-data Index = Index { from :: Int, width :: Int } deriving Show
+data Index = Index { from :: Int, width :: Int } deriving (Eq,Show)
 
 class Indexed a where
   index :: Int -> a -> IndexedGadt
@@ -76,3 +81,19 @@ offset n gadt = IndexedGadt (offsetIndex $ flagIndex gadt)
     offsetIndex i                        = i { from = from i + n }
     offsetConstructor ConsUndefined      = ConsUndefined
     offsetConstructor (ConsNormal gadts) = ConsNormal $ map (offset n) gadts
+
+normalize :: IndexedGadt -> IndexedGadt
+normalize gadt = offset (negate $ from $ flagIndex gadt) gadt
+
+merge :: IndexedGadt -> IndexedGadt -> IndexedGadt
+merge a b = IndexedGadt (mergeIndex (flagIndex a) (flagIndex b))
+                        (mergeConstructors (constructors a) (constructors b))
+  where 
+    mergeIndex x y        = assert (x == y) x
+    mergeConstructors x y = assert (length x == length y)
+                            $ zipWith mergeConstructor x y
+
+    mergeConstructor x ConsUndefined               = x
+    mergeConstructor ConsUndefined y               = y
+    mergeConstructor (ConsNormal x) (ConsNormal y) = 
+      assert (length x == length y) $ ConsNormal $ zipWith merge x y
