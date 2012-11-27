@@ -13,6 +13,7 @@ import qualified Raml.PPrint as RamlPP
 import qualified Language.Haskell.TH as TH
 import           CO4.Language (Program)
 import           CO4.Unique (Unique,UniqueT,runUniqueT,mapUnique)
+import           CO4.THUtil (unqualifiedNames)
 import           CO4.Frontend
 import           CO4.Backend
 import           CO4.Backend.TH ()
@@ -34,6 +35,7 @@ stageGlobalize              = "globalize"
 stageSaturateApplication    = "saturateApplication"
 stageInstantiation          = "instantiation"
 stageSatchmo                = "satchmo"
+stageSatchmoUnqualified     = "satchmoUnqualified"
 
 stageNames                  = [ stageParsed
                               , stageUniqueLocalNames
@@ -44,6 +46,7 @@ stageNames                  = [ stageParsed
                               , stageSaturateApplication
                               , stageInstantiation
                               , stageSatchmo
+                              , stageSatchmoUnqualified
                               ]
 
 type Stage   = String
@@ -144,6 +147,7 @@ compileToSatchmo program = do
   thProgram <- liftUnique $ eitherize program
 
   dumpAfterStage stageSatchmo $ show $ TH.ppr thProgram
+  dumpAfterStage stageSatchmoUnqualified $ show $ TH.ppr $ unqualifiedNames thProgram
   return thProgram
 
 liftUnique :: Unique a -> Configurable a

@@ -1,22 +1,166 @@
 {-# language MultiParamTypeClasses #-}
 module CO4.EncodedAdt
-  ( EncodedAdt (..), EncodedArguments (..), IntermediateAdt (..)
-  , toIntermediateAdt, encUnit, encUndefined, encDontCare, encArgs
-  , encDontCareArgs
-  , constructorArgument, encodedConsCall, unknownConstructor
-  , switchBy
+  ( EncodedAdt (EncUndefined,EncDontCare), unknown, flags, switchBy, encodedConsCall
+  , constructorArgument
+  , IntermediateAdt (..), toIntermediateAdt
   )
 where
 
 import           Prelude hiding (not,or,and)
+import qualified Prelude as P
 import           Control.Applicative ((<$>))
-import           Control.Monad (ap,zipWithM)
+import           Control.Monad (ap,zipWithM,forM)
 import qualified Control.Exception as Exception 
 import           Data.Maybe (isNothing)
 import           Data.Tree
+import           Data.List (transpose)
 import           Satchmo.SAT.Mini (SAT)
 import           Satchmo.Code 
 import           Satchmo.Boolean 
+import qualified CO4.Algorithms.Eitherize.IndexedGadt as IG
+import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgument
+                                                             ,constructorArguments)
+import           CO4.Util (maximumBy',replaceAt)
+
+import Debug.Trace
+
+data EncodedAdt =
+    EncAdt { bits    :: [Boolean]
+           , indexed :: IndexedGadt
+           }
+  | EncUndefined 
+  | EncDontCare
+
+instance Show EncodedAdt where
+  show (EncAdt bs ix) = concat $ [ "EncAdt { bits = "
+                                 , show $ replicate (length bs) "?"
+                                 , ", indexed = ", show ix, " }"]
+
+instance Indexed EncodedAdt where
+  index n = index n . indexed
+
+unknown :: IndexedGadt -> SAT EncodedAdt
+unknown indexed = do
+  bits <- sequence $ replicate (gadtWidth indexed) boolean
+  excludeUndefinedFlags bits $ undefinedConstructors indexed
+  return $ EncAdt bits indexed
+
+flags :: EncodedAdt -> [Boolean]
+flags adt = bits adt `atIndex` (flagIndex $ indexed adt)
+
+-- TODO undefined dontCare
+switchBy :: EncodedAdt -> [EncodedAdt] -> SAT EncodedAdt
+switchBy adt branches = Exception.assert areFlagsEqualWidth $
+  if null definedBranches 
+  then return EncUndefined
+  else do
+    premisses <- mkPremisses
+    bits'     <- mkBits premisses
+    excludeUndefinedFlags (bits adt) undefinedBranchIndices
+    return $ widthestBranch { bits = bits' }
+  where
+    areFlagsEqualWidth = all (\b -> length (flags b) == n) definedBranches
+      where n = length $ flags $ head definedBranches
+
+    mkPremisses :: SAT [Boolean]
+    mkPremisses = forM patternBitss $ and . mkPremiss 
+      where
+        patternBitss          = binaries $ length $ flags adt
+        mkPremiss pattern     = zipWith selectFlag pattern $ flags adt
+        selectFlag True  flag = flag
+        selectFlag False flag = not flag
+
+    mkBits :: [Boolean] -> SAT [Boolean]
+    mkBits premisses = forM columns $ \c -> mkImplications c >>= and
+      where
+        columns        = transpose $ map bits equalWidthBranches
+        mkImplications = mapM (uncurry implies) . zip premisses
+
+    equalWidthBranches =
+      let maxWidth       = gadtWidth $ indexed widthestBranch
+          padding branch = 
+            let n = maxWidth - (gadtWidth $ indexed branch)
+            in
+              branch { bits = bits branch ++ replicate n (Constant False) }
+      in
+        map padding definedBranches
+    
+    widthestBranch  = maximumBy' (gadtWidth . indexed) definedBranches
+    definedBranches = filter isDefined branches
+
+    undefinedBranchIndices = map fst $ filter (P.not . isDefined . snd) 
+                                     $ zip [0..] branches
+
+excludeUndefinedFlags :: [Boolean] -> [Int] -> SAT ()
+excludeUndefinedFlags flags = mapM_ (excludeIndex . toBinary (length flags))
+  where 
+    excludeIndex             = assert . map excludeBoolean . zip flags
+    excludeBoolean (b,True)  = not b
+    excludeBoolean (b,False) = b
+                
+encodedConsCall :: Int -> Int -> [EncodedAdt] -> EncodedAdt
+encodedConsCall index numCons args = Exception.assert (index < numCons) 
+                                   $ EncAdt bits'
+                                   $ indexedGadt 0 allArgs
+  where
+    bits'         = map Constant binIndex ++ (concatMap bits args)
+    allArgs       = replaceAt index (Just $ map IndexedWrapper args) 
+                  $ replicate numCons Nothing
+
+    binIndex      = toBinary binIndexWidth index
+    binIndexWidth = ceiling $ logBase 2 $ fromIntegral numCons
+
+constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
+constructorArgument i j adt = case adt of
+  EncUndefined -> EncUndefined
+  EncDontCare  -> EncDontCare
+  EncAdt bs ix -> maybe EncUndefined (EncAdt bs) ix'
+    where ix' = IG.constructorArgument i j ix
+
+-- |The construction of an intermediate ADT simplifies the derivation of the
+-- actual @Decode@ instance.
+data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
+                     | IntermediateUndefined
+
+toIntermediateAdt :: EncodedAdt -> SAT IntermediateAdt 
+toIntermediateAdt adt = case adt of
+  EncUndefined -> return IntermediateUndefined
+  EncAdt bs ix -> do
+    conIndex <- return fromBinary `ap` decode (flags adt)
+    return $ maybe IntermediateUndefined
+             ( IntermediateConstructorIndex conIndex . map (EncAdt bs) )  
+           $ IG.constructorArguments conIndex ix
+
+toBinary :: Int -> Int -> [Bool]
+toBinary n i = result ++ replicate (n - length result) False 
+  where 
+    result = go i
+    go 0   = [False]
+    go 1   = [True]
+    go i   = case i `quotRem` 2 of
+               (i',0) -> False : (go i')
+               (i',1) -> True  : (go i')
+
+fromBinary :: [Bool] -> Int
+fromBinary = go 0
+  where
+    go i [True]     = 2^i 
+    go i [False]    = 0
+    go i (True:xs)  = 2^i + go (i+1) xs
+    go i (False:xs) =       go (i+1) xs
+
+binaries :: Int -> [[Bool]]
+binaries 1 = [[False],[True]]
+binaries i = do
+  x <- [False,True]
+  y <- binaries $ i - 1
+  return $ x : y
+
+isDefined :: EncodedAdt -> Bool
+isDefined EncUndefined = False
+isDefined _            = True
+
+{-
 
 data EncodedAdt =
     EncSingle EncodedArguments
@@ -245,4 +389,4 @@ switchBy adt = switch (flags adt)
   where flags encodedAdt = case encodedAdt of
           EncEither f _ (Left _)  -> [f]
           EncEither f _ (Right r) -> f : flags r
-
+          -}

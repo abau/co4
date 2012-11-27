@@ -21,7 +21,9 @@ import           Satchmo.Code (Decode,decode)
 import           CO4
 import           CO4.EncodedAdt
 import           CO4.Algorithms.Eitherize.SizedGadt
-import           CO4.Algorithms.Eitherize.UnknownGadtInstance
+--import           CO4.Algorithms.Eitherize.UnknownGadtInstance
+import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgument)
+import           CO4.Algorithms.Eitherize.IndexedGadtInstance
 import           CO4.Algorithms.Eitherize.Solve (solve)
 import           CO4.Algorithms.Eitherize.Util
 import           CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (DecodedAdt)
@@ -57,10 +59,13 @@ $([d| data Boolean = T | F
       main xs = and ( length (S ( S ( S Z))) xs )
                     (        monotone xs        )
 
+      -- main x = gt x (S ( S Z )) -- SizedNat Nat2
+
+
    |] >>= \p -> TH.runIO $ compile p [ Verbose, NoRaml, DumpAll ""]
   )
 
-result = solve (undefined :: SizedList Nat5 (SizedNat Nat5)) encMain >>= putStrLn . show
+result = solve (undefined :: SizedList Nat3 (SizedNat Nat5)) encMain >>= putStrLn . show
 
 deriving instance Show Boolean
 deriving instance Show Nat

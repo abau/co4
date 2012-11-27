@@ -13,8 +13,10 @@ import           CO4.TypesUtil (countTCon)
 import           CO4.Names (convertName)
 import           CO4.Algorithms.TopologicalSort (adtGroups)
 import           CO4.Algorithms.Eitherize.Util
-import           CO4.Algorithms.Eitherize.UnknownGadtInstance (unknownGadtInstances)
+import           CO4.Algorithms.Eitherize.SizeOfGadtInstance (sizeOfGadtInstances)
+--import           CO4.Algorithms.Eitherize.UnknownGadtInstance (unknownGadtInstances)
 import           CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (decodedAdtTypeInstance)
+import           CO4.Algorithms.Eitherize.IndexedGadtInstance (indexedGadtInstances)
 
 sizedGadts :: MonadUnique u => [Declaration] -> u [TH.Dec]
 sizedGadts adts = 
@@ -48,9 +50,10 @@ sizedGadt sizedTypes adt = runGadt sizedTypes adt sizedGadt'
                                  gadtConss
                                  []
 
-      unknownInstance        <- unknownGadtInstances adt
+      indexedInstance        <- indexedGadtInstances adt
+ --     unknownInstance        <- unknownGadtInstances adt
       decodedAdtTypeInstance <- decodedAdtTypeInstance adt
-      return ( gadt : decodedAdtTypeInstance : unknownInstance
+      return ( gadt : decodedAdtTypeInstance : indexedInstance -- ++ unknownInstance
              , adtName, length allSizeParams)
 
 sizedGadtConstructor :: MonadUnique u => UntypedName -> Constructor -> Gadt u TH.Con

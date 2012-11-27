@@ -96,3 +96,8 @@ typedUndefined = TH.SigE $ TH.VarE 'undefined
 
 typedWildcard :: TH.Type -> TH.Pat
 typedWildcard = TH.SigP TH.WildP
+
+unqualifiedNames :: GenericT
+unqualifiedNames = everywhere $ mkT unqualifiedName
+  where
+    unqualifiedName = TH.mkName . TH.nameBase

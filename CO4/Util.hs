@@ -2,7 +2,7 @@
 module CO4.Util
 where
 
-import           Data.List (partition,find)
+import           Data.List (partition,find,maximumBy)
 import           Data.Maybe (mapMaybe)
 import           CO4.Language
 import           CO4.Names
@@ -88,6 +88,10 @@ replaceBy f y (x:xs) | otherwise = x : ( replaceBy f y xs )
 -- |Checks whether a list has length one
 lengthOne :: [a] -> Bool
 lengthOne l = case l of [_] -> True ; _ -> False
+
+-- |Gets maximum of a list by applying a mapping to a type of class 'Ord'
+maximumBy' :: Ord b => (a -> b) -> [a] -> a
+maximumBy' f = maximumBy (\a b -> compare (f a) (f b))
 
 -- * Smart constructors using 'Namelike'
 -- There are also redefinitions of constructors

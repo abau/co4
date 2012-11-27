@@ -23,6 +23,7 @@ import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.SizedGadt (sizedGadts)
 import           CO4.Algorithms.Eitherize.Util
+import           CO4.EncodedAdt
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -53,21 +54,22 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
       mkDecodeInstance = decodeInstance adt >>= tellOne
 
       mkEncodedConstructor (i,CCon name []) = 
-        let args = replaceAt i (varE "encUnit") dontCareArgs
-            exp  = returnE $ appsE (varE "encodedConsCall") [ intE i, TH.ListE args ]
+        let exp = returnE $ appsE (TH.VarE 'encodedConsCall) 
+                                  [ intE i
+                                  , intE $ length $ dAdtConstructors adt
+                                  , TH.ListE [] ]
         in
           tellOne $ valD' (encodedConsCallName name) exp
 
       mkEncodedConstructor (i,CCon name args) = do
-        paramNames <- forM args $ const $ newName "x"
+        paramNames <- forM args $ const $ newName ""
 
-        let args = replaceAt i (appsE (varE "encArgs") [TH.ListE $ map varE paramNames])
-                               dontCareArgs
-            exp  = returnE $ appsE (varE "encodedConsCall") [ intE i, TH.ListE args ]
-        
+        let exp = returnE $ appsE (TH.VarE 'encodedConsCall) 
+                                  [ intE i
+                                  , intE $ length $ dAdtConstructors adt
+                                  , TH.ListE $ map varE paramNames ]
         tellOne $ valD' (encodedConsCallName name) $ lamE' paramNames exp
 
-      dontCareArgs = replicate (length $ dAdtConstructors adt) $ varE "encDontCareArgs"
       tellOne x    = tell [x]
 
 newtype ExpInstantiator u a = ExpInstantiator { runExpInstantiator :: u a } 
@@ -87,7 +89,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-  instantiateUndefined = return $ returnE $ varE "encUndefined"
+  instantiateUndefined = return $ returnE $ TH.VarE 'EncUndefined
 
   instantiateBinding (Binding name exp) = do
     exp' <- instantiate exp
@@ -110,7 +112,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
           else do switchByE <- bindAndApply (\ms'Names -> [ varE e'Name
                                                           , TH.ListE $ map varE ms'Names
                                                           ])
-                                            (appsE $ varE "switchBy") ms'
+                                            (appsE $ TH.VarE 'switchBy) ms'
 
                   return $ TH.DoE [ binding, TH.NoBindS $ dontCareMatch e'Name 
                                                         $ switchByE ]
@@ -126,15 +128,15 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
           lets                = letE' (map mkBinding $ zip [0..] patVarNames)
           mkBinding (ith,var) = (var, eConstructorArg ith)
 
-          eConstructorArg i   = appsE (varE "constructorArgument") 
+          eConstructorArg i   = appsE (TH.VarE 'constructorArgument) 
                                       [ intE i, intE j, varE e'Name ]
 
           patVarNames         = map (\(PVar n) -> nUntyped n) patVars
 
       dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
-          [ TH.Match (conP "EncDontCare" []) 
+          [ TH.Match (TH.ConP 'EncDontCare []) 
                      (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
-          , TH.Match (conP "EncUndefined" []) 
+          , TH.Match (TH.ConP 'EncUndefined []) 
                      (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
           , TH.Match TH.WildP (TH.NormalB doCareBranch) [] ]
 
