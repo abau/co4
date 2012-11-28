@@ -41,9 +41,10 @@ Library
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.Eitherize.DecodedAdtTypeFamily
                     , CO4.Algorithms.Eitherize.DecodeInstance
+                    , CO4.Algorithms.Eitherize.IndexedGadt
+                    , CO4.Algorithms.Eitherize.IndexedGadtInstance
                     , CO4.Algorithms.Eitherize.SizedGadt
                     , CO4.Algorithms.Eitherize.Solve
-                    , CO4.Algorithms.Eitherize.UnknownGadtInstance
                     , CO4.Algorithms.Eitherize.Util
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W

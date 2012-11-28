@@ -5,7 +5,7 @@ where
 
 import           Data.List (nub)  
 import           Data.Either (rights)
-import           Control.Monad (liftM,forM)
+import           Control.Monad (liftM)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util (isRecursiveAdt)
@@ -71,40 +71,3 @@ indexExp doRecursions flagFrom argss =
       Left  _  | otherwise    -> TH.ConE 'Nothing
 
     wrap = TH.AppE (TH.ConE 'IndexedWrapper) . typedUndefined
-  {-
-
-
-
-
-
-do
-  (sumNames, bindings) <- (unzip . catMaybes) `liftM` mapM mkBindings sizeOfArgss
-
-  let maxOfSums = TH.AppE (TH.VarE 'maximum) $ TH.ListE $ map varE sumNames
-
-  return $ letE' (concat bindings) maxOfSums
-  
-  where 
-    mkBindings :: MonadUnique u => Maybe [TH.Exp] -> u (Maybe (Name, [(Name,TH.Exp)]))
-    mkBindings Nothing     = return Nothing
-    mkBindings (Just exps) = do
-      sizeNames <- forM exps $ const $ newName ""
-      sumName   <- newName ""
-
-      let sizeBindings = zip sizeNames exps
-          sumBinding   = (sumName, TH.AppE (TH.VarE 'sum)
-                                         $ TH.ListE $ map varE sizeNames)
-
-      return $ Just (sumName, sizeBindings ++ [sumBinding])
-
-    sizeOfArgss :: [ Maybe [TH.Exp] ]
-    sizeOfArgss = map sizeOfArgs_ argss
-
-    sizeOfArgs_ :: Either [TH.Type] [TH.Type] -> Maybe [TH.Exp]
-    sizeOfArgs_ (Left  args) | doRecursions = sizeOfArgs_ $ Right args
-    sizeOfArgs_ (Left  _)    | otherwise    = Nothing
-    sizeOfArgs_ (Right args)                = Just $ map sizeOfArg args
-
-    sizeOfArg :: TH.Type -> TH.Exp
-    sizeOfArg = TH.AppE (TH.VarE 'sizeOf) . typedUndefined
-    -}

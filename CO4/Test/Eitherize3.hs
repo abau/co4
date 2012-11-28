@@ -2,9 +2,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -19,13 +17,8 @@ import qualified Language.Haskell.TH as TH
 import           Satchmo.SAT.Mini (SAT)
 import           Satchmo.Code (Decode,decode)
 import           CO4
-import           CO4.EncodedAdt
-import           CO4.Algorithms.Eitherize.SizedGadt
---import           CO4.Algorithms.Eitherize.UnknownGadtInstance
-import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgument)
-import           CO4.Algorithms.Eitherize.IndexedGadtInstance
-import           CO4.Algorithms.Eitherize.Solve (solve)
-import           CO4.Algorithms.Eitherize.Util
+
+-- Reexport type families ???
 import           CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (DecodedAdt)
 
 $([d| data Bool    = T | F 
@@ -75,6 +68,7 @@ $([d| data Bool    = T | F
   )
 
 result = solve (undefined :: SizedEither SizedBool (SizedPair SizedBool SizedBool)) encMain >>= putStrLn . show
+--result = solve (undefined :: SizedNat Nat2) encMain >>= putStrLn . show
 
 deriving instance Show Bool
 deriving instance Show Nat

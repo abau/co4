@@ -6,17 +6,15 @@ module CO4.Algorithms.Eitherize.IndexedGadt
 where
 
 import           Control.Exception (assert)
-
-
-import Debug.Trace
+import           Data.Tree
 
 data IndexedGadt = IndexedGadt { flagIndex    :: Index
                                , constructors :: [IndexedConstructor] 
-                               } deriving (Eq,Show)
+                               } deriving (Eq)
 
 data IndexedConstructor = ConsNormal [IndexedGadt]
                         | ConsUndefined 
-                        deriving (Eq,Show)
+                        deriving (Eq)
 
 data Index = Index { from :: Int, width :: Int } deriving (Eq,Show)
 
@@ -27,6 +25,9 @@ data IndexedWrapper = forall a . Indexed a => IndexedWrapper a
 
 instance Indexed IndexedGadt where
   index = offset
+
+instance Show IndexedGadt where
+  show = drawTree . toTree
 
 indexedGadt :: Int -> [Maybe [IndexedWrapper]] -> IndexedGadt
 indexedGadt startFrom constructorData = IndexedGadt flagIndex constructors
@@ -69,7 +70,7 @@ undefinedConstructors = map fst . filter (isUndefined . snd) . zip [0..] . const
 
 atIndex :: [a] -> Index -> [a]
 atIndex   xs   (Index 0 n) = take n xs
-atIndex (x:xs) (Index i n) = atIndex xs $ Index (i-1) n
+atIndex (_:xs) (Index i n) = atIndex xs $ Index (i-1) n
 
 indexOfGadt :: IndexedGadt -> Index
 indexOfGadt gadt = Index (from $ flagIndex gadt) (gadtWidth gadt)
@@ -97,3 +98,9 @@ merge a b = IndexedGadt (mergeIndex (flagIndex a) (flagIndex b))
     mergeConstructor ConsUndefined y               = y
     mergeConstructor (ConsNormal x) (ConsNormal y) = 
       assert (length x == length y) $ ConsNormal $ zipWith merge x y
+
+toTree :: IndexedGadt -> Tree String
+toTree (IndexedGadt ix cons) = Node (show ix) $ map toTree' $ zip [0..] cons
+  where
+    toTree' (i,ConsUndefined)    = Node (show i) [Node "undefined" []]
+    toTree' (i,ConsNormal gadts) = Node (show i) $ map toTree gadts
