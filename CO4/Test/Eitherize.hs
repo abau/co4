@@ -40,6 +40,7 @@ $([d|
                                      , DumpAll ""]
   )
 
+{-
 invMain :: Param -> IO ()
 invMain param = do
   mResult <- solve ( do u <- unknownAdt (undefined :: Fuzzy) 2
@@ -49,6 +50,7 @@ invMain param = do
                         return ( decode [u,v] )
                  ) :: IO (Maybe [Fuzzy])
   putStrLn $ show mResult
+  -}
 
 deriving instance Show Fuzzy
 deriving instance Show Boolean

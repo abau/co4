@@ -55,20 +55,17 @@ $([d| data Bool    = T | F
         S n' -> case xs of Nil       -> F
                            Cons _ ys -> length n' ys
 
-      main x = case x of
-        Left y -> y
-        Right y -> case y of Pair a b -> and a b
 
       -- main xs = and ( length (S ( S ( S Z))) xs )
       --               (        monotone xs        )
 
-      -- main x = gt x (S ( S Z )) -- SizedNat Nat2
+      main x = gt x ( S Z ) -- SizedNat Nat2
 
    |] >>= \p -> TH.runIO $ compile p [ Verbose, NoRaml, DumpAll ""]
   )
 
-result = solve (undefined :: SizedEither SizedBool (SizedPair SizedBool SizedBool)) encMain >>= putStrLn . show
---result = solve (undefined :: SizedNat Nat2) encMain >>= putStrLn . show
+--result = solve (undefined :: SizedEither SizedBool (SizedPair SizedBool SizedBool)) encMain >>= putStrLn . show
+result = solve (undefined :: SizedNat Nat2) encMain >>= putStrLn . show
 
 deriving instance Show Bool
 deriving instance Show Nat

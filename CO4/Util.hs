@@ -180,3 +180,36 @@ expressionToPattern exp = case exp of
   ECon n           -> PCon n []
   EApp (ECon n) es -> PCon n $ map expressionToPattern es
 
+-- |@toBinary n i@ converts @i@ to its binary representation with at least @n@ bits.
+-- Least significant bit is result's head.
+toBinary :: Int -> Int -> [Bool]
+toBinary n i = result ++ replicate (n - length result) False 
+  where 
+    result = go i
+    go 0   = [False]
+    go 1   = [True]
+    go i   = case i `quotRem` 2 of
+               (i',0) -> False : (go i')
+               (i',1) -> True  : (go i')
+
+-- |@fromBinary i@ converts @i@ from its binary representation to an @Int@.
+-- Least significant bit is expecteted as @i@'s head.
+fromBinary :: [Bool] -> Int
+fromBinary = go 0
+  where
+    go i [True]     = 2^i 
+    go _ [False]    = 0
+    go i (True:xs)  = 2^i + go (i+1) xs
+    go i (False:xs) =       go (i+1) xs
+
+-- |@binaries n@ returns all binary numbers with bit width @n@
+binaries :: Int -> [[Bool]]
+binaries 1 = [[False],[True]]
+binaries i = do
+  y <- binaries $ i - 1
+  x <- [False,True]
+  return $ x : y
+
+-- |@bitWidth n@ returns the number of bits needed to encode @n@ different states
+bitWidth :: Int -> Int
+bitWidth = ceiling . logBase 2 . fromIntegral 

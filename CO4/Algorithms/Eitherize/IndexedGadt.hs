@@ -2,11 +2,12 @@
 module CO4.Algorithms.Eitherize.IndexedGadt
   ( IndexedGadt (flagIndex), Indexed(..), Index, IndexedWrapper(..)
   , indexedGadt, gadtWidth, constructorArgument, constructorArguments
-  , undefinedConstructors, atIndex, indexOfGadt, offset, normalize, merge)
+  , undefinedGadtPaths, atIndex, indexOfGadt, offset, normalize, merge)
 where
 
 import           Control.Exception (assert)
 import           Data.Tree
+import           CO4.Util (bitWidth)
 
 data IndexedGadt = IndexedGadt { flagIndex    :: Index
                                , constructors :: [IndexedConstructor] 
@@ -32,7 +33,7 @@ instance Show IndexedGadt where
 indexedGadt :: Int -> [Maybe [IndexedWrapper]] -> IndexedGadt
 indexedGadt startFrom constructorData = IndexedGadt flagIndex constructors
   where
-    flagWidth    = ceiling $ logBase 2 $ fromIntegral $ length constructorData
+    flagWidth    = bitWidth $ length constructorData
     flagIndex    = Index startFrom flagWidth
     constructors = map (toIndexedConstructor $ startFrom + flagWidth) constructorData
     
@@ -62,11 +63,16 @@ constructorArguments j gadt = case constructors gadt !! j of
   ConsNormal args -> Just args
   ConsUndefined   -> Nothing 
 
-undefinedConstructors :: IndexedGadt -> [Int]
-undefinedConstructors = map fst . filter (isUndefined . snd) . zip [0..] . constructors
-  where 
-    isUndefined ConsUndefined = True
-    isUndefined ConsNormal {} = False
+undefinedGadtPaths :: IndexedGadt -> [[(Index,Int)]]
+undefinedGadtPaths = go []
+  where
+    go path gadt = concatMap fromConstructor $ zip [0..] $ constructors gadt
+      where
+        fromConstructor (consIx, ConsNormal args) = 
+          concatMap (go (path' consIx)) args
+
+        fromConstructor (consIx, ConsUndefined)   = [path' consIx]
+        path' ix                                  = path ++ [(flagIndex gadt, ix)]
 
 atIndex :: [a] -> Index -> [a]
 atIndex   xs   (Index 0 n) = take n xs
