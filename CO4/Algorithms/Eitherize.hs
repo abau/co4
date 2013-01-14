@@ -133,6 +133,10 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
           patVarNames         = map (\(PVar n) -> nUntyped n) patVars
 
+      -- |Instantiate default match (pattern is a variable)
+      instantiateMatchToExp e'Name (_, Match (PVar v) match) = 
+        letE' [(v, varE e'Name)] <$> instantiate match
+
       dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
           [ TH.Match (TH.ConP 'EncUndefined []) 
                      (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []

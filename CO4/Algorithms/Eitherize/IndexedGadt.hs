@@ -1,8 +1,9 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module CO4.Algorithms.Eitherize.IndexedGadt
-  ( IndexedGadt (flagIndex), Indexed(..), Index, IndexedWrapper(..)
-  , indexedGadt, gadtWidth, constructorArgument, constructorArguments
-  , undefinedGadtPaths, atIndex, indexOfGadt, offset, normalize, merge)
+  ( IndexedGadt (flagIndex), Indexed (..), Index (..), IndexedWrapper (..)
+  , numConstructors, indexedGadt, gadtWidth, constructorArgument
+  , constructorArguments, allConstructorArguments, undefinedGadtPaths
+  , atIndex, indexOfGadt, offset, normalize, merge)
 where
 
 import           Control.Exception (assert)
@@ -30,6 +31,9 @@ instance Indexed IndexedGadt where
 instance Show IndexedGadt where
   show = drawTree . toTree
 
+numConstructors :: IndexedGadt -> Int
+numConstructors = length . constructors
+
 indexedGadt :: Int -> [Maybe [IndexedWrapper]] -> IndexedGadt
 indexedGadt startFrom constructorData = IndexedGadt flagIndex constructors
   where
@@ -56,12 +60,19 @@ constructorWidth (ConsNormal gadts) = foldl (\w arg -> w + gadtWidth arg) 0 gadt
 constructorWidth ConsUndefined      = 0
 
 constructorArgument :: Int -> Int -> IndexedGadt -> Maybe IndexedGadt
-constructorArgument i j gadt = fmap (!! i) $ constructorArguments j gadt 
+constructorArgument i j gadt = case constructorArguments j gadt of
+  Nothing   -> Nothing
+  Just args -> assert (i < length args) $ Just $ args !! i
 
 constructorArguments :: Int -> IndexedGadt -> Maybe [IndexedGadt]
-constructorArguments j gadt = case constructors gadt !! j of
-  ConsNormal args -> Just args
-  ConsUndefined   -> Nothing 
+constructorArguments j gadt = assert (j < length (constructors gadt)) 
+                            $ allConstructorArguments gadt !! j  
+
+allConstructorArguments :: IndexedGadt -> [Maybe [IndexedGadt]]
+allConstructorArguments = map go . constructors
+  where 
+    go (ConsNormal args) = Just args
+    go ConsUndefined     = Nothing
 
 undefinedGadtPaths :: IndexedGadt -> [[(Index,Int)]]
 undefinedGadtPaths = go []

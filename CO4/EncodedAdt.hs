@@ -1,4 +1,5 @@
 {-# language MultiParamTypeClasses #-}
+{-# language FlexibleContexts #-}
 module CO4.EncodedAdt
   ( EncodedAdt (EncUndefined), unknown, flags, switchBy, encodedConsCall
   , constructorArgument
@@ -8,17 +9,16 @@ where
 
 import           Prelude hiding (not,or,and)
 import qualified Prelude as P
-import           Control.Monad (ap,forM,zipWithM,liftM)
+import           Control.Monad (ap,forM,zipWithM)
 import qualified Control.Exception as Exception 
-import           Data.List (transpose)
+import           Data.List (transpose,intercalate)
 import           Data.Maybe (catMaybes)
-import           Satchmo.SAT.Mini (SAT)
 import           Satchmo.Code 
 import           Satchmo.Boolean 
 import qualified CO4.Algorithms.Eitherize.IndexedGadt as IG
 import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgument
                                                              ,constructorArguments)
-import           CO4.Util (maximumBy',replaceAt,toBinary,fromBinary,binaries)
+import           CO4.Util (maximumBy',replaceAt,toBinary,fromBinary,binaries,bitWidth)
 
 import Debug.Trace
 
@@ -29,19 +29,31 @@ data EncodedAdt =
   | EncUndefined 
 
 instance Show EncodedAdt where
-  show (EncAdt bs ix) = concat $ [ "EncAdt { bits = "
-                                 , show $ replicate (length bs) "?"
-                                 , ", indexed = ", show ix, " }"]
+  show (EncAdt bs ix) = concat $ [ "EncAdt { bits = ["
+                                 -- , show $ replicate (length bs) "?"
+                                 , showBooleans bs
+                                 , "]"
+                                 , ", indexed = ", show ix, " }"
+                                 ]
+  show EncUndefined   = "EncUndefined"
+
+showBoolean :: Boolean -> String
+showBoolean (Constant c) = show c
+showBoolean (Boolean  b) = show b
+
+showBooleans :: [Boolean] -> String
+showBooleans = intercalate ", " . map showBoolean
 
 instance Indexed EncodedAdt where
-  index n = index n . indexed
+  index _ EncUndefined = error "EncodedAdt.index: EncUndefined"
+  index n encAdt       = index n $ indexed encAdt
 
-
-unknown :: IndexedGadt -> SAT EncodedAdt
+unknown :: MonadSAT m => IndexedGadt -> m EncodedAdt
 unknown indexed = do
   bits <- sequence $ replicate (gadtWidth indexed) boolean
   mapM_ (excludeUndefinedGadtPath bits) undef
-  return $ trace ("Excluded " ++ show (length undef) ++ " path(s)") 
+  excludeNonConsPaths bits indexed 
+  return $ trace ("Excluded " ++ show (length undef) ++ " undefined path(s)") 
          $ EncAdt bits indexed
   where 
     undef                         = undefinedGadtPaths indexed
@@ -51,57 +63,64 @@ unknown indexed = do
           zipWith antiSelectBit (toBinary (length bits') consIx) bits'
           where bits'            = bits `atIndex` index
 
-        antiSelectBit True  bit = not bit
-        antiSelectBit False bit = bit
+    excludeNonConsPaths bits indexed = do
+      mapM_ (excludePattern bits') nonConsPatterns
+      mapM_ (excludeNonConsPaths bits) $ concat $ catMaybes 
+                                       $ IG.allConstructorArguments indexed
+      where
+        bits'           = bits `atIndex` (flagIndex indexed)
+        nonConsPatterns = drop (IG.numConstructors indexed)
+                        $ binaries $ IG.width $ IG.flagIndex indexed
+
+    antiSelectBit True  bit = not bit
+    antiSelectBit False bit = bit
 
 flags :: EncodedAdt -> [Boolean]
-flags adt = bits adt `atIndex` (flagIndex $ indexed adt)
+flags EncUndefined = error "EncodedAdt.flags: EncUndefined"
+flags adt          = bits adt `atIndex` (flagIndex $ indexed adt)
 
-switchBy :: EncodedAdt -> [EncodedAdt] -> SAT EncodedAdt
-switchBy adt branches = do
-  branches' <- encodedBranches
-  if null branches'
-    then return EncUndefined
-    else do
-      bits' <- mkBits $ equalWidthBranches branches' 
-      return $ EncAdt bits' $ mergedIndices branches'
+switchBy :: MonadSAT m => EncodedAdt -> [EncodedAdt] -> m EncodedAdt
+switchBy adt branches = 
+  if allBranchesUndefined -- !
+  then return EncUndefined
+  else do
+    bits' <- branchBits >>= mkBits . equalWidth 
+    return $ EncAdt bits' $ mergedIndices branches
   where
-    mkBits :: [EncodedBranch] -> SAT [Boolean]
-    mkBits encBranches = forM columns $ \c -> mkImplications c >>= and
+    allBranchesUndefined = all (P.not . isDefined) branches
+
+    mkBits :: MonadSAT m => [(Boolean,[Boolean])] -> m [Boolean]
+    mkBits branchBits = forM bits' $ \c -> mkImplications c >>= and
       where
-        columns        = transpose $ map (bits . branchAdt) encBranches
-        premises       = map branchPremise encBranches
+        bits'          = transpose $ map snd branchBits
+        premises       = map fst branchBits
         mkImplications = mapM (uncurry implies) . zip premises
 
-    equalWidthBranches :: [EncodedBranch] -> [EncodedBranch]
-    equalWidthBranches encBranches =
-      let widthestBranch = maximumBy' (gadtWidth . indexed . branchAdt) encBranches
-          maxWidth       = gadtWidth $ indexed $ branchAdt widthestBranch
-          padding (DefinedBranch pattern branch premise) = 
-            let n = maxWidth - (gadtWidth $ indexed branch)
-            in
-              DefinedBranch pattern
-                (branch { bits = bits branch ++ replicate n (Constant False)}) premise
+    equalWidth :: [(Boolean,[Boolean])] -> [(Boolean,[Boolean])]
+    equalWidth branchBits =
+      let maxWidth = length $ snd $ maximumBy' (length . snd) branchBits
+          
+          padding (premise,bits) = 
+            (premise, bits ++ replicate (maxWidth - (length bits)) (Constant False))
       in
-        map padding encBranches
+        map padding branchBits
     
-    mergedIndices   = foldl1 merge . map (indexed . branchAdt)
+    mergedIndices = foldl1 merge . map indexed . filter isDefined
 
-    encodedBranches = liftM catMaybes $ zipWithM toBranch patterns branches 
+    branchBits :: MonadSAT m => m [(Boolean,[Boolean])]
+    branchBits = zipWithM toBranch patterns branches 
       where 
         patterns                = binaries $ length $ flags adt
         selectFlag True  flag   = flag
         selectFlag False flag   = not flag
 
-        toBranch pattern branch = 
-          if isDefined branch 
-          then do premise <- and $ zipWith selectFlag pattern $ flags adt
-                  return $ Just $ DefinedBranch pattern branch premise
+        toBranch pattern branch = do
+          premise <- and $ zipWith selectFlag pattern $ flags adt
+          return $ if isDefined branch 
+                   then (premise, bits branch)
+                   else (premise, [])
 
-          else do excludePattern (flags adt) pattern
-                  return Nothing
-
-excludePattern :: [Boolean] -> [Bool] -> SAT ()
+excludePattern :: MonadSAT m => [Boolean] -> [Bool] -> m ()
 excludePattern flags pattern = Exception.assert (length flags == length pattern)
                              $ assert $ zipWith antiSelectBit flags pattern
   where 
@@ -109,16 +128,18 @@ excludePattern flags pattern = Exception.assert (length flags == length pattern)
     antiSelectBit bit False = bit
 
 encodedConsCall :: Int -> Int -> [EncodedAdt] -> EncodedAdt
-encodedConsCall index numCons args = Exception.assert (index < numCons) 
-                                   $ EncAdt bits'
-                                   $ indexedGadt 0 allArgs
+encodedConsCall index numCons args = Exception.assert (index < numCons) $ 
+  if containsUndefinedArgs
+  then EncUndefined
+  else EncAdt bits' $ indexedGadt 0 allArgs
   where
-    bits'         = map Constant binIndex ++ (concatMap bits args)
-    allArgs       = replaceAt index (Just $ map IndexedWrapper args) 
-                  $ replicate numCons Nothing
-
-    binIndex      = toBinary binIndexWidth index
-    binIndexWidth = ceiling $ logBase 2 $ fromIntegral numCons
+    bits'                 = if numCons > 1
+                            then map Constant binIndex ++ (concatMap bits args)
+                            else                           concatMap bits args
+    binIndex              = toBinary (bitWidth numCons) index 
+    allArgs               = replaceAt index (Just $ map IndexedWrapper args) 
+                          $ replicate numCons Nothing
+    containsUndefinedArgs = any (P.not . isDefined) args
 
 constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
 constructorArgument i j adt = case adt of
@@ -131,13 +152,15 @@ constructorArgument i j adt = case adt of
 -- actual @Decode@ instance.
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
+                     deriving Show
 
-toIntermediateAdt :: EncodedAdt -> SAT IntermediateAdt 
+toIntermediateAdt :: (MonadSAT m, Decode m Boolean Bool) => EncodedAdt -> m IntermediateAdt 
 toIntermediateAdt adt = case adt of
   EncUndefined                 -> return IntermediateUndefined
   EncAdt {} | null (flags adt) -> return $ intermediate 0
   EncAdt {}                    -> 
     return (intermediate . fromBinary) `ap` decode (flags adt)
+
   where 
     intermediate :: Int -> IntermediateAdt
     intermediate i = maybe IntermediateUndefined
@@ -147,8 +170,3 @@ toIntermediateAdt adt = case adt of
 isDefined :: EncodedAdt -> Bool
 isDefined EncUndefined = False
 isDefined _            = True
-
-data EncodedBranch = DefinedBranch { branchPattern :: [Bool]
-                                   , branchAdt     :: EncodedAdt
-                                   , branchPremise :: Boolean
-                                   }
