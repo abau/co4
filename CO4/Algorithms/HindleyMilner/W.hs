@@ -27,7 +27,9 @@ data IntroduceTLamTApp = IntroduceAllTLamTApp  -- ^For all polymorphic expressio
                        | IntroduceConTLamTApp  -- ^For polymorphic constructors
                        | DontIntroduceTLamTApp -- ^Don't introduce any type applications or type abstractions
 
-data HMConfig     = HMConfig { introduceTLamTApp :: IntroduceTLamTApp }
+data HMConfig     = HMConfig { introduceTLamTApp      :: IntroduceTLamTApp 
+                             , errorOnPolymorphicMain :: Bool
+                             }
 type HM u a       = ReaderT HMConfig u a
 type BindingGroup = [Binding]
 
@@ -54,7 +56,7 @@ runHm = flip runReaderT
 -- and type applications
 schemeOfExp :: MonadUnique u => Expression -> u Scheme
 schemeOfExp exp = do
-  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp) $ w context exp
+  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w context exp
   let t' = generalize (substitutes subst context) t
   return t'
 
@@ -62,7 +64,7 @@ schemeOfExp exp = do
 
 -- |Annotates the scheme to all named expressions/declarations 
 schemes :: MonadUnique u => Program -> u Program
-schemes = schemesConfig (HMConfig DontIntroduceTLamTApp) emptyContext
+schemes = schemesConfig (HMConfig DontIntroduceTLamTApp True) emptyContext
 
 -- |@withSchemes f p@ applies @f@ to @p'@, where @p'@ equals @p@ after type inference.
 -- Returns the result of @f p'@ with erased type information.
@@ -71,13 +73,13 @@ withSchemes f program = schemes program >>= f >>= return . eraseTypedNames
 
 schemesConfig :: MonadUnique u => HMConfig -> Context -> Program -> u Program
 schemesConfig hmConfig context program = do
-  program'         <- runHm hmConfig $ wProgram context program
+  program' <- runHm hmConfig $ wProgram context program
 
-  let schemeOfMain =  schemeOfName $ boundName $ pMain program'
+  let schemeOfMain = schemeOfName $ boundName $ pMain program'
 
-  case boundInScheme schemeOfMain of
-    [] -> return $ runIdentity $ runTypeApp $ instantiateProgram program'
-    _  -> error $ "Algorithms.HindleyMilner: main must not have the polymorphic type '" ++ show (pprint schemeOfMain) ++ "'"
+  if (null $ boundInScheme schemeOfMain) || (not $ errorOnPolymorphicMain hmConfig)
+    then return $ runIdentity $ runTypeApp $ instantiateProgram program'
+    else error $ "Algorithms.HindleyMilner: main must not have the polymorphic type '" ++ show (pprint schemeOfMain) ++ "'"
 
 -- | While introducing explicit type applications, we apply an instantiated
 -- type @t@ to polymorphic function symbols in the first place:
@@ -276,5 +278,5 @@ wPat context pat = case pat of
         pat'      = substitutes subst $ expressionToPattern exp'
     return (type_, bindings', pat')
 
-  where withoutTLamTApp = local (const $ HMConfig DontIntroduceTLamTApp)
+  where withoutTLamTApp = local (const $ HMConfig DontIntroduceTLamTApp False)
 

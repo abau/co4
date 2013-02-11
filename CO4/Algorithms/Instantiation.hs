@@ -150,7 +150,7 @@ isInstantiable declaration = case declaration of
 
 instantiation :: MonadUnique u => Int -> Program -> u Program
 instantiation maxDepth program = do
-  typedProgram <- HM.schemesConfig (HM.HMConfig HM.IntroduceVarTLamTApp) 
+  typedProgram <- HM.schemesConfig (HM.HMConfig HM.IntroduceVarTLamTApp True) 
                                    HM.emptyContext program
 
   let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram
