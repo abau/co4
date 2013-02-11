@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- |Template Haskell front end
 module CO4.Frontend.TH
-  ()
+  (module CO4.Frontend)
 where
 
 import qualified Language.Haskell.TH as TH

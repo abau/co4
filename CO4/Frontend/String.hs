@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 -- |String frontend
 module CO4.Frontend.String
-  (parseProgramFromFile)
+  (parseProgramFromFile, module CO4.Frontend)
 where
 
 import           Control.Applicative ((<$>))

@@ -1,7 +1,7 @@
 -- |Haskell-Src-Exts front end. This actually transforms Haskell-Src-Exts's AST
 -- to Template-Haskell's AST and uses the according front end.
 module CO4.Frontend.HaskellSrcExts
-  ()
+  (module CO4.Frontend)
 where
 
 import qualified Language.Haskell.Exts as HE
