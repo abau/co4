@@ -18,13 +18,7 @@ instance Show Message where
 type Check   = [Message]
 
 checkProgram :: [Dec] -> Bool
-checkProgram program = check program && containsMain 
-  where containsMain = case any isMain program of
-                        False -> error $ show $ Error "No 'main' binding found"
-                        True  -> True
-
-        isMain (FunD name _) = nameBase name == "main"
-        isMain _             = False
+checkProgram = check 
 
 check :: GenericQ Bool
 check a = case partition isError (checks a) of
