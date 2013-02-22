@@ -1,41 +1,31 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-import           Prelude hiding (all,(!!),foldr1,foldr,tail,and, zipWith, or ,and,map,head,null)
-import           Control.Monad (forM)
-import           Control.Monad.Identity (runIdentity)
-import           Satchmo.Boolean (boolean,assert)
-import           Satchmo.Code (decode)
-import           Satchmo.SAT.Mini (solve)
-import qualified Language.Haskell.TH as TH
-import           CO4
-import qualified CO4.MonadifyTypes
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
-$([d|
-    
-    simple_constraint bs =  
-      let bla = True 
-      in
-        head ( map (\b -> b || bla) bs ) && foo (head bs)
+module CO4.Test.Simple
+where
 
-    map f xs = case xs of [] -> [] ; x : xs -> f x : map f xs          
-    head (x:xs) = x
+import Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
+import Language.Haskell.TH (runIO)
+import Satchmo.SAT.Mini (SAT)
+import Satchmo.Code (Decode,decode)
+import CO4
 
-    foo x = if x then False else True
-  |] >>= \p -> TH.runIO ( compile p [Verbose, Metric "heap-space", Degree 2] )
+$( [d| data Bool = False | True
+
+       main x = case x of False -> False
+                          True  -> True
+
+   |] >>= \p -> runIO (compile p [Verbose, NoRaml])
   )
 
-testSimple :: IO ()
-testSimple = 
-  let test arg = runIdentity ( simple_constraint arg ) :: Bool
-  in do
-    mResult <- solve ( do bs <- forM [1..5] $ const boolean
+result = solve (undefined :: SizedBool) encMain >>= putStrLn . show
 
-                          r <- simple_constraint bs
-                          assert [r]
-                          return ( decode bs )
-                     ) :: IO (Maybe [Bool])
-    Prelude.putStrLn (unlines
-      [ "Test:"
-      , show (test `fmap` mResult)
-      , show mResult
-      ] )
+deriving instance Show Bool
