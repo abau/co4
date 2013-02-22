@@ -3,7 +3,6 @@ module CO4.Prelude
   (prelude, parsePrelude)
 where
 
-import           Control.Monad (liftM)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language (Declaration)
 import           CO4.Frontend.TH (parseTHDeclaration)

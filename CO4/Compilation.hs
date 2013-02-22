@@ -14,9 +14,11 @@ import qualified Language.Haskell.TH as TH
 import           CO4.Language (Program)
 import           CO4.Unique (Unique,UniqueT,runUniqueT,mapUnique)
 import           CO4.THUtil (unqualifiedNames)
+import           CO4.Util (addDeclarations)
 import           CO4.Frontend
 import           CO4.Backend
 import           CO4.Backend.TH ()
+import           CO4.Prelude (parsePrelude)
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
 import           CO4.Algorithms.Instantiation (instantiation)
@@ -59,6 +61,7 @@ data Config  = Verbose
              | DumpAfter Stage FilePath
              | DumpAll FilePath
              | InstantiationDepth Int
+             | ImportPrelude
              deriving (Eq)
 
 type Configs      = [Config]
@@ -66,10 +69,15 @@ type Configurable = ReaderT Configs (UniqueT IO)
 
 compile :: (ProgramFrontend a) => a -> Configs -> IO [TH.Dec]
 compile a configs = do
-  runUniqueT $ flip runReaderT configs $ do
-    parsedProgram <- liftUnique $ parsePreprocessedProgram a 
+  parsedPrelude <- if ImportPrelude `elem` configs
+                   then parsePrelude
+                   else return []
 
-    uniqueProgram <-  dumpAfterStage' stageParsed parsedProgram
+  runUniqueT $ flip runReaderT configs $ do
+    parsedProgram <-  liftUnique $ parsePreprocessedProgram a 
+
+    uniqueProgram <-  dumpAfterStage' stageParsed 
+                        (addDeclarations parsedPrelude parsedProgram)
 
                   >>= liftUnique      .    uniqueLocalNames 
                   >>= dumpAfterStage' stageUniqueLocalNames

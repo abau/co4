@@ -1,10 +1,10 @@
 -- |Template Haskell preprocessing
 module CO4.Frontend.THPreprocess
-  (preprocess)
+  (preprocess, eraseDerivings)
 where
 
 import           Control.Applicative ((<$>))
-import           Data.Generics (GenericM,everywhere,everywhereM,mkM,mkT)
+import           Data.Generics (GenericM,GenericT,everywhere,everywhereM,mkM,mkT)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
   
@@ -21,6 +21,14 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
   >>=          everywhereM (mkM noWildcardPattern)
+
+-- |Erases instance derivings from data declarations and newtype declarations
+eraseDerivings :: GenericT
+eraseDerivings = everywhere $ mkT go
+  where 
+    go (DataD    ctxt name tvbs cons _) = DataD    ctxt name tvbs cons []
+    go (NewtypeD ctxt name tvbs cons _) = NewtypeD ctxt name tvbs cons []
+    go dec                              = dec
 
 -- |Transforms multiple clauses of a function declaration into a single declaration
 -- with a case expression as outermost expression

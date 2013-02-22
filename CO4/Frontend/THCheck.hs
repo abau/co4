@@ -1,6 +1,6 @@
 -- |Template Haskell compatibility checks
 module CO4.Frontend.THCheck
-  (check, checkProgram)
+  (check)
 where
 
 import           Language.Haskell.TH 
@@ -16,9 +16,6 @@ instance Show Message where
   show (Warning msg) = "Frontend.THCheck (Warning): " ++ msg
 
 type Check   = [Message]
-
-checkProgram :: [Dec] -> Bool
-checkProgram = check 
 
 check :: GenericQ Bool
 check a = case partition isError (checks a) of

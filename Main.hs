@@ -30,6 +30,7 @@ configurations =
       (ReqArg (\fp -> (:) (DumpAll fp)) "FILE") ("Dump code of all intermediate stages")
   , Option [] ["instantiation-depth"]
       (ReqArg (\i -> (:) (InstantiationDepth $ read i)) "DEPTH") ("Maximum instantiation depth (default: " ++ show defaultInstantiationDepth ++ ")")
+  , Option ['i'] ["import-prelude"] (NoArg $ (:) ImportPrelude) "Import prelude"
   ]
 
   where

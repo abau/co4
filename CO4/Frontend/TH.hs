@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 -- |Template Haskell front end
 module CO4.Frontend.TH
-  (module CO4.Frontend)
+  (parseTHDeclaration, module CO4.Frontend)
 where
 
 import qualified Language.Haskell.TH as TH
@@ -10,16 +10,16 @@ import           CO4.Language
 import           CO4.Util (programFromDeclarations)
 import           CO4.Frontend
 import           CO4.Names
-import           CO4.Frontend.THCheck (check,checkProgram)
+import           CO4.Frontend.THCheck (check)
 import           CO4.Frontend.THPreprocess (preprocess)
 
 instance ProgramFrontend [TH.Dec] where
   parseProgram decs = 
-    if checkProgram decs then parseTHDeclarations decs 
+    if check decs then parseTHDeclarations decs 
     else error "Frontend.TH.parseProgram: check failed"
 
   parsePreprocessedProgram decs = 
-    if checkProgram decs then preprocess decs >>= return . parseTHDeclarations
+    if check decs then preprocess decs >>= return . parseTHDeclarations
     else error "Frontend.TH.parsePreprocessedProgram: check failed"
 
 instance ExpressionFrontend TH.Exp where
