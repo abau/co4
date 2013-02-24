@@ -20,7 +20,7 @@ import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgumen
                                                              ,constructorArguments)
 import           CO4.Util (maximumBy',replaceAt,toBinary,fromBinary,binaries,bitWidth)
 
-import Debug.Trace
+-- import Debug.Trace
 
 data EncodedAdt =
     EncAdt { bits    :: [Boolean]
@@ -53,7 +53,7 @@ unknown indexed = do
   bits <- sequence $ replicate (gadtWidth indexed) boolean
   mapM_ (excludeUndefinedGadtPath bits) undef
   excludeNonConsPaths bits indexed 
-  return $ trace ("Excluded " ++ show (length undef) ++ " undefined path(s)") 
+  return {- trace ("Excluded " ++ show (length undef) ++ " undefined path(s)") -}
          $ EncAdt bits indexed
   where 
     undef                         = undefinedGadtPaths indexed

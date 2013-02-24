@@ -3,7 +3,7 @@ module CO4.Frontend.THPreprocess
   (preprocess, eraseDerivings)
 where
 
-import           Control.Applicative ((<$>))
+import           Control.Monad (liftM)
 import           Data.Generics (GenericM,GenericT,everywhere,everywhereM,mkM,mkT)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
@@ -137,8 +137,8 @@ noComplexPatterns (p:ps)   exp = do
 -- |Removes wildcard patterns by introducting new pattern variables
 noWildcardPattern :: MonadUnique u => Pat -> u Pat
 noWildcardPattern pat = case pat of
-  WildP -> VarP <$> newTHName "wildcard"
+  WildP -> liftM VarP $ newTHName "wildcard"
   _     -> return pat
 
 newTHName :: MonadUnique u => String -> u Name
-newTHName name = mkName <$> newString name
+newTHName name = liftM mkName $ newString name

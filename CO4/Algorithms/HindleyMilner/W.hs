@@ -88,7 +88,7 @@ schemesConfig hmConfig context program = do
 -- The final type application consists of the substituted variables:
 -- @map <Bool,Bool> not xs@.
 newtype TypeApplicator a = TypeApplicator { runTypeApp :: Identity a }
-  deriving (Functor, Monad)
+  deriving (Monad)
 
 instance MonadInstantiator TypeApplicator where
   instantiateTApp (ETApp f@(EVar (NTyped _ fScheme)) [instantiatedType]) = 
@@ -195,7 +195,9 @@ w context exp = case exp of
       case (lookup name context, name) of
         (Just s, _)      -> return s
         (_ , NTyped _ s) -> return s
-        _                -> fail $ "Can not deduce type for '" ++ (show $ pprint name) ++ "'"
+        _                -> fail $ "Algorithms.HindleyMilner.W: "
+                                ++ "Can not deduce type for '" 
+                                ++ (show $ pprint name) ++ "'"
 
 -- |Annotates the schemes to a program
 wProgram :: MonadUnique u => Context -> Program -> HM u Program

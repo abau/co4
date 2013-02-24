@@ -7,19 +7,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE StandaloneDeriving #-}
-
 {-# LANGUAGE UndecidableInstances #-}
 
 module CO4.Test.RoseTree
 where
 
-import Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
-import Language.Haskell.TH (runIO)
-import Satchmo.SAT.Mini (SAT)
-import Satchmo.Code (Decode,decode)
-import CO4
-import CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (DecodedAdt)
+import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
+import           Language.Haskell.TH (runIO)
+import qualified Satchmo.SAT.Mini 
+import qualified Satchmo.Code 
+import           CO4
+import           CO4.Algorithms.Eitherize.UnsizedAdt (UnsizedAdt)
 
 $([d|   
 
@@ -37,12 +35,7 @@ $([d|
                          case x of 
                           False -> False
                           True  -> True
-   |] >>= \p -> runIO ( compile p [Verbose, NoRaml] )
+   |] >>= runIO . configurable [Verbose] . compile 
  )
 
 result = CO4.solve (undefined :: (SizedRose Nat2 Nat2 SizedBool)) encMain
-
-deriving instance Show Bool
-deriving instance Show a => Show (List a)
-deriving instance Show a => Show (Tree a)
-deriving instance Show a => Show (Rose a)

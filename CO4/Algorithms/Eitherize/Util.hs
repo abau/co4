@@ -1,9 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE TemplateHaskell #-}
 module CO4.Algorithms.Eitherize.Util
 where
 
-import           Control.Applicative ((<$>))
 import           Control.Monad.Reader
 import           Control.Monad.State
 import qualified Data.Map as M
@@ -14,16 +14,6 @@ import           CO4.Unique
 import           CO4.THUtil
 import           CO4.Util (isRecursiveAdt,countTConInConstructor)
 import           CO4.Names (Namelike,mapName)
-
-data Nat0
-data NatSucc a
-
-type Nat1 = NatSucc Nat0
-type Nat2 = NatSucc Nat1
-type Nat3 = NatSucc Nat2
-type Nat4 = NatSucc Nat3
-type Nat5 = NatSucc Nat4
-type Nat6 = NatSucc Nat5
 
 -- * 'SizedTypes'
 
@@ -60,7 +50,7 @@ data GadtEnv = GadtEnv { sizedTypes              :: SizedTypes
 -- |Stateful monad that counts the number of consumed size parameters when
 -- traversing the constructors of an ADT
 newtype Gadt u a = Gadt { fromGadt :: ReaderT GadtEnv (StateT Int u) a }
-  deriving (Monad, Functor, MonadUnique, MonadReader GadtEnv, MonadState Int)
+  deriving (Monad,MonadUnique, MonadReader GadtEnv, MonadState Int)
 
 getSizeParameters :: Monad m => Gadt m [UntypedName]
 getSizeParameters = asks sizeParameters
@@ -102,7 +92,7 @@ runGadt :: MonadUnique u => SizedTypes -> Declaration -> Gadt u a -> u a
 runGadt sizedTypes adt f = do
   let numSizeParams = countSizeParameters sizedTypes adt
   sizeParams    <- forM [1 .. numSizeParams] $ const $ newNamelike "argSize"
-  mRecSizeParam <- if isRecursiveAdt adt then Just <$> newNamelike "recSize"
+  mRecSizeParam <- if isRecursiveAdt adt then liftM Just $ newNamelike "recSize"
                                          else return Nothing
 
   let gadtEnv = GadtEnv sizedTypes sizeParams mRecSizeParam
@@ -166,3 +156,16 @@ bindAndApplyList :: MonadUnique u => (TH.Exp -> TH.Exp)
                                   -> [TH.Exp] -> u TH.Exp
 bindAndApplyList f = bindAndApply (\names -> [TH.ListE $ map varE names]) 
                                   (\[exp] -> f exp)
+
+-- * Type level naturals
+
+data Nat0
+data NatSucc a
+
+$( forM [1..100] $ \i -> 
+    let nat i = TH.mkName $ "Nat" ++ (show i)
+    in
+      TH.tySynD (nat i) [] (TH.appT (TH.conT ''NatSucc) 
+                           (TH.conT $ nat $ i - 1))
+ )
+

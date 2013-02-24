@@ -13,16 +13,16 @@ import Data.Monoid (Monoid)
 import CO4.Names (Namelike,mapName,fromName,readName)
 import CO4.Language (Name)
 
-class (Functor m, Monad m) => MonadUnique m where
+class (Monad m) => MonadUnique m where
   newString :: String -> m String
 
 newtype UniqueT m a = UniqueT (StateT Integer m a)
-  deriving (Functor, Monad, MonadTrans)
+  deriving (Monad, MonadTrans)
 
 newtype Unique a = Unique (UniqueT Identity a)
-  deriving (Functor, Monad, MonadUnique)
+  deriving (Monad, MonadUnique)
 
-instance (Functor m, Monad m) => MonadUnique (UniqueT m) where
+instance (Monad m) => MonadUnique (UniqueT m) where
   newString prefix = UniqueT $ do
     i <- get
     modify (+1) 
@@ -64,3 +64,6 @@ instance (MonadUnique m) => MonadUnique (StateT s m) where
 
 instance (MonadUnique m, Monoid w) => MonadUnique (RWST r w s m) where
   newString x = lift $ newString x
+
+instance (MonadIO m) => MonadIO (UniqueT m) where
+  liftIO x = lift $ liftIO x

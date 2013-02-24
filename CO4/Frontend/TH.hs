@@ -70,7 +70,11 @@ parseTHConstructor con = case con of
 
 parseTHExpression :: TH.Exp -> Expression
 parseTHExpression expression = case expression of
-  TH.VarE n | n == 'undefined -> EUndefined
+  TH.VarE n | n == 'undefined            -> EUndefined
+
+  -- Haskell.Src.Ext parses undefined as ordinary variable 
+  -- not as "GHC.Err.undefined"
+  TH.VarE n | n == TH.mkName "undefined" -> EUndefined 
 
   TH.VarE n -> EVar $ fromTHName n
   TH.ConE n -> ECon $ fromTHName n

@@ -14,7 +14,7 @@ type MappingM m = Name -> m Name
 type Mapping    = Name ->   Name
 
 newtype Instantiator m a = Instantiator { runInstantiator :: ReaderT (MappingM m) m a }
-  deriving ( Functor, Monad, MonadReader (MappingM m) )
+  deriving (Monad, MonadReader (MappingM m))
 
 instance Monad m => MonadInstantiator (Instantiator m) where
   instantiateName name = do

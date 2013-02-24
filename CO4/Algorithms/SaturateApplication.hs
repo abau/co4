@@ -22,8 +22,7 @@ type Cache      = M.Map CacheKey CacheValue
 newtype Instantiator u a = Instantiator { 
     runInstantiator :: StateT Cache (WriterT [Declaration] u) a 
   }
-  deriving ( Functor, Monad, MonadUnique, MonadWriter [Declaration]
-           , MonadState Cache )
+  deriving (Monad, MonadUnique, MonadWriter [Declaration], MonadState Cache)
 
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
   instantiateApp (EApp f args) = do

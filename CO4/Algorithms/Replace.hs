@@ -11,7 +11,7 @@ import           CO4.Language
 type Mapping = M.Map Expression Expression
 
 newtype Replacer a = Replacer { runReplacer :: Reader Mapping a }
-  deriving ( Functor, Monad, MonadReader Mapping )
+  deriving (Monad, MonadReader Mapping)
 
 instance MonadInstantiator Replacer where
   instantiateExpression exp = do

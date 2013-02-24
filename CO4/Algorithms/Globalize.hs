@@ -3,7 +3,6 @@ module CO4.Algorithms.Globalize
   (globalize)
 where
 
-import           Control.Applicative ((<$>))
 import           Control.Monad.State
 import           Data.List (partition,(\\),nub)
 import qualified Data.Map as M
@@ -24,11 +23,11 @@ data Env = Env { callGlobal       :: M.Map Name Expression
                }
 
 newtype Globalizer u a = Globalizer { runGlobalizer :: StateT Env u a }
-  deriving (Functor, Monad, MonadState Env, MonadUnique)
+  deriving (Monad, MonadState Env, MonadUnique)
 
 instance MonadUnique u => MonadInstantiator (Globalizer u) where
 
-  instantiateVar (EVar name) = M.findWithDefault (EVar name) name <$> gets callGlobal
+  instantiateVar (EVar name) = liftM (M.findWithDefault (EVar name) name) $ gets callGlobal
 
   instantiateLam (ELam parameters e) = do
     e'         <- instantiateExpression  e
@@ -56,7 +55,7 @@ instance MonadUnique u => MonadInstantiator (Globalizer u) where
 
       result <- case otherBindings' of
                   [] -> instantiate e
-                  _  -> ELet otherBindings <$> instantiate e
+                  _  -> liftM (ELet otherBindings) $ instantiate e
 
       modify $ \env -> env { callGlobal = oldCalls }
       return result
@@ -69,7 +68,7 @@ instance MonadUnique u => MonadInstantiator (Globalizer u) where
         let boundNames  = map boundName bGroup
             boundExps   = map boundExpression bGroup
 
-        boundExps' <- forM boundExps $ \(ELam p exp) -> ELam p <$> instantiate exp
+        boundExps' <- forM boundExps $ \(ELam p exp) -> liftM (ELam p) $ instantiate exp
 
         freeNames <- do all <- forM boundExps' getFreeNames 
                         return $ nub (concat all) \\ boundNames
@@ -88,10 +87,10 @@ instance MonadUnique u => MonadInstantiator (Globalizer u) where
           addGlobalBinding $ Binding name $ ELam (freeNames' ++ params) exp'
 
   instantiateBind (DBind binding) = case binding of
-      Binding n (ELam ns e) -> DBind . Binding n . ELam ns <$> instantiate e
-      Binding n e           -> DBind . Binding n <$> instantiate e
+      Binding n (ELam ns e) -> liftM (DBind . Binding n . ELam ns) $ instantiate e
+      Binding n e           -> liftM (DBind . Binding n          ) $ instantiate e
 
-getFreeNames :: (Free a,Functor m,Monad m) => a -> Globalizer m [Name]
+getFreeNames :: (Free a,Monad m) => a -> Globalizer m [Name]
 getFreeNames a = do
   globalNames   <- gets (map boundName . globalBindings)
   toplevelNames <- gets originalToplevel

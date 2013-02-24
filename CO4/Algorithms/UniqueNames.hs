@@ -11,7 +11,7 @@ import           CO4.Algorithms.Rename (renameList)
 import           CO4.Algorithms.Bound (boundInPattern,boundToplevel)
 
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
-  deriving ( Functor, Monad, MonadUnique )
+  deriving (Monad, MonadUnique)
 
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
   instantiateLam (ELam names e) = do

@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 module CO4.Backend.TH
-  ()
+  (module CO4.Backend)
 where
 
 import           Control.Monad.Identity (runIdentity)

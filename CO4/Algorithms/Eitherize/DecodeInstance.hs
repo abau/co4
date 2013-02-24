@@ -5,11 +5,13 @@ where
 
 import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Code (Decode)
+import           Satchmo.Code (Decode,decode)
+import           Satchmo.SAT.Mini (SAT)
 import           CO4.Names
 import           CO4.Unique
 import           CO4.Language
 import           CO4.THUtil
+import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAdt)
 
 -- |Generates a @Decode@ instance of an ADT
 -- 
@@ -30,12 +32,12 @@ decodeInstance (DAdt name vars conss) = do
   paramName        <- newName "p"
   intermediateName <- newName "i"
 
-  let instancePredicates = map (\v ->
-                            TH.ClassP ''Decode [conT "SAT", conT "EncodedAdt", varT v]
-                           ) vars
+  let instancePredicates = 
+        map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, TH.ConT ''EncodedAdt, varT v]
+            ) vars
   
       instanceHead = TH.InstanceD instancePredicates (foldl1 TH.AppT 
-                      [ conT "Decode", conT "SAT", conT "EncodedAdt"
+                      [ TH.ConT ''Decode, TH.ConT ''SAT, TH.ConT ''EncodedAdt
                       , appsT (conT name) $ map varT vars
                       ])
       instanceDec matches = funD "decode"
@@ -45,7 +47,7 @@ decodeInstance (DAdt name vars conss) = do
 
       instanceExp matches = 
         TH.DoE [ TH.BindS (varP intermediateName) 
-                  (TH.AppE (varE "toIntermediateAdt") $ varE paramName)
+                  (TH.AppE (TH.VarE 'toIntermediateAdt) $ varE paramName)
                , TH.NoBindS $ TH.CaseE (varE intermediateName) matches
                ]
   matches <- forM (zip [0..] conss) $ uncurry decodeCons
@@ -53,8 +55,8 @@ decodeInstance (DAdt name vars conss) = do
 
 matchUndefined :: UntypedName -> TH.Match
 matchUndefined adtName = 
-  TH.Match (conP "IntermediateUndefined" [])
-           (TH.NormalB $ TH.AppE (varE "error")
+  TH.Match (TH.ConP 'IntermediateUndefined [])
+           (TH.NormalB $ TH.AppE (TH.VarE 'error)
                                  (TH.LitE $ TH.StringL 
                                           $ "Can not decode 'undefined' to data of type '" ++ fromName adtName ++ "'"
                                  )
@@ -66,9 +68,9 @@ decodeCons i (CCon consName params) = do
   decodedNames <- forM params $ const $ newName "d"
 
   let decodeBind (param,name) =   TH.BindS (varP name)
-                                $ TH.AppE (varE "decode") $ varE param
+                                $ TH.AppE (TH.VarE 'decode) $ varE param
 
-      matchPattern = conP "IntermediateConstructorIndex"
+      matchPattern = TH.ConP 'IntermediateConstructorIndex
                              [ TH.LitP  $ TH.IntegerL $ fromIntegral i
                              , TH.ListP $ map varP paramNames
                              ]

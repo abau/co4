@@ -101,3 +101,11 @@ unqualifiedNames :: GenericT
 unqualifiedNames = everywhere $ mkT unqualifiedName
   where
     unqualifiedName = TH.mkName . TH.nameBase
+
+deriveShows :: GenericT
+deriveShows = everywhere $ mkT deriveShow
+  where
+    deriveShow (TH.DataD ctxt name tvars cons names)
+      | not (''Show `elem` names) = TH.DataD ctxt name tvars cons $ names ++ [''Show]
+
+    deriveShow decl = decl

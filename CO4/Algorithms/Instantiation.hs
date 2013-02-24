@@ -5,7 +5,6 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.State hiding (State)
-import           Control.Applicative ((<$>))
 import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromJust,fromMaybe,mapMaybe)
@@ -37,7 +36,7 @@ data State = State { cache     :: Cache
 
 newtype Instantiator u a = Instantiator 
   { runInstantiator :: ReaderT Env (StateT State u) a }
-  deriving ( Functor, Monad, MonadReader Env, MonadState State, MonadUnique )
+  deriving (Monad, MonadReader Env, MonadState State, MonadUnique )
 
 writeInstance :: MonadUnique u => Binding -> Instantiator u ()
 writeInstance instance_ = 
@@ -60,7 +59,7 @@ newTypedInstanceName originalName scheme = do
 
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
 
-  instantiateVar (EVar name) = fromMaybe (EVar name) <$> hoBinding name
+  instantiateVar (EVar name) = liftM (fromMaybe $ EVar name) $ hoBinding name
 
   -- Instantiate polymorphic constants
   instantiateTApp (ETApp (EVar f) typeApps) = do
@@ -95,7 +94,7 @@ instance MonadUnique u => MonadInstantiator (Instantiator u) where
          , hoParameters     
          , hoArguments  )  = splitByOrder $ zip params' args'
 
-    freeInHoArguments  <- (nub . concat) <$> mapM freeNames hoArguments
+    freeInHoArguments  <- liftM (nub . concat) $ mapM freeNames hoArguments
         
     let instanceParameters = foParameters ++ freeInHoArguments 
         instanceArguments  = foArguments  ++ map EVar freeInHoArguments
@@ -173,8 +172,8 @@ freeNames exp =
       toplevelName (DBind (Binding name _)) = Just name
       toplevelName _                        = Nothing
   in do
-    toplevelNames <- mapMaybe toplevelName <$> asks notInstantiable
-    instanceNames <- map boundName         <$> gets instances
+    toplevelNames <- liftM (mapMaybe toplevelName) $ asks notInstantiable
+    instanceNames <- liftM (map boundName        ) $ gets instances
     return $ frees \\ (toplevelNames ++ instanceNames)
 
 instantiateExpInModifiedEnv :: (MonadUnique u, Namelike n) 

@@ -3,7 +3,7 @@ module CO4.Algorithms.Eitherize.SizedGadt
   (Nat0, NatSucc, sizedGadts)
 where
 
-import           Control.Applicative ((<$>))
+import           Control.Monad (liftM)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Unique
@@ -13,7 +13,7 @@ import           CO4.TypesUtil (countTCon)
 import           CO4.Names (convertName)
 import           CO4.Algorithms.TopologicalSort (adtGroups)
 import           CO4.Algorithms.Eitherize.Util
-import           CO4.Algorithms.Eitherize.DecodedAdtTypeFamily (decodedAdtTypeInstance)
+import           CO4.Algorithms.Eitherize.UnsizedAdtInstance (unsizedAdtInstance)
 import           CO4.Algorithms.Eitherize.IndexedGadtInstance (indexedGadtInstances)
 
 sizedGadts :: MonadUnique u => [Declaration] -> u [TH.Dec]
@@ -48,10 +48,9 @@ sizedGadt sizedTypes adt = runGadt sizedTypes adt sizedGadt'
                                  gadtConss
                                  []
 
-      indexedInstance        <- indexedGadtInstances adt
-      decodedAdtTypeInstance <- decodedAdtTypeInstance adt
-      return ( gadt : decodedAdtTypeInstance : indexedInstance 
-             , adtName, length allSizeParams)
+      indexedInstance <- indexedGadtInstances adt
+      unsizedInstance <- unsizedAdtInstance adt
+      return ( gadt : unsizedInstance : indexedInstance, adtName, length allSizeParams)
 
 sizedGadtConstructor :: MonadUnique u => UntypedName -> Constructor -> Gadt u TH.Con
 sizedGadtConstructor adtName (CCon consName consArgs) = 
@@ -89,11 +88,11 @@ sizedGadtConstructor adtName (CCon consName consArgs) =
       TVar v -> return $ varT v
       TCon c ts | c == adtName -> do
         let recParameter = maybe [] (\p -> [TH.VarT p]) mLocalRecSizeParameter
-        sizeParams <- map varT <$> getSizeParameters
+        sizeParams <- liftM (map varT) $ getSizeParameters
         ts' <- mapM (gadtType mLocalRecSizeParameter) ts
         return $ appsT (conT $ sizedName c) $ recParameter ++ sizeParams ++ ts'
 
       TCon c ts | otherwise -> do
-        sizeParams <- map varT <$> nextConstructorSizeParameters c
+        sizeParams <- liftM (map varT) $ nextConstructorSizeParameters c
         ts' <- mapM (gadtType mLocalRecSizeParameter) ts
         return $ appsT (conT $ sizedName c) $ sizeParams ++ ts'

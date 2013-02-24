@@ -4,7 +4,6 @@ module CO4.Algorithms.Eitherize
   (eitherize)
 where
 
-import           Control.Applicative ((<$>))
 import           Control.Monad.Identity
 import           Control.Monad.Writer
 import           Data.List (isPrefixOf)
@@ -40,7 +39,7 @@ encodedFunName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns))
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
-  deriving ( Functor, Monad, MonadWriter [TH.Dec], MonadUnique)
+  deriving (Monad, MonadWriter [TH.Dec], MonadUnique)
 
 instance MonadUnique u => MonadCollector (AdtInstantiator u) where
 
@@ -73,7 +72,7 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
       tellOne x    = tell [x]
 
 newtype ExpInstantiator u a = ExpInstantiator { runExpInstantiator :: u a } 
-  deriving ( Functor, Monad, MonadUnique )
+  deriving (Monad, MonadUnique)
 
 instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
   
@@ -122,7 +121,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
       -- |Otherwise, bind the constructor's arguments to new names
       instantiateMatchToExp e'Name (j, Match (PCon _ patVars) match) = 
-        lets <$> instantiate match
+        liftM lets $ instantiate match
           
         where 
           lets                = letE' (map mkBinding $ zip [0..] patVarNames)
@@ -135,7 +134,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
       -- |Instantiate default match (pattern is a variable)
       instantiateMatchToExp e'Name (_, Match (PVar v) match) = 
-        letE' [(v, varE e'Name)] <$> instantiate match
+        liftM (letE' [(v, varE e'Name)]) $ instantiate match
 
       dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
           [ TH.Match (TH.ConP 'EncUndefined []) 
@@ -159,5 +158,5 @@ eitherize program = do
   gadts <- sizedGadts adts
 
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
-  values' <- concat <$>  ( runExpInstantiator $ instantiate values )
+  values' <- liftM concat $ runExpInstantiator $ instantiate values
   return $ gadts ++ decls ++ (deleteSignatures values')

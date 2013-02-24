@@ -12,7 +12,7 @@ import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
-  deriving ( Functor, Monad, MonadUnique )
+  deriving (Monad, MonadUnique)
 
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
   

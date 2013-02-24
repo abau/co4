@@ -60,7 +60,7 @@ instance PPrint Context where
 
 -- Expression substitution is done by an Instantiator monad
 newtype Substituter a = Substituter { runSubstituter :: Reader Substitution a }
-  deriving (Functor, Monad, MonadReader Substitution)
+  deriving (Monad, MonadReader Substitution)
 
 instance MonadInstantiator Substituter where
   instantiateScheme scheme = do
