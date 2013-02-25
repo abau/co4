@@ -67,9 +67,12 @@ fromConfigs f = configs >>= return . f
 
 dump :: MonadIO m => String -> String -> FilePath -> m ()
 dump title content filePath = liftIO $ case filePath of
-  "" -> putStrLn $ unwords [ "##", title, replicate (30 - length title) '#', "\n"
-                                    , content]
-  _  -> writeFile filePath content
+  "" -> putStrLn content'
+  _  -> appendFile filePath $ content' ++ "\n"
+
+  where content' = unwords [ "##", title
+                           , replicate (50 - length title) '#', "\n"
+                           , content]
 
 
 {-
