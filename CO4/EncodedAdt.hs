@@ -20,7 +20,7 @@ import           CO4.Algorithms.Eitherize.IndexedGadt hiding (constructorArgumen
                                                              ,constructorArguments)
 import           CO4.Util (maximumBy',replaceAt,toBinary,fromBinary,binaries,bitWidth)
 
--- import Debug.Trace
+--import Debug.Trace
 
 data EncodedAdt =
     EncAdt { bits    :: [Boolean]
@@ -84,31 +84,31 @@ switchBy adt branches =
   if allBranchesUndefined -- !
   then return EncUndefined
   else do
-    bits' <- branchBits >>= mkBits . equalWidth 
+    bits' <- premiseAndBranchBits >>= mkBits . equalWidth 
     return $ EncAdt bits' $ mergedIndices branches
   where
     allBranchesUndefined = all (P.not . isDefined) branches
 
     mkBits :: MonadSAT m => [(Boolean,[Boolean])] -> m [Boolean]
-    mkBits branchBits = forM bits' $ \c -> mkImplications c >>= and
+    mkBits premiseAndBranchBits = forM bits' $ \c -> mkImplications c >>= and
       where
-        bits'          = transpose $ map snd branchBits
-        premises       = map fst branchBits
+        bits'          = transpose $ map snd premiseAndBranchBits
+        premises       = map fst premiseAndBranchBits
         mkImplications = mapM (uncurry implies) . zip premises
 
     equalWidth :: [(Boolean,[Boolean])] -> [(Boolean,[Boolean])]
-    equalWidth branchBits =
-      let maxWidth = length $ snd $ maximumBy' (length . snd) branchBits
+    equalWidth premiseAndBranchBits =
+      let maxWidth = length $ snd $ maximumBy' (length . snd) premiseAndBranchBits
           
           padding (premise,bits) = 
             (premise, bits ++ replicate (maxWidth - (length bits)) (Constant False))
       in
-        map padding branchBits
+        map padding premiseAndBranchBits
     
     mergedIndices = foldl1 merge . map indexed . filter isDefined
 
-    branchBits :: MonadSAT m => m [(Boolean,[Boolean])]
-    branchBits = zipWithM toBranch patterns branches 
+    premiseAndBranchBits :: MonadSAT m => m [(Boolean,[Boolean])]
+    premiseAndBranchBits = zipWithM toBranch patterns branches 
       where 
         patterns                = binaries $ length $ flags adt
         selectFlag True  flag   = flag
