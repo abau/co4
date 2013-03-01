@@ -108,13 +108,13 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
         if lengthOne ms'
           then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
 
-          else do switchByE <- bindAndApply (\ms'Names -> [ varE e'Name
-                                                          , TH.ListE $ map varE ms'Names
-                                                          ])
-                                            (appsE $ TH.VarE 'switchBy) ms'
+          else do caseOfE <- bindAndApply (\ms'Names -> [ varE e'Name
+                                                        , TH.ListE $ map varE ms'Names
+                                                        ])
+                                          (appsE $ TH.VarE 'caseOf) ms'
 
                   return $ TH.DoE [ binding, TH.NoBindS $ dontCareMatch e'Name 
-                                                        $ switchByE ]
+                                                        $ caseOfE ]
     where 
       -- |If the matched constructor has no arguments, just instantiate expression of match
       instantiateMatchToExp _ (_, Match (PCon _ []) match) = instantiate match

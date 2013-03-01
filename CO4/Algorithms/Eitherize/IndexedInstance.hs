@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ExistentialQuantification #-}
-module CO4.Algorithms.Eitherize.IndexedGadtInstance
+module CO4.Algorithms.Eitherize.IndexedInstance
+  (indexedInstances)
 where
 
 import           Data.List (nub)  
@@ -12,16 +13,16 @@ import           CO4.Util (isRecursiveAdt)
 import           CO4.THUtil 
 import           CO4.Unique
 import           CO4.Algorithms.Eitherize.Util
-import           CO4.Algorithms.Eitherize.IndexedGadt
+import           CO4.AdtIndex
 
-indexedGadtInstances :: MonadUnique u => Declaration -> Gadt u [TH.Dec]
-indexedGadtInstances adt = sequence $
+indexedInstances :: MonadUnique u => Declaration -> Gadt u [TH.Dec]
+indexedInstances adt = sequence $
   if isRecursiveAdt adt 
-  then [ indexedGadtInstance False adt , indexedGadtInstance True adt ]
-  else [ indexedGadtInstance False adt ]
+  then [ indexedInstance True  False adt , indexedInstance True True adt ]
+  else [ indexedInstance False False adt ]
 
-indexedGadtInstance :: MonadUnique u => Bool -> Declaration -> Gadt u TH.Dec
-indexedGadtInstance doRecursions adt = do
+indexedInstance :: MonadUnique u => Bool -> Bool -> Declaration -> Gadt u TH.Dec
+indexedInstance isRecursive doRecursions adt = do
   resetSizeArgumentCounter 
   gadtArgs      <- gadtConstructorArgs adt
   sizeParams    <- getSizeParameters
@@ -43,13 +44,17 @@ indexedGadtInstance doRecursions adt = do
                     then (concat $ map (either id id) gadtArgs) ++ adtVars'
                     else (concat $ rights             gadtArgs) ++ adtVars'
 
-  indexFrom   <- newName ""
-  declaration <- funD' "index" [varP indexFrom, typedWildcard instanceType] 
-                  `liftM` indexExp doRecursions indexFrom gadtArgs
+  indexFrom <- newName ""
+  indexDecl <- funD' "index" [varP indexFrom, typedWildcard instanceType] 
+                     `liftM` indexExp doRecursions indexFrom gadtArgs
+
+  let isRecursiveDecl = funD' "isRecursive" [typedWildcard instanceType]
+                      $ if isRecursive then conE 'True
+                                       else conE 'False
 
   return $ TH.InstanceD (classPredicates constraints)
                         (TH.AppT (TH.ConT ''Indexed) instanceType)
-                        [declaration] 
+                        [indexDecl, isRecursiveDecl] 
 
 classPredicates :: [TH.Type] -> [TH.Pred]
 classPredicates = map (\t -> TH.ClassP ''Indexed [t]) . filter isParametrized
@@ -60,9 +65,9 @@ classPredicates = map (\t -> TH.ClassP ''Indexed [t]) . filter isParametrized
 
 indexExp :: MonadUnique u => Bool -> Name -> [Either [TH.Type] [TH.Type]] -> u TH.Exp
 indexExp doRecursions flagFrom argss = 
-  return $ appsE (TH.VarE 'indexedGadt) $ [ varE flagFrom 
-                                          , TH.ListE $ map indexed argss
-                                          ]
+  return $ appsE (TH.VarE 'adtIndex) $ [ varE flagFrom 
+                                       , TH.ListE $ map indexed argss
+                                       ]
   where
     indexed args = case args of
       Right as -> TH.AppE (TH.ConE 'Just) $ TH.ListE $ map wrap as

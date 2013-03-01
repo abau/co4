@@ -13,6 +13,7 @@ module CO4.Test.Simple
 where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
+import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.SAT.Mini 
 import qualified Satchmo.Code 

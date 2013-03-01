@@ -9,8 +9,8 @@ import qualified Satchmo.SAT.Mini as Backend
 import           Satchmo.Code (Decode,decode)
 import           Satchmo.Boolean (assert)
 import           CO4.EncodedAdt (EncodedAdt,unknown,flags)
+import           CO4.AdtIndex (Indexed (index))
 import           CO4.Algorithms.Eitherize.UnsizedAdt (UnsizedAdt)
-import           CO4.Algorithms.Eitherize.IndexedGadt (Indexed (index))
 
 -- |Main entry point for solving an encoded constraint system
 solve :: (Indexed a, Decode Backend.SAT EncodedAdt (UnsizedAdt a)) 

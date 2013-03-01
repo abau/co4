@@ -68,11 +68,12 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
               , "import qualified GHC.Base"
               , "import qualified GHC.Err"
               , "import qualified GHC.Show"
+              , "import qualified GHC.Types"
               , "import qualified Satchmo.Code"
               , "import qualified Satchmo.SAT.Mini"
               , "import qualified CO4.EncodedAdt"
+              , "import qualified CO4.AdtIndex"
               , "import qualified CO4.Algorithms.Eitherize.UnsizedAdt"
-              , "import qualified CO4.Algorithms.Eitherize.IndexedGadt"
               , "import           CO4.Algorithms.Eitherize.Util"
               , "import qualified CO4.Algorithms.Eitherize.Solve"
               , compiled
