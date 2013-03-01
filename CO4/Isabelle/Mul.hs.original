@@ -1,0 +1,16 @@
+{-# LANGUAGE EmptyDataDecls, RankNTypes, ScopedTypeVariables #-}
+
+module Mul where {
+
+import Prelude ((==), (/=), (<), (<=), (>=), (>), (+), (-), (*), (/), (**),
+  (>>=), (>>), (=<<), (&&), (||), (^), (^^), (.), ($), ($!), (++), (!!), Eq,
+  error, id, return, not, fst, snd, map, filter, concat, concatMap, reverse,
+  zip, null, takeWhile, dropWhile, all, any, Integer, negate, abs, divMod,
+  String, Bool(True, False), Maybe(Nothing, Just));
+import qualified Prelude;
+import qualified Bool_List_Representation;
+
+f :: [Bool] -> Bool;
+f x = [True, False, False, True, True] == Bool_List_Representation.rbl_mult x x;
+
+}
