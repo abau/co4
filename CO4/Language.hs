@@ -8,7 +8,6 @@ module CO4.Language
 where
 
 import           Data.Data (Data,Typeable)
-import qualified Language.Haskell.TH as TH
 
 data Type = TVar UntypedName
           | TCon UntypedName [Type]
@@ -68,7 +67,6 @@ data Declaration = DBind Binding
                  | DAdt  { dAdtName          ::  UntypedName 
                          , dAdtTypeVariables :: [UntypedName] 
                          , dAdtConstructors  :: [Constructor] }
-                 | DTH   TH.Dec
                 deriving (Show,Eq,Data,Typeable)
 
 data Program = Program { pMain  :: Binding

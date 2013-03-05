@@ -86,22 +86,18 @@ unknown adtIndex = do
         flags' = bits `AI.atIndex` (AI.flagIndex argIndex)
 
 excludeBottom :: MonadSAT m => EncodedAdt -> m ()
-excludeBottom = go []
+excludeBottom = go 
   where
-    go :: MonadSAT m => [([Boolean],Int)] -> EncodedAdt -> m ()
-    go prefix adt = forM_ (zip (constructors adt) [0..]) $ \(cons,i) ->
-      let prefix' = prefix ++ [(flags adt,i)]
+    go :: MonadSAT m => EncodedAdt -> m ()
+    go adt = forM_ (zip [0..] (constructors adt)) $ uncurry 
+                                                  $ goConstructor 
+                                                  $ flags adt
+
+    goConstructor _ _ (EncConsNormal args) = forM_ args go 
+    goConstructor flags i EncConsBottom    = 
+      let pattern = toBinary (length flags) i
       in
-        goConstructor prefix' cons
-
-    goConstructor prefix (EncConsNormal args) = forM_ args $ go prefix
-    goConstructor prefix EncConsBottom        = uncurry excludePattern 
-                                              $ foldl makePattern ([],[]) prefix
-      where 
-        makePattern (flags',bits') ([],0) = (flags',bits')
-
-        makePattern (flags',bits') (flags,consIndex) =
-          (flags' ++ flags, bits' ++ (toBinary (length flags) consIndex))
+        excludePattern flags pattern
 
 excludeInvalidConstructorPatterns :: MonadSAT m => EncodedAdt -> m ()
 excludeInvalidConstructorPatterns = go
@@ -123,7 +119,7 @@ caseOf adt branches =
   then return EncUndefined
   else do
     flags'        <- caseOfBits (flags adt) $ mapBranches flags
-    constructors' <- caseOfConstructors adt $ catMaybes $ mapBranches constructors
+    constructors' <- caseOfConstructors adt $ mapBranches constructors
     return $ EncAdt flags' constructors'
   where
     allBranchesUndefined = all (P.not . isDefined) branches
@@ -131,10 +127,10 @@ caseOf adt branches =
     mapBranches f = for branches $ \case EncUndefined -> Nothing
                                          branch       -> Just $ f branch
 
-caseOfConstructors :: MonadSAT m => EncodedAdt -> [[EncodedConstructor]] 
+caseOfConstructors :: MonadSAT m => EncodedAdt -> [Maybe [EncodedConstructor]] 
                    -> m [EncodedConstructor]
-caseOfConstructors adt conss = Exception.assert (equal length conss) $ 
-  forM (transpose conss) $ \consT -> 
+caseOfConstructors adt conss = 
+  forM (transpose conss') $ \consT -> 
     if all isBottom consT 
     then return EncConsBottom
     else liftM EncConsNormal 
@@ -142,7 +138,13 @@ caseOfConstructors adt conss = Exception.assert (equal length conss) $
        $ transpose 
        $ map (getArgs $ numConsArgs consT) consT
   where 
-    numConsArgs cons = length args
+    conss' = for conss $ \case Just cons -> Exception.assert (length cons == numCons) 
+                                            cons
+                               Nothing   -> replicate numCons EncConsBottom
+
+    numCons = length $ head $ catMaybes conss
+
+    numConsArgs cons           = length args
       where EncConsNormal args = head $ filter isNormal cons
 
     getArgs n EncConsBottom        = replicate n EncUndefined

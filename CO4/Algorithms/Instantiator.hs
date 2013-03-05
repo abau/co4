@@ -113,7 +113,6 @@ class Monad m => MonadInstantiator m where
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
     DAdt {}  -> instantiateAdt decl
-    DTH {}   -> return decl
 
   instantiateMain :: Binding -> m Binding
   instantiateMain main = do

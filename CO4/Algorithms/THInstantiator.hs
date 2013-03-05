@@ -149,7 +149,6 @@ class Monad m => MonadTHInstantiator m where
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
     DAdt {}  -> instantiateAdt decl >>= return . (:[]) 
-    DTH d    -> return [d]
 
   instantiateMain :: Binding -> m [TH.Dec]
   instantiateMain main = instantiateDeclaration $ DBind main

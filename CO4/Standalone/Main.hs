@@ -3,6 +3,7 @@ import           System.Directory (getTemporaryDirectory,removeFile)
 import           System.FilePath ((</>),(<.>),takeFileName)
 import qualified Language.Haskell.Exts as HE
 import qualified Language.Haskell.TH as TH
+import           Language.Haskell.TH.Syntax (Quasi)
 import           Data.Char (isLetter,toUpper)
 import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Compilation (compile)
@@ -20,7 +21,7 @@ main = do
                                    ++ show loc ++ "': " ++ msg
     HE.ParseOk p           -> C.configurable configs $ process file p
     
-process :: (MonadIO m,MonadConfigurable m) => FilePath -> HE.Module -> m ()
+process :: (MonadIO m,MonadConfigurable m,Quasi m) => FilePath -> HE.Module -> m ()
 process inputFile (HE.Module loc name pragmas warnings exports imports decls) = do
   p <- compile (HE.Module loc name [] warnings exports imports decls)
 

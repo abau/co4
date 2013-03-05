@@ -5,6 +5,7 @@ module CO4.Algorithms.Eitherize
 where
 
 import           Control.Monad.Identity
+import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Data.List (isPrefixOf)
 import           Data.Char (toUpper)
@@ -31,11 +32,11 @@ noEitherizeScheme :: Scheme -> Bool
 noEitherizeScheme (SType (TCon n [])) = noEitherize n
 noEitherizeScheme _                   = False
 
-encodedConsCallName :: Namelike a => a -> a
-encodedConsCallName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "ConsCall") 
+encodedConsName :: Namelike a => a -> a
+encodedConsName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons") 
 
-encodedFunName :: Namelike a => a -> a
-encodedFunName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns)) 
+encodedName :: Namelike a => a -> a
+encodedName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns)) 
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -58,7 +59,7 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
                                   , intE $ length $ dAdtConstructors adt
                                   , TH.ListE [] ]
         in
-          tellOne $ valD' (encodedConsCallName name) exp
+          tellOne $ valD' (encodedConsName name) exp
 
       mkEncodedConstructor (i,CCon name args) = do
         paramNames <- forM args $ const $ newName ""
@@ -67,32 +68,38 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
                                   [ intE i
                                   , intE $ length $ dAdtConstructors adt
                                   , TH.ListE $ map varE paramNames ]
-        tellOne $ valD' (encodedConsCallName name) $ lamE' paramNames exp
+        tellOne $ valD' (encodedConsName name) $ lamE' paramNames exp
 
       tellOne x    = tell [x]
 
-newtype ExpInstantiator u a = ExpInstantiator { runExpInstantiator :: u a } 
-  deriving (Monad, MonadUnique)
+type ToplevelName = Name
+
+newtype ExpInstantiator u a = ExpInstantiator 
+  { runExpInstantiator :: ReaderT [ToplevelName] u a } 
+  deriving (Monad, MonadUnique, MonadReader [ToplevelName])
+
+isToplevelName :: Monad u => ToplevelName -> ExpInstantiator u Bool
+isToplevelName = asks . elem 
 
 instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
   
-  instantiateVar (EVar n) = return $ TH.AppE (TH.VarE 'return) $ varE n
+  instantiateName = return . convertName . encodedName
 
-  instantiateCon (ECon n) = return $ varE $ encodedConsCallName n
+  instantiateVar (EVar n) = isToplevelName n >>= \case
+    True  -> liftM (                            TH.VarE) $ instantiateName n 
+    False -> liftM (TH.AppE (TH.VarE 'return) . TH.VarE) $ instantiateName n
+
+  instantiateCon (ECon n) = return $ varE $ encodedConsName n
 
   instantiateApp (EApp f args) = do
     args'    <- instantiate args
     case f of
-      EVar fName -> instantiateApplication (encodedFunName      fName) args'
-      ECon cName -> instantiateApplication (encodedConsCallName cName) args'
+      EVar fName -> instantiateApplication (encodedName     fName) args'
+      ECon cName -> instantiateApplication (encodedConsName cName) args'
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
   instantiateUndefined = return $ returnE $ TH.ConE 'EncUndefined
-
-  instantiateBinding (Binding name exp) = do
-    exp' <- instantiate exp
-    return [valD' (encodedFunName name) exp']
 
   instantiateCase (ECase e ms) = do
     eScheme <- schemeOfExp e
@@ -120,12 +127,14 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
       instantiateMatchToExp _ (_, Match (PCon _ []) match) = instantiate match
 
       -- |Otherwise, bind the constructor's arguments to new names
-      instantiateMatchToExp e'Name (j, Match (PCon _ patVars) match) = 
-        liftM lets $ instantiate match
-          
+      instantiateMatchToExp e'Name (j, Match (PCon _ patVars) match) = do
+        bindings' <- mapM mkBinding $ zip [0..] patVarNames
+        match'    <- instantiate match 
+        return $ letE' bindings' match'
         where 
-          lets                = letE' (map mkBinding $ zip [0..] patVarNames)
-          mkBinding (ith,var) = (var, eConstructorArg ith)
+          mkBinding (ith,var) = do 
+            var' <- instantiateName var 
+            return (var', eConstructorArg ith)
 
           eConstructorArg i   = appsE (TH.VarE 'constructorArgument) 
                                       [ intE i, intE j, varE e'Name ]
@@ -146,7 +155,16 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     bindings' <- mapM bindValue bindings
     return $ TH.DoE $ bindings' ++ [ TH.NoBindS exp' ]
 
-    where bindValue (Binding name value) = return (bindS' name) `ap` instantiate value
+    where 
+      bindValue (Binding name value) = do
+        name'  <- instantiateName name
+        value' <- instantiate value
+        return $ bindS' name' value'
+
+  instantiateBind (DBind (Binding name exp)) = do
+    name' <- instantiateName name
+    exp'  <- instantiate exp
+    return [valD' name' exp']
 
 -- |Passed program must be first order.
 -- Note that @eitherize@ produces a Template-Haskell program
@@ -154,9 +172,12 @@ eitherize :: MonadUnique u => Program -> u [TH.Dec]
 eitherize program = do
   typedProgram <- schemes program
   let (adts,values) = splitDeclarations typedProgram 
+      toplevelNames = map boundName $ programToplevelBindings typedProgram
 
   gadts <- sizedGadts adts
 
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
-  values' <- liftM concat $ runExpInstantiator $ instantiate values
+  values' <- liftM concat $ runReaderT (runExpInstantiator $ instantiate values)
+                                       toplevelNames
+                         
   return $ gadts ++ decls ++ (deleteSignatures values')
