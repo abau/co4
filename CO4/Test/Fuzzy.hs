@@ -1,7 +1,32 @@
-{-# OPTIONS_CO4 SizedInter Nat3 Nat3 Nat3 Nat3 Nat3 Nat3 #-}
+{-# OPTIONS_CO4 
+   SizedInter Nat3 Nat3 Nat3 Nat3 Nat3 Nat3 
+--   SizedInter Nat1 Nat1 Nat3 Nat1 Nat1 Nat3 
+  #-}
 
 -- import qualified Prelude 
 -- undefined = Prelude.undefined
+
+main i = matchbounded aa_aba i
+
+data RS = RS (List Bool) (List Bool)
+
+aa_aba = RS 
+       ( Cons False (Cons False Nil) )
+       ( Cons False (Cons True (Cons False Nil) ))
+
+aba_abba = RS
+       ( Cons False(Cons True(Cons False Nil)) )
+       ( Cons False(Cons True(Cons True (Cons False Nil))) )
+
+-- this is not allowed to work, but it does:
+-- (because of errors in dimension?)
+ab_ba = RS
+        ( Cons False (Cons True Nil) )
+        ( Cons True (Cons False Nil) )
+
+matchbounded rs i = 
+     and2 (ishaped i) ( compatible rs i )
+
 
 -- Booleans
 
@@ -52,16 +77,18 @@ transpose l = case l of
                 (transpose (Cons xs' (map tail xss)))
 
 dot xs ys = case xs of
-    Nil -> I
-    Cons x xs' -> case ys of
+    Nil -> case ys of
         Nil -> I
+        Cons y ys' -> undefined
+    Cons x xs' -> case ys of
+        Nil -> undefined
         Cons y ys' -> fplus (ftimes x y) (dot xs' ys')
 
 mtimes a b = 
    let t = transpose b 
    in 
    -- for a ( \ row -> for t ( \ col -> dot row col)) 
-     map (\ row -> map (\col -> dot row col) t) a
+     map (\ row -> map (\ col -> dot row col) t) a
 
 -- strict zip with bool
 szwb f xs ys = case xs of
@@ -100,8 +127,9 @@ value i xs = case i of
                 False -> a
                 True -> b) (value i xs')
 
-compatible i lhs rhs = 
-    matrix_gt (value i lhs) (value i rhs)
+compatible rs i = case rs of
+    RS lhs rhs -> 
+        matrix_gt (value i lhs) (value i rhs)
 
 -- unary numbers
 
@@ -134,25 +162,17 @@ fgt x y = case x of
         I -> False
         F v -> gt u v
 
+-- min!
 fplus x y = case x of
     I -> y
     F u -> case y of
         I -> x
         F v -> F (min u v)
 
+-- max!
 ftimes x y = case x of
     I -> I
     F u -> case y of
         I -> I
         F v -> F (max u v)
 
--- main program:
--- find a fuzzy matrix interpretation
--- that is compatible with  a a -> a b a
--- (where a = False, b = True)
-main i = 
-    let lhs = Cons False (Cons False Nil)
-        rhs = Cons False (Cons True (Cons False Nil))
-    in  and2 
-            (ishaped i) 
-            ( compatible i lhs rhs)
