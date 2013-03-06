@@ -4,11 +4,13 @@ module CO4.Unique
   , newName, newNamelike)
 where
 
+import Control.Applicative (Applicative)
 import Control.Monad.Identity
 import Control.Monad.State 
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.RWS (RWST)
+import Language.Haskell.TH.Syntax (Quasi(..))
 import Data.Monoid (Monoid)
 import CO4.Names (Namelike,mapName,fromName,readName)
 import CO4.Language (Name)
@@ -17,10 +19,10 @@ class (Monad m) => MonadUnique m where
   newString :: String -> m String
 
 newtype UniqueT m a = UniqueT (StateT Integer m a)
-  deriving (Monad, MonadTrans)
+  deriving (Monad, Functor, Applicative, MonadTrans)
 
 newtype Unique a = Unique (UniqueT Identity a)
-  deriving (Monad, MonadUnique)
+  deriving (Monad, Functor, Applicative, MonadUnique)
 
 instance (Monad m) => MonadUnique (UniqueT m) where
   newString prefix = UniqueT $ do
@@ -54,16 +56,27 @@ nameOriginal :: Namelike n => n -> n
 nameOriginal = mapName $ takeWhile (/= separator)
 
 instance (MonadUnique m) => MonadUnique (ReaderT r m) where
-  newString x = lift $ newString x
+  newString = lift . newString 
 
 instance (MonadUnique m, Monoid w) => MonadUnique (WriterT w m) where
-  newString x = lift $ newString x
+  newString = lift . newString
 
 instance (MonadUnique m) => MonadUnique (StateT s m) where
-  newString x = lift $ newString x
+  newString = lift . newString
 
 instance (MonadUnique m, Monoid w) => MonadUnique (RWST r w s m) where
-  newString x = lift $ newString x
+  newString = lift . newString
 
 instance (MonadIO m) => MonadIO (UniqueT m) where
-  liftIO x = lift $ liftIO x
+  liftIO = lift . liftIO 
+
+instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
+  qNewName            = lift . qNewName
+  qReport a b         = lift $ qReport a b
+  qRecover a b        =        qRecover a b
+  qLookupName a b     = lift $ qLookupName a b
+  qReify              = lift . qReify
+  qReifyInstances a b = lift $ qReifyInstances a b
+  qLocation           = lift   qLocation
+  qRunIO              = lift . qRunIO
+  qAddDependentFile   = lift . qAddDependentFile

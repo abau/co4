@@ -5,6 +5,7 @@ where
 
 import           Control.Monad.Reader 
 import qualified Language.Haskell.TH as TH
+import           Language.Haskell.TH.Syntax (Quasi)
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
 import           CO4.THUtil (unqualifiedNames,deriveShows)
@@ -46,15 +47,16 @@ stageNames                  = [ stageParsed
                               , stageSatchmoUnqualified
                               ]
 
-compile :: (ProgramFrontend a, MonadConfigurable m, MonadIO m) => a -> m [TH.Dec]
+compile :: (ProgramFrontend a, MonadConfigurable m, MonadIO m, Quasi m) 
+        => a -> m [TH.Dec]
 compile a = do
-  parsedPrelude <- is ImportPrelude >>= \case
-                        True  -> liftIO parsePrelude
-                        False -> return []
-
   instantiationDepth <- C.fromConfigs C.instantiationDepth
 
   runUniqueT $ do
+    parsedPrelude <- is ImportPrelude >>= \case
+                          True  -> parsePrelude
+                          False -> return []
+
     parsedProgram <- parsePreprocessedProgram a 
 
     uniqueProgram <- lift ( dumpAfterStage' stageParsed 

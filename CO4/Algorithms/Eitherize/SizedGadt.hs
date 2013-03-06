@@ -14,7 +14,7 @@ import           CO4.Names (convertName)
 import           CO4.Algorithms.TopologicalSort (adtGroups)
 import           CO4.Algorithms.Eitherize.Util
 import           CO4.Algorithms.Eitherize.UnsizedAdtInstance (unsizedAdtInstance)
-import           CO4.Algorithms.Eitherize.IndexedGadtInstance (indexedGadtInstances)
+import           CO4.Algorithms.Eitherize.IndexedInstance (indexedInstances)
 
 sizedGadts :: MonadUnique u => [Declaration] -> u [TH.Dec]
 sizedGadts adts = 
@@ -48,7 +48,7 @@ sizedGadt sizedTypes adt = runGadt sizedTypes adt sizedGadt'
                                  gadtConss
                                  []
 
-      indexedInstance <- indexedGadtInstances adt
+      indexedInstance <- indexedInstances adt
       unsizedInstance <- unsizedAdtInstance adt
       return ( gadt : unsizedInstance : indexedInstance, adtName, length allSizeParams)
 

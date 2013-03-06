@@ -3,7 +3,8 @@ module CO4
   , Config (..), Configs, configurable
   , prelude
   , module CO4.EncodedAdt
-  , index, solve
+  , Indexed (..)
+  , solve
   , module CO4.Algorithms.Eitherize.Util
   ) 
 where
@@ -15,6 +16,6 @@ import           CO4.Compilation
 import           CO4.Config (Config (..),Configs,configurable)
 import           CO4.Prelude (prelude)
 import           CO4.EncodedAdt
-import           CO4.Algorithms.Eitherize.IndexedGadt (index)
+import           CO4.AdtIndex (Indexed(..))
 import           CO4.Algorithms.Eitherize.Solve (solve)
 import           CO4.Algorithms.Eitherize.Util

@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.9
+Version:        	0.0.11
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -12,6 +12,7 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
+                    , CO4.AdtIndex
                     , CO4.Backend
                     , CO4.Compilation
                     , CO4.Config
@@ -42,8 +43,7 @@ Library
                     , CO4.Algorithms.UniqueNames
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.Eitherize.DecodeInstance
-                    , CO4.Algorithms.Eitherize.IndexedGadt
-                    , CO4.Algorithms.Eitherize.IndexedGadtInstance
+                    , CO4.Algorithms.Eitherize.IndexedInstance
                     , CO4.Algorithms.Eitherize.SizedGadt
                     , CO4.Algorithms.Eitherize.Solve
                     , CO4.Algorithms.Eitherize.UnsizedAdt

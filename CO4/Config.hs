@@ -2,7 +2,9 @@
 module CO4.Config 
 where
 
+import Control.Applicative (Applicative)
 import Control.Monad.Reader
+import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
 data Config  = Verbose
@@ -27,7 +29,7 @@ class (Monad m) => MonadConfigurable m where
   configs :: m Configs
 
 newtype ConfigurableT m a = ConfigurableT { run :: ReaderT Configs m a }
-  deriving (Monad, MonadReader Configs, MonadTrans)
+  deriving (Monad, Functor, Applicative, MonadReader Configs, MonadTrans)
 
 instance (Monad m) => MonadConfigurable (ConfigurableT m) where
   configs = ask
@@ -37,6 +39,17 @@ instance (MonadConfigurable m) => MonadConfigurable (UniqueT m) where
 
 instance (MonadIO m) => MonadIO (ConfigurableT m) where
   liftIO = lift . liftIO
+
+instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
+  qNewName            = lift . qNewName
+  qReport a b         = lift $ qReport a b
+  qRecover a b        =        qRecover a b
+  qLookupName a b     = lift $ qLookupName a b
+  qReify              = lift . qReify
+  qReifyInstances a b = lift $ qReifyInstances a b
+  qLocation           = lift   qLocation
+  qRunIO              = lift . qRunIO
+  qAddDependentFile   = lift . qAddDependentFile
 
 configurable :: Configs -> ConfigurableT m a -> m a
 configurable configs c = runReaderT (run c) configs
@@ -67,9 +80,12 @@ fromConfigs f = configs >>= return . f
 
 dump :: MonadIO m => String -> String -> FilePath -> m ()
 dump title content filePath = liftIO $ case filePath of
-  "" -> putStrLn $ unwords [ "##", title, replicate (30 - length title) '#', "\n"
-                                    , content]
-  _  -> writeFile filePath content
+  "" -> putStrLn content'
+  _  -> appendFile filePath $ content' ++ "\n"
+
+  where content' = unwords [ "##", title
+                           , replicate (50 - length title) '#', "\n"
+                           , content]
 
 
 {-

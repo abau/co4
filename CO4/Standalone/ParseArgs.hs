@@ -24,9 +24,9 @@ configurations =
   , Option [] ["no-satchmo"] (NoArg $ (:) NoSatchmo) "No Satchmo code generation"
   -}
   , Option [] ["dump-after"]
-      (ReqArg (\s -> (:) (parseDumpAfter s)) "STAGE[.FILE]") ("Dump code. STAGE=" ++ show stageNames)
+      (ReqArg (\s -> (:) (parseDumpAfter s)) "STAGE[.FILE]") ("Dump code [and append to FILE]. STAGE=" ++ show stageNames)
   , Option [] ["dump-all"]
-      (OptArg (\fp -> (:) (DumpAll $ fromMaybe "" fp)) "[FILE]") ("Dump code of all intermediate stages. Omit FILE for stdout.")
+      (OptArg (\fp -> (:) (DumpAll $ fromMaybe "" fp)) "[FILE]") ("Dump code of all intermediate stages [and append to FILE]")
   , Option [] ["instantiation-depth"]
       (ReqArg (\i -> (:) (InstantiationDepth $ read i)) "DEPTH") ("Maximum instantiation depth (default: " ++ show defaultInstantiationDepth ++ ")")
   , Option ['i'] ["import-prelude"] (NoArg $ (:) ImportPrelude) "Import prelude"

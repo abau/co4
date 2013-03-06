@@ -95,8 +95,6 @@ instance PPrint Declaration where
       $$ (nest 2 $ vcat $ punctuate (text " ;") $ map pprint cons)
       $$ (text "}")
 
-  pprint (DTH _) = text "{- Template-Haskell declaration -}"
-
 instance PPrint Program where 
   pprint (Program main decs) = vcat $ punctuate (text ";") 
                                     $ map pprint 
