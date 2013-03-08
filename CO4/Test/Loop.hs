@@ -1,4 +1,4 @@
-{-# OPTIONS_CO4 SizedRS Nat6 Nat6 Nat6 #-}
+{-# OPTIONS_CO4 SizedList Nat6 (SizedStep Nat6 Nat6 Nat6 Nat6) #-}
 
 -- should find the looping derivation
 -- abb -> bbaab -> bbabbaa
@@ -21,6 +21,10 @@ and2 x y = case x of
     False -> x
     True  -> y
 
+not x  = case x of
+    False -> True
+    True -> False
+
 data Sigma = A | B
 
 eqSigma x y = case x of
@@ -32,6 +36,10 @@ eqSigma x y = case x of
         B -> True
 
 data List a = Nil | Cons a (List a)
+
+null xs = case xs of
+    Nil -> True
+    Cons x xs -> False
 
 head xs = case xs of
     Nil -> undefined
@@ -96,16 +104,19 @@ data Step = Step (List Sigma) -- prefix
 -- type Derivation = List Step
 
 looping_derivation rs d =
-   and2 (derivation_uses_rules rs d)
+   and2 (derivation_is_nonempty d)
+    ( and2 (derivation_uses_rules rs d)
       (and2 (derivation_is_joinable d)
-           (derivation_is_looping d))
+           (derivation_is_looping d)))
 
 derivation_uses_rules rs d = case rs of
     RS rules -> forall d
         ( \ s -> step_uses_rules rules s )
 
+derivation_is_nonempty d = not (null d)
+
 derivation_is_looping d = 
-    factor (left_semantics (head d))
+      factor (left_semantics (head d))
            (right_semantics (last d))
 
 derivation_is_joinable d = case d of
