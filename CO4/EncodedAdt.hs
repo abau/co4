@@ -195,12 +195,11 @@ constructorArgument i j = maybe EncUndefined getArg . constructorArguments j
     getArg args = Exception.assert (i < length args) $ args !! i
 
 constructorArguments :: Int -> EncodedAdt -> Maybe [EncodedAdt]
-constructorArguments j adt = Exception.assert (j < length (constructors adt)) $
-  case adt of
-    EncUndefined -> Nothing
-    EncAdt _ cs  -> case cs !! j of
-      EncConsNormal as -> Just as
-      EncConsBottom    -> Nothing
+constructorArguments _ EncUndefined  = Nothing
+constructorArguments j (EncAdt _ cs) = Exception.assert (j < length cs) $
+  case cs !! j of
+    EncConsNormal as -> Just as
+    EncConsBottom    -> Nothing
 
 -- |The construction of an intermediate ADT simplifies the derivation of the
 -- actual @Decode@ instance.
