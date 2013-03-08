@@ -4,7 +4,7 @@ module CO4
   , prelude
   , module CO4.EncodedAdt
   , Indexed (..)
-  , solve
+  , solve, solveAndTest
   , module CO4.Algorithms.Eitherize.Util
   ) 
 where
@@ -17,5 +17,5 @@ import           CO4.Config (Config (..),Configs,configurable)
 import           CO4.Prelude (prelude)
 import           CO4.EncodedAdt
 import           CO4.AdtIndex (Indexed(..))
-import           CO4.Algorithms.Eitherize.Solve (solve)
+import           CO4.Algorithms.Eitherize.Solve (solve,solveAndTest)
 import           CO4.Algorithms.Eitherize.Util

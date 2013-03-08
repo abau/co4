@@ -30,7 +30,8 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
                                         $ show $ TH.ppr p
 
   logWhenVerbose $ "Generating unknowns of size: " ++ undefinedSize
-  liftIO $ interpret pFile (moduleName ++ ".result")
+  -- liftIO (interpret pFile (moduleName ++ ".result") >>= putStrLn)
+  liftIO (interpret pFile (moduleName ++ ".result") :: IO ())
   whenNot' C.KeepTmp $ do
     logWhenVerbose $ "Deleting file " ++ pFile
     liftIO $ removeFile pFile
@@ -78,12 +79,14 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
               , "import           CO4.Algorithms.Eitherize.Util"
               , "import qualified CO4.Algorithms.Eitherize.Solve"
               , compiled
-              , concat [ "result = CO4.Algorithms.Eitherize.Solve.solve "
+              , concat [ "result = CO4.Algorithms.Eitherize.Solve.solveAndTest "
                        , "(GHC.Err.undefined :: ("
                        , undefinedSize 
-                       , ")) encMain "
+                       , ")) encMain main "
+                       {-
                        , "GHC.Base.>>= GHC.Base.return "
                        , "GHC.Base..   GHC.Show.show"
+                       -}
                        ]
               ]
 
