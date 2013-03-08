@@ -7,6 +7,7 @@ import           Control.Monad (liftM)
 import           Data.Generics (GenericM,GenericT,everywhere,everywhereM,mkM,mkT)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
+import           CO4.THUtil (deleteSignatures,deleteTypeSynonyms)
   
 -- |Performs preprocessing on TH's AST 
 preprocess :: MonadUnique u => GenericM u
@@ -21,6 +22,8 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
   >>=          everywhereM (mkM noWildcardPattern)
+  >>= return .                  deleteSignatures
+  >>= return .                  deleteTypeSynonyms
 
 -- |Erases instance derivings from data declarations and newtype declarations
 eraseDerivings :: GenericT

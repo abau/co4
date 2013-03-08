@@ -79,10 +79,17 @@ deleteSignatures = everywhere (mkT noSigE)
     noSigP pat = case pat of TH.SigP p _ -> p
                              _           -> pat
 
-    noSigD = filter isNoSig
+    noSigD = filter (not . isSig)
     
-    isNoSig dec = case dec of TH.SigD {} -> False
-                              _          -> True
+    isSig (TH.SigD {}) = True
+    isSig _            = False
+
+deleteTypeSynonyms :: GenericT
+deleteTypeSynonyms = everywhere (mkT noTypeSyn)
+  where
+    noTypeSyn                = filter (not . isTypeSyn)
+    isTypeSyn (TH.TySynD {}) = True
+    isTypeSyn _              = False
 
 renameTHNames :: [(TH.Name,TH.Name)] -> GenericT
 renameTHNames renamings = 

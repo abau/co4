@@ -33,10 +33,12 @@ checks a = concat  [ and' noGuardedBody a
 
 validDeclaration :: Dec -> Check
 validDeclaration dec = case dec of
-  FunD {}  -> []
-  ValD {}  -> []
-  DataD {} -> []
-  _        -> [Error "Only function declarations, value declarations and data declarations are allowed"]
+  FunD {}   -> []
+  ValD {}   -> []
+  DataD {}  -> []
+  TySynD {} -> [Warning "Type synonyms will be ignored"]
+  SigD {}   -> [Warning "Type signatures will be ignored"]
+  _         -> [Error "Only function declarations, value declarations and data declarations are allowed"]
 
 noGuardedBody :: Body -> Check
 noGuardedBody (NormalB  _) = []
