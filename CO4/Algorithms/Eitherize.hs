@@ -96,6 +96,9 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     case f of
       EVar fName -> instantiateApplication (encodedName     fName) args'
       ECon cName -> instantiateApplication (encodedConsName cName) args'
+      _ ->  
+       error $ unwords [ "instantiateApp", show f ]
+
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
