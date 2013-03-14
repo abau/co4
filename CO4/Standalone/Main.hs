@@ -26,11 +26,10 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
   p <- compile (HE.Module loc name [] warnings exports imports decls)
 
   undefinedSize <- getUndefinedSize
-  pFile         <- writeToTmp inputFile $ source undefinedSize
-                                        $ show $ TH.ppr p
+  src           <- source undefinedSize $ show $ TH.ppr p
+  pFile         <- writeToTmp inputFile src
 
   logWhenVerbose $ "Generating unknowns of size: " ++ undefinedSize
-  -- liftIO (interpret pFile (moduleName ++ ".result") >>= putStrLn)
   liftIO (interpret pFile (moduleName ++ ".result") :: IO ())
   whenNot' C.KeepTmp $ do
     logWhenVerbose $ "Deleting file " ++ pFile
@@ -53,42 +52,45 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
       in
         toUpper x : xs
 
-    source undefinedSize compiled = 
-      unlines [ "{-# LANGUAGE TemplateHaskell #-}"
-              , "{-# LANGUAGE NoMonomorphismRestriction #-}"
-              , "{-# LANGUAGE MultiParamTypeClasses #-}"
-              , "{-# LANGUAGE FlexibleInstances #-}"
-              , "{-# LANGUAGE GADTs #-}"
-              , "{-# LANGUAGE FlexibleContexts #-}"
-              , "{-# LANGUAGE ScopedTypeVariables #-}"
-              , "{-# LANGUAGE TypeFamilies #-}"
-              , "{-# LANGUAGE NoImplicitPrelude #-}"
-              , "{-# LANGUAGE StandaloneDeriving #-}"
-              , "{-# LANGUAGE UndecidableInstances #-}"
-              , "module " ++ moduleName ++ " where"
-              , "import qualified Data.Maybe"
-              , "import qualified GHC.Base"
-              , "import qualified GHC.Err"
-              , "import qualified GHC.Show"
-              , "import qualified GHC.Types"
-              , "import qualified Satchmo.Code"
-              , "import qualified Satchmo.SAT.Mini"
-              , "import qualified CO4.EncodedAdt"
-              , "import qualified CO4.AdtIndex"
-              , "import qualified CO4.Algorithms.Eitherize.UnsizedAdt"
-              , "import           CO4.Algorithms.Eitherize.Util"
-              , "import qualified CO4.Algorithms.Eitherize.Solve"
-              , compiled
-              , concat [ "result = CO4.Algorithms.Eitherize.Solve.solveAndTest "
-                       , "(GHC.Err.undefined :: ("
-                       , undefinedSize 
-                       , ")) encMain main "
-                       {-
-                       , "GHC.Base.>>= GHC.Base.return "
-                       , "GHC.Base..   GHC.Show.show"
-                       -}
-                       ]
-              ]
+    source undefinedSize compiled = do
+      verbose      <- C.is C.Verbose     >>= return . \case
+                          True  -> "GHC.Types.True"
+                          False -> "GHC.Types.False"
+      solveAndTest <- C.is C.MakeFormula >>= return . \case
+                          True  -> "CO4.Algorithms.Eitherize.Solve.solveAndTestFormula"
+                          False -> "CO4.Algorithms.Eitherize.Solve.solveAndTestBoolean"
+      return $ 
+        unlines [ "{-# LANGUAGE TemplateHaskell #-}"
+                , "{-# LANGUAGE NoMonomorphismRestriction #-}"
+                , "{-# LANGUAGE MultiParamTypeClasses #-}"
+                , "{-# LANGUAGE FlexibleInstances #-}"
+                , "{-# LANGUAGE GADTs #-}"
+                , "{-# LANGUAGE FlexibleContexts #-}"
+                , "{-# LANGUAGE ScopedTypeVariables #-}"
+                , "{-# LANGUAGE TypeFamilies #-}"
+                , "{-# LANGUAGE NoImplicitPrelude #-}"
+                , "{-# LANGUAGE StandaloneDeriving #-}"
+                , "{-# LANGUAGE UndecidableInstances #-}"
+                , "module " ++ moduleName ++ " where"
+                , "import qualified Data.Maybe"
+                , "import qualified GHC.Base"
+                , "import qualified GHC.Err"
+                , "import qualified GHC.Show"
+                , "import qualified GHC.Types"
+                , "import qualified Satchmo.Core.Decode"
+                , "import qualified Satchmo.Core.SAT.Minisat"
+                , "import qualified Satchmo.Core.Primitive"
+                , "import qualified CO4.EncodedAdt"
+                , "import qualified CO4.AdtIndex"
+                , "import qualified CO4.Algorithms.Eitherize.UnsizedAdt"
+                , "import qualified CO4.Algorithms.Eitherize.Solve"
+                , compiled
+                , unwords [ "result =", solveAndTest, verbose
+                          , "(GHC.Err.undefined :: ("
+                          , undefinedSize 
+                          , ")) encMain main"
+                          ]
+                ]
 
 writeToTmp :: (MonadIO m,MonadConfigurable m) => FilePath -> String -> m FilePath
 writeToTmp inputFile content = do

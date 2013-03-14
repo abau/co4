@@ -5,8 +5,9 @@ where
 
 import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Code (Decode,decode)
-import           Satchmo.SAT.Mini (SAT)
+import           Satchmo.Core.Decode (Decode,decode)
+import           Satchmo.Core.Primitive (Primitive)
+import           Satchmo.Core.SAT.Minisat (SAT)
 import           CO4.Names
 import           CO4.Unique
 import           CO4.Language
@@ -29,15 +30,25 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 -- 
 decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
 decodeInstance (DAdt name vars conss) = do
-  paramName        <- newName "p"
+  primitiveName    <- newName "p"
+  paramName        <- newName "d"
   intermediateName <- newName "i"
 
-  let instancePredicates = 
-        map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, TH.ConT ''EncodedAdt, varT v]
+  let encodedAdt         = TH.AppT (TH.ConT ''EncodedAdt) (varT primitiveName)
+      primitivePredicate = TH.ClassP ''Primitive [varT primitiveName]
+
+      decodePrimitivePredicate =
+        TH.ClassP ''Decode [TH.ConT ''SAT, varT primitiveName, TH.ConT ''Bool]
+  
+      decodeFreeVarPredicates = 
+        map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, encodedAdt, varT v]
             ) vars
+
+      instancePredicates = primitivePredicate : decodePrimitivePredicate 
+                         : decodeFreeVarPredicates
   
       instanceHead = TH.InstanceD instancePredicates (foldl1 TH.AppT 
-                      [ TH.ConT ''Decode, TH.ConT ''SAT, TH.ConT ''EncodedAdt
+                      [ TH.ConT ''Decode, TH.ConT ''SAT, encodedAdt
                       , appsT (conT name) $ map varT vars
                       ])
       instanceDec matches = funD "decode"

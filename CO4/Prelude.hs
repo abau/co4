@@ -3,7 +3,7 @@ module CO4.Prelude
   (prelude, parsePrelude)
 where
 
-import           Prelude ((>>=),(.),return,Show)
+import           Prelude ((>>=),(.),return,Show,undefined)
 import qualified Prelude as P
 import           Control.Monad.IO.Class (MonadIO)
 import qualified Language.Haskell.TH as TH
@@ -37,20 +37,26 @@ prelude =
         Nil       -> nil
         Cons y ys -> cons y (fold cons nil ys)
 
+      head xs = case xs of 
+        Nil      -> undefined
+        Cons x _ -> x
+
       -- Booleans -------------------------------
 
       data Bool = False | True deriving Show
 
       or2 x y = case x of
-        False -> False
-        True  -> y
+        False -> y
+        True  -> True
 
       and2 x y = case x of
         False -> False
         True  -> y
 
-      and = fold and2 True
-      or  = fold or2  False
+      and         = fold and2 True
+      or          = fold or2  False
+      forall xs f = and ( map f xs )
+      exists xs f = or  ( map f xs )
 
       -- Unary numbers --------------------------
 

@@ -15,8 +15,8 @@ where
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
 import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
-import qualified Satchmo.SAT.Mini 
-import qualified Satchmo.Code 
+import qualified Satchmo.Core.SAT.Minisat
+import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Algorithms.Eitherize.UnsizedAdt (UnsizedAdt)
 
@@ -28,4 +28,4 @@ $( [d| data Bool = False | True
    |] >>= runIO . configurable [Verbose] . compile 
   )
 
-result = solve (undefined :: SizedBool) encMain >>= putStrLn . show
+result = solveAndTestBoolean GHC.Types.True (undefined :: SizedBool) encMain main

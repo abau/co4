@@ -21,6 +21,7 @@ data Config  = Verbose
              | ImportPrelude
              | KeepTmp
              | UndefinedSize String
+             | MakeFormula
              deriving (Eq,Show)
 
 type Configs      = [Config]

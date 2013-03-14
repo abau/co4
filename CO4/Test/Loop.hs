@@ -7,8 +7,8 @@ main d = looping_derivation rs d
 
 -- rewriting system  ab -> bbaa.
 
-rs = RS (Cons (Rule (Cons A(Cons B Nil))
-                (Cons B(Cons B(Cons A(Cons A Nil)))))
+rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
+                    (Cons B(Cons B (Cons A (Cons A (Cons B Nil))))))
           Nil)
 
 data Bool = False | True

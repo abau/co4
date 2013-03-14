@@ -11,51 +11,45 @@ import           Prelude hiding (not,or,and)
 import qualified Prelude as P
 import           Control.Monad (liftM,forM,forM_,zipWithM)
 import qualified Control.Exception as Exception 
-import           Data.List (transpose,intercalate)
+import           Data.List (transpose)
 import           Data.Maybe (catMaybes,fromMaybe)
 import           Data.Tree
-import           Satchmo.MonadSAT (MonadSAT)
-import           Satchmo.Code (Decode,decode)
-import           Satchmo.Boolean (Boolean (..),boolean,assert,not,and,implies)
+import           Satchmo.Core.MonadSAT (MonadSAT)
+import           Satchmo.Core.Decode (Decode,decode)
+import           Satchmo.Core.Primitive 
+  (Primitive,primitive,constant,assert,not,and,implies)
 import qualified CO4.AdtIndex as AI
 import           CO4.Util (replaceAt,equal,for,toBinary,fromBinary,binaries,bitWidth)
 
 --import Debug.Trace
 
-data EncodedAdt = EncAdt { flags        :: [Boolean]
-                         , constructors :: [EncodedConstructor]
-                         }
-                | EncUndefined
+data EncodedAdt p = EncAdt { flags        :: [p]
+                           , constructors :: [EncodedConstructor p]
+                           }
+                  | EncUndefined
 
-data EncodedConstructor = EncConsNormal [EncodedAdt]
-                        | EncConsBottom
-                        deriving (Show)
+instance Show flag => Show (EncodedAdt flag) where
+  show = drawTree . toTree 
 
-isDefined :: EncodedAdt -> Bool
+data EncodedConstructor p = EncConsNormal [EncodedAdt p] 
+                          | EncConsBottom
+                          deriving (Show)
+
+isDefined :: EncodedAdt p -> Bool
 isDefined = \case EncUndefined -> False
                   _            -> True
 
-isNormal :: EncodedConstructor -> Bool
+isNormal :: EncodedConstructor p -> Bool
 isNormal = \case EncConsNormal {} -> True
                  _                -> False
 
-isBottom :: EncodedConstructor -> Bool
+isBottom :: EncodedConstructor p -> Bool
 isBottom = \case EncConsBottom -> True
                  _             -> False
 
-instance Show EncodedAdt where
-  show = drawTree . toTree 
-
-showBoolean :: Boolean -> String
-showBoolean (Constant c) = show c
-showBoolean (Boolean  b) = show b
-
-showBooleans :: [Boolean] -> String
-showBooleans bs = "[" ++ (intercalate ", " $ map showBoolean bs) ++ "]"
-
-unknown :: MonadSAT m => AI.AdtIndex -> m EncodedAdt
+unknown :: (MonadSAT m, Primitive p) => AI.AdtIndex -> m (EncodedAdt p)
 unknown adtIndex = do
-  bits <- sequence $ replicate (AI.staticAdtWidth adtIndex) boolean
+  bits <- sequence $ replicate (AI.staticAdtWidth adtIndex) primitive
   cons <- mapM (encodeConstructor bits) $ AI.constructors adtIndex
 
   case cons of
@@ -85,10 +79,9 @@ unknown adtIndex = do
       where 
         flags' = bits `AI.atIndex` (AI.flagIndex argIndex)
 
-excludeBottom :: MonadSAT m => EncodedAdt -> m ()
+excludeBottom :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeBottom = go 
   where
-    go :: MonadSAT m => EncodedAdt -> m ()
     go adt = forM_ (zip [0..] (constructors adt)) $ uncurry 
                                                   $ goConstructor 
                                                   $ flags adt
@@ -99,7 +92,7 @@ excludeBottom = go
       in
         excludePattern flags pattern
 
-excludeInvalidConstructorPatterns :: MonadSAT m => EncodedAdt -> m ()
+excludeInvalidConstructorPatterns :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeInvalidConstructorPatterns = go
   where
     go adt = do
@@ -113,7 +106,7 @@ excludeInvalidConstructorPatterns = go
     goConstructor (EncConsNormal args) = forM_ args go
     goConstructor EncConsBottom        = return ()
 
-caseOf :: MonadSAT m => EncodedAdt -> [EncodedAdt] -> m EncodedAdt
+caseOf :: (MonadSAT m, Primitive p) => EncodedAdt p -> [EncodedAdt p] -> m (EncodedAdt p)
 caseOf adt branches = 
   if allBranchesUndefined -- !
   then return EncUndefined
@@ -127,8 +120,9 @@ caseOf adt branches =
     mapBranches f = for branches $ \case EncUndefined -> Nothing
                                          branch       -> Just $ f branch
 
-caseOfConstructors :: MonadSAT m => EncodedAdt -> [Maybe [EncodedConstructor]] 
-                   -> m [EncodedConstructor]
+caseOfConstructors :: (MonadSAT m, Primitive p) => EncodedAdt p 
+                                                -> [Maybe [EncodedConstructor p]] 
+                                                -> m [EncodedConstructor p]
 caseOfConstructors adt conss = 
   forM (transpose conss') $ \consT -> 
     if all isBottom consT 
@@ -150,7 +144,7 @@ caseOfConstructors adt conss =
     getArgs n EncConsBottom        = replicate n EncUndefined
     getArgs n (EncConsNormal args) = Exception.assert (n == length args) args
 
-caseOfBits :: MonadSAT m => [Boolean] -> [Maybe [Boolean]] -> m [Boolean]
+caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
 caseOfBits flags bitss = Exception.assert (P.not $ null definedBitss ) $
                          Exception.assert (equal length definedBitss) $ do
   premises <- mkPremises
@@ -158,7 +152,7 @@ caseOfBits flags bitss = Exception.assert (P.not $ null definedBitss ) $
   where
     definedBitss = catMaybes bitss
     bitWidth     = length $ head definedBitss
-    bitss'       = map (fromMaybe $ replicate bitWidth $ Constant False) bitss
+    bitss'       = map (fromMaybe $ replicate bitWidth $ constant False) bitss
     mkPremises   = mapM mkPremise patterns 
       where 
         patterns                = binaries $ length flags 
@@ -169,7 +163,7 @@ caseOfBits flags bitss = Exception.assert (P.not $ null definedBitss ) $
 
     mkBits premises bitsT = zipWithM implies premises bitsT >>= and
 
-excludePattern :: MonadSAT m => [Boolean] -> [Bool] -> m ()
+excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern flags pattern = Exception.assert (length flags == length pattern)
                              $ assert $ zipWith antiSelectBit flags pattern
   where 
@@ -177,24 +171,24 @@ excludePattern flags pattern = Exception.assert (length flags == length pattern)
     antiSelectBit bit False = bit
 
 
-encodedConsCall :: Int -> Int -> [EncodedAdt] -> EncodedAdt
+encodedConsCall :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
 encodedConsCall i numCons args = Exception.assert (i < numCons) $ 
   if containsUndefinedArgs
   then EncUndefined
   else EncAdt flags' constructors'
   where
-    flags'                = if numCons > 1 then map Constant i' else []
+    flags'                = if numCons > 1 then map constant i' else []
     constructors'         = replaceAt i (EncConsNormal args) 
                           $ replicate numCons EncConsBottom
     i'                    = toBinary (bitWidth numCons) i 
     containsUndefinedArgs = any (P.not . isDefined) args
 
-constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
+constructorArgument :: Int -> Int -> EncodedAdt p -> EncodedAdt p
 constructorArgument i j = maybe EncUndefined getArg . constructorArguments j
   where 
     getArg args = Exception.assert (i < length args) $ args !! i
 
-constructorArguments :: Int -> EncodedAdt -> Maybe [EncodedAdt]
+constructorArguments :: Int -> EncodedAdt p -> Maybe [EncodedAdt p]
 constructorArguments _ EncUndefined  = Nothing
 constructorArguments j (EncAdt _ cs) = Exception.assert (j < length cs) $
   case cs !! j of
@@ -203,27 +197,26 @@ constructorArguments j (EncAdt _ cs) = Exception.assert (j < length cs) $
 
 -- |The construction of an intermediate ADT simplifies the derivation of the
 -- actual @Decode@ instance.
-data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
-                     | IntermediateUndefined
-                     deriving Show
+data IntermediateAdt flag = IntermediateConstructorIndex Int [EncodedAdt flag]
+                          | IntermediateUndefined
+                          deriving Show
 
-toIntermediateAdt :: (MonadSAT m, Decode m Boolean Bool) 
-                  => EncodedAdt -> m IntermediateAdt 
+toIntermediateAdt :: (MonadSAT m, Primitive p, Decode m p Bool) 
+                  => EncodedAdt p -> m (IntermediateAdt p)
 toIntermediateAdt adt = case adt of
   EncUndefined                 -> return IntermediateUndefined
   EncAdt {} | null (flags adt) -> return $ intermediate 0
   EncAdt {}                    -> do cons <- liftM fromBinary $ decode $ flags adt 
                                      return $ intermediate cons
   where 
-    intermediate :: Int -> IntermediateAdt
     intermediate i = case constructorArguments i adt of
                         Nothing -> IntermediateUndefined
                         Just as -> IntermediateConstructorIndex i as
 
-toTree :: EncodedAdt -> Tree String
+toTree :: Show p => EncodedAdt p -> Tree String
 toTree adt = case adt of
   EncUndefined    -> Node "undefined" []
-  EncAdt fs conss -> Node ("flags: " ++ showBooleans fs) $ zipWith consToTree [0..] conss
+  EncAdt fs conss -> Node ("flags: " ++ show fs) $ zipWith consToTree [0..] conss
   where
     consToTree i = \case EncConsNormal args -> Node ("cons " ++ show i) $ map toTree args
                          EncConsBottom      -> Node ("cons " ++ show i ++ ": _|_") []

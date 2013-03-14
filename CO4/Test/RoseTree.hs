@@ -32,7 +32,7 @@ $([d|
                           False -> False
                           True  -> True
 
-   |] >>= runIO . configurable [Verbose,DumpAll ""] . compile 
+   |] >>= runIO . configurable [Verbose,DumpAfter "satchmoUnqualified" ""] . compile 
  )
 
 result = CO4.solve (undefined :: (SizedRose Nat2 Nat2 SizedBool)) encMain

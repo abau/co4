@@ -33,6 +33,7 @@ configurations =
   , Option ['k'] ["keep-tmp"] (NoArg $ (:) KeepTmp) "Do not remove temporary files"
   , Option ['u'] ["undefined-size"]
       (ReqArg (\s -> (:) (UndefinedSize s)) "STRING") "Size of undefined data"
+  , Option ['f'] ["make-formula"] (NoArg $ (:) MakeFormula) "Use Formula primitive of satchmo-core (instead of Boolean)"
   ]
 
   where
