@@ -84,6 +84,7 @@ process inputFile (HE.Module loc name pragmas warnings exports imports decls) = 
                 , "import qualified CO4.AdtIndex"
                 , "import qualified CO4.Algorithms.Eitherize.UnsizedAdt"
                 , "import qualified CO4.Algorithms.Eitherize.Solve"
+                , "import           CO4.Algorithms.Eitherize.Naturals"
                 , compiled
                 , unwords [ "result =", solveAndTest, verbose
                           , "(GHC.Err.undefined :: ("

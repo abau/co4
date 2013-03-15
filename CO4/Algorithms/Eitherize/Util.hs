@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE TemplateHaskell #-}
 module CO4.Algorithms.Eitherize.Util
 where
 
@@ -156,16 +154,3 @@ bindAndApplyList :: MonadUnique u => (TH.Exp -> TH.Exp)
                                   -> [TH.Exp] -> u TH.Exp
 bindAndApplyList f = bindAndApply (\names -> [TH.ListE $ map varE names]) 
                                   (\[exp] -> f exp)
-
--- * Type level naturals
-
-data Nat0
-data NatSucc a
-
-$( forM [1..100] $ \i -> 
-    let nat i = TH.mkName $ "Nat" ++ (show i)
-    in
-      TH.tySynD (nat i) [] (TH.appT (TH.conT ''NatSucc) 
-                           (TH.conT $ nat $ i - 1))
- )
-

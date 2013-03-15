@@ -13,6 +13,7 @@ import           CO4.Util (isRecursiveAdt)
 import           CO4.THUtil 
 import           CO4.Unique
 import           CO4.Algorithms.Eitherize.Util
+import           CO4.Algorithms.Eitherize.Naturals
 import           CO4.AdtIndex
 
 indexedInstances :: MonadUnique u => Declaration -> Gadt u [TH.Dec]

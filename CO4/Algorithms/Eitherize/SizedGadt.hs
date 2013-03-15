@@ -15,6 +15,7 @@ import           CO4.Algorithms.TopologicalSort (adtGroups)
 import           CO4.Algorithms.Eitherize.Util
 import           CO4.Algorithms.Eitherize.UnsizedAdtInstance (unsizedAdtInstance)
 import           CO4.Algorithms.Eitherize.IndexedInstance (indexedInstances)
+import           CO4.Algorithms.Eitherize.Naturals
 
 sizedGadts :: MonadUnique u => [Declaration] -> u [TH.Dec]
 sizedGadts adts = 
