@@ -1,24 +1,19 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 module CO4.Test.Simple
 where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
+import           Data.Maybe
 import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
-import           CO4.Algorithms.Eitherize.UnsizedAdt (UnsizedAdt)
 
 $( [d| data Bool = False | True
 
@@ -28,4 +23,6 @@ $( [d| data Bool = False | True
    |] >>= runIO . configurable [Verbose] . compile 
   )
 
-result = solveAndTestBoolean GHC.Types.True (undefined :: SizedBool) encMain main
+allocator = allocate ( constructors [ Just [] , Just [] ] )
+
+result = solveAndTestBoolean GHC.Types.True allocator encMain main

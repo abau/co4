@@ -21,9 +21,7 @@ import           CO4.Backend (displayExpression)
 import           CO4.Backend.TH ()
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
-import           CO4.Algorithms.Eitherize.SizedGadt (sizedGadts)
-import           CO4.Algorithms.Eitherize.Util
-import           CO4.EncodedAdt
+import           CO4.EncodedAdt 
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -102,7 +100,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-  instantiateUndefined = return $ returnE $ TH.ConE 'EncUndefined
+  instantiateUndefined = return $ returnE $ TH.ConE 'encodedUndefined
 
   instantiateCase (ECase e ms) = do
     eScheme <- schemeOfExp e
@@ -123,7 +121,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
                                                         ])
                                           (appsE $ TH.VarE 'caseOf) ms'
 
-                  return $ TH.DoE [ binding, TH.NoBindS $ dontCareMatch e'Name 
+                  return $ TH.DoE [ binding, TH.NoBindS $ checkUndefined e'Name 
                                                         $ caseOfE ]
     where 
       -- |If the matched constructor has no arguments, just instantiate expression of match
@@ -148,10 +146,9 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
       instantiateMatchToExp e'Name (_, Match (PVar v) match) = 
         liftM (letE' [(v, varE e'Name)]) $ instantiate match
 
-      dontCareMatch e'Name doCareBranch = TH.CaseE (varE e'Name)
-          [ TH.Match (TH.ConP 'EncUndefined []) 
-                     (TH.NormalB $ TH.AppE (TH.VarE 'return) (varE e'Name)) []
-          , TH.Match TH.WildP (TH.NormalB doCareBranch) [] ]
+      checkUndefined e'Name = 
+          TH.CondE (TH.AppE (TH.VarE 'isUndefined) (varE e'Name))
+                   (TH.AppE (TH.VarE 'return) (varE e'Name))
 
   instantiateLet (ELet bindings exp) = do
     exp'      <- instantiate exp 
@@ -177,10 +174,32 @@ eitherize program = do
   let (adts,values) = splitDeclarations typedProgram 
       toplevelNames = map boundName $ programToplevelBindings typedProgram
 
-  gadts <- sizedGadts adts
-
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
   values' <- liftM concat $ runReaderT (runExpInstantiator $ instantiate values)
                                        toplevelNames
                          
-  return $ gadts ++ decls ++ (deleteSignatures values')
+  return $ decls ++ (deleteSignatures values')
+
+
+-- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
+-- expressions @es@ by @mapping@, applies @f@ to @es@ and
+-- binds the result to a new name @r@. The last statement is @return r@.
+bindAndApply :: MonadUnique u => ([Name] -> [TH.Exp]) -> ([TH.Exp] -> TH.Exp) 
+                              -> [TH.Exp] -> u TH.Exp
+bindAndApply mapping f args = do
+  resultName <- newName "bindResult"
+  argNames   <- forM args $ const $ newName "bindArgument"
+
+  let bindings     = map (\(n,e) -> TH.BindS (varP n) e) $ zip argNames args
+      applied      = f $ mapping argNames
+      returnResult = [ TH.BindS     (varP resultName) applied
+                     , TH.NoBindS $ returnE $ varE resultName
+                     ]
+  return $ TH.DoE $ bindings ++ returnResult
+
+-- |@bindAndApplyArgs f args@ binds @args@ to new names @ns@,
+-- applies @f@ to @ns@ and binds the result to a new name @r@. 
+-- The last statement is @return r@.
+bindAndApplyArgs :: MonadUnique u => ([TH.Exp] -> TH.Exp) 
+                                  -> [TH.Exp] -> u TH.Exp
+bindAndApplyArgs = bindAndApply (map varE) 
