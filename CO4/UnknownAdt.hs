@@ -49,7 +49,7 @@ isBottom = \case UBottom -> True
                  _       -> False
 
 unknown :: (MonadSAT m, Primitive p) => A.AllocateUnknown -> m (UnknownAdt p)
-unknown (A.AllocateUnknown cons) = Exception.assert (length cons > 1) $ do
+unknown (A.AllocateUnknown cons) = do
   flags <- sequence $ replicate (bitWidth $ length cons) primitive
   cons  <- mapM encodeConstructor cons
 

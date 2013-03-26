@@ -1,149 +1,183 @@
-{-# OPTIONS_CO4 SizedList Nat6 (SizedStep Nat6 Nat6 Nat6 Nat6) #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
--- should find the looping derivation
--- abb -> bbaab -> bbabbaa
+module CO4.Test.List
+where
 
-main d = looping_derivation rs d
+import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-))
+import           Data.Maybe
+import qualified GHC.Types
+import           Language.Haskell.TH (runIO)
+import qualified Satchmo.Core.SAT.Minisat
+import qualified Satchmo.Core.Decode 
+import           CO4
 
--- rewriting system  ab -> bbaa.
+$( [d| -- should find the looping derivation
+        -- abb -> bbaab -> bbabbaa
 
-rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
-                    (Cons B(Cons B (Cons A (Cons A (Cons B Nil))))))
-          Nil)
+        main d = looping_derivation rs d
 
-data Bool = False | True
+        -- rewriting system  ab -> bbaa.
 
-or2 x y = case x of
-    False -> y
-    True  -> x
+        rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
+                            (Cons B(Cons B (Cons A (Cons A (Cons B Nil))))))
+                  Nil)
 
-and2 x y = case x of
-    False -> x
-    True  -> y
+        data Bool = False | True
 
-not x  = case x of
-    False -> True
-    True -> False
+        or2 x y = case x of
+            False -> y
+            True  -> x
 
-data Sigma = A | B
+        and2 x y = case x of
+            False -> x
+            True  -> y
 
-eqSigma x y = case x of
-    A -> case y of
-        A -> True
-        B -> False
-    B -> case y of
-        A -> False
-        B -> True
+        not x  = case x of
+            False -> True
+            True -> False
 
-data List a = Nil | Cons a (List a)
+        data Sigma = A | B
 
-null xs = case xs of
-    Nil -> True
-    Cons x xs -> False
+        eqSigma x y = case x of
+            A -> case y of
+                A -> True
+                B -> False
+            B -> case y of
+                A -> False
+                B -> True
 
-head xs = case xs of
-    Nil -> undefined
-    Cons x xs -> x
+        data List a = Nil | Cons a (List a)
 
-last xs = case xs of
-    Nil -> undefined
-    Cons x xs -> case xs of
-        Nil -> x
-        Cons x ys -> last xs
+        null xs = case xs of
+            Nil -> True
+            Cons x xs -> False
 
-eqListSigma xs ys = case xs of
-    Nil -> case ys of
-        Nil -> True
-        Cons y ys -> False
-    Cons x xs -> case ys of
-        Nil -> False
-        Cons y ys -> 
-            and2 (eqSigma x y) (eqListSigma xs ys)
+        head xs = case xs of
+            Nil -> undefined
+            Cons x xs -> x
 
-append xs ys = case xs of
-    Nil -> ys
-    Cons x xs -> Cons x (append xs ys)
+        last xs = case xs of
+            Nil -> undefined
+            Cons x xs -> case xs of
+                Nil -> x
+                Cons x ys -> last xs
 
-factor xs ys = or2 (prefix xs ys ) ( case ys of
-    Nil -> False
-    Cons y ys -> factor xs ys )
+        eqListSigma xs ys = case xs of
+            Nil -> case ys of
+                Nil -> True
+                Cons y ys -> False
+            Cons x xs -> case ys of
+                Nil -> False
+                Cons y ys -> 
+                    and2 (eqSigma x y) (eqListSigma xs ys)
 
-prefix xs ys = case xs of
-    Nil -> True
-    Cons x xs -> case ys of
-        Nil -> False
-        Cons y ys -> 
-            and2 (eqSigma x y) (prefix xs ys)
+        append xs ys = case xs of
+            Nil -> ys
+            Cons x xs -> Cons x (append xs ys)
 
-foldr f z xs = case xs of
-    Nil -> z
-    Cons x xs -> f x (foldr f z xs)
+        factor xs ys = or2 (prefix xs ys ) ( case ys of
+            Nil -> False
+            Cons y ys -> factor xs ys )
 
-map f xs = foldr ( \ x y -> Cons (f x) y ) Nil xs
+        prefix xs ys = case xs of
+            Nil -> True
+            Cons x xs -> case ys of
+                Nil -> False
+                Cons y ys -> 
+                    and2 (eqSigma x y) (prefix xs ys)
 
-or  xs = foldr or2 False xs
-and xs = foldr and2 True xs
+        foldr f z xs = case xs of
+            Nil -> z
+            Cons x xs -> f x (foldr f z xs)
 
-forall xs f = and ( map f xs )
-exists xs f = or  ( map f xs )
+        map f xs = foldr ( \ x y -> Cons (f x) y ) Nil xs
 
-data Rule = Rule (List Sigma) (List Sigma)
+        or  xs = foldr or2 False xs
+        and xs = foldr and2 True xs
 
-eqRule u1 u2 = case u1 of
-        Rule l1 r1 -> case u2 of
-            Rule l2 r2 -> 
-                and2 (eqListSigma l1 l2)
-                     (eqListSigma r1 r2)
+        forall xs f = and ( map f xs )
+        exists xs f = or  ( map f xs )
 
-data RS = RS (List Rule)
+        data Rule = Rule (List Sigma) (List Sigma)
 
-data Step = Step (List Sigma) -- prefix
-                 Rule
-                 (List Sigma) -- suffix
+        eqRule u1 u2 = case u1 of
+                Rule l1 r1 -> case u2 of
+                    Rule l2 r2 -> 
+                        and2 (eqListSigma l1 l2)
+                             (eqListSigma r1 r2)
 
--- type Derivation = List Step
+        data RS = RS (List Rule)
 
-looping_derivation rs d =
-   and2 (derivation_is_nonempty d)
-    ( and2 (derivation_uses_rules rs d)
-      (and2 (derivation_is_joinable d)
-           (derivation_is_looping d)))
+        data Step = Step (List Sigma) -- prefix
+                         Rule
+                         (List Sigma) -- suffix
 
-derivation_uses_rules rs d = case rs of
-    RS rules -> forall d
-        ( \ s -> step_uses_rules rules s )
+        -- type Derivation = List Step
 
-derivation_is_nonempty d = not (null d)
+        looping_derivation rs d =
+           and2 (derivation_is_nonempty d)
+            ( and2 (derivation_uses_rules rs d)
+              (and2 (derivation_is_joinable d)
+                   (derivation_is_looping d)))
 
-derivation_is_looping d = 
-      factor (left_semantics (head d))
-           (right_semantics (last d))
+        derivation_uses_rules rs d = case rs of
+            RS rules -> forall d
+                ( \ s -> step_uses_rules rules s )
 
-derivation_is_joinable d = case d of
-    Nil -> True
-    Cons s1 later1 -> case later1 of
-        Nil -> True
-        Cons s2 later2 -> 
-            and2 (joinable_steps s1 s2)
-                 (derivation_is_joinable later1)
+        derivation_is_nonempty d = not (null d)
 
--- TODO: this is what I want to write:
--- right_semantics (Step p (Rule l r) s) = 
---    append p (append r s)
+        derivation_is_looping d = 
+              factor (left_semantics (head d))
+                   (right_semantics (last d))
 
-left_semantics step = case step of
-    Step p u s -> case u of
-        Rule l r -> append p (append l s)
+        derivation_is_joinable d = case d of
+            Nil -> True
+            Cons s1 later1 -> case later1 of
+                Nil -> True
+                Cons s2 later2 -> 
+                    and2 (joinable_steps s1 s2)
+                         (derivation_is_joinable later1)
 
-right_semantics step = case step of
-    Step p u s -> case u of
-        Rule l r -> append p (append r s)
+        -- TODO: this is what I want to write:
+        -- right_semantics (Step p (Rule l r) s) = 
+        --    append p (append r s)
 
-joinable_steps step1 step2 = 
-    eqListSigma (right_semantics step1)
-                (left_semantics  step2)
+        left_semantics step = case step of
+            Step p u s -> case u of
+                Rule l r -> append p (append l s)
 
-step_uses_rules rules step = case step of
-   Step p u s -> 
-       exists rules ( \ v -> eqRule u v )
+        right_semantics step = case step of
+            Step p u s -> case u of
+                Rule l r -> append p (append r s)
 
+        joinable_steps step1 step2 = 
+            eqListSigma (right_semantics step1)
+                        (left_semantics  step2)
+
+        step_uses_rules rules step = case step of
+           Step p u s -> 
+               exists rules ( \ v -> eqRule u v )
+
+   |] >>= runIO . configurable [Verbose] . compile 
+  )
+
+uBool      = constructors [ Just [] , Just [] ]
+uSigma     = constructors [ Just [] , Just [] ]
+uList 0 _  = constructors [ Just [] , Nothing ]
+uList i a  = constructors [ Just [] , Just [a, uList (i-1) a ] ]
+
+uRule wordLength = constructors [ Just [ uList wordLength uSigma
+                                       , uList wordLength uSigma ] ]
+
+uStep wordLength = constructors [ Just [ uList wordLength uSigma
+                                       , uRule wordLength
+                                       , uList wordLength uSigma 
+                                       ] ]
+
+allocator = allocate ( uList 6 (uStep 6) )
+
+result = solveAndTestBoolean GHC.Types.True allocator encMain main
