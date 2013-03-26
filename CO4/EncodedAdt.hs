@@ -30,8 +30,10 @@ instance Show p => Show (EncodedAdt p) where
                                      $ map toTree args
         EncodedUnknown unknownAdt   -> U.toTree unknownAdt
 
-flags :: EncodedAdt p -> [p]
-flags (EncodedUnknown u) = U.flags u
+flags :: EncodedAdt p -> Maybe [p]
+flags = \case 
+  EncodedConstructor {} -> Nothing
+  EncodedUnknown     u  -> Just $ U.flags u
 
 encodedUndefined :: EncodedAdt p
 encodedUndefined = EncodedUnknown U.UUndefined
@@ -41,8 +43,13 @@ isUndefined = \case EncodedUnknown U.UUndefined -> True
                     _                           -> False
 
 encode :: (MonadSAT m, Primitive p) => A.Allocator -> m (EncodedAdt p)
-encode = \case A.Known i n as -> liftM (EncodedConstructor i n) $ mapM encode as
-               A.Unknown u    -> liftM  EncodedUnknown          $ U.unknown u
+encode = \case 
+  A.Known i n as -> liftM (EncodedConstructor i n) $ mapM encode as
+  A.Unknown u    -> 
+    case u of
+      A.AllocateUnknown [A.AllocateConstructor args] -> 
+        liftM (EncodedConstructor 0 1) $ mapM (encode . A.Unknown) args
+      _ -> liftM EncodedUnknown $ U.unknown u
 
 caseOf :: (MonadSAT m, Primitive p) => EncodedAdt p -> [EncodedAdt p] -> m (EncodedAdt p)
 caseOf adt branches = case adt of

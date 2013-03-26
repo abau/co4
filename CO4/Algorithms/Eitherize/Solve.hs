@@ -50,9 +50,12 @@ solve verbose allocator constraint =
                       -}
     result <- constraint u
 
-    let assertion = head $ flags result
-    when verbose $ Backend.note $ "Assertion: " ++ (show assertion)
-    assert [ assertion ]
+    case flags result of
+      Nothing -> Backend.note "Known result"
+      Just fs -> do
+        let assertion = head fs
+        when verbose $ Backend.note $ "Assertion: " ++ (show assertion)
+        assert [ assertion ]
     return $ decode u 
 
 -- |Solves an encoded constraint system and tests the found solution
