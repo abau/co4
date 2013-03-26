@@ -100,7 +100,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-  instantiateUndefined = return $ returnE $ TH.ConE 'encodedUndefined
+  instantiateUndefined = return $ returnE $ TH.VarE 'encodedUndefined
 
   instantiateCase (ECase e ms) = do
     eScheme <- schemeOfExp e
