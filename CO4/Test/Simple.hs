@@ -23,6 +23,6 @@ $( [d| data Bool = False | True
    |] >>= runIO . configurable [Verbose] . compile 
   )
 
-allocator = allocate ( constructors [ Just [] , Just [] ] )
+allocator = constructors [ Just [] , Just [] ]
 
 result = solveAndTestBoolean GHC.Types.True allocator encMain main

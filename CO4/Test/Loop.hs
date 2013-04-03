@@ -4,7 +4,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module CO4.Test.List
+module CO4.Test.Loop
 where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-))
@@ -18,13 +18,21 @@ import           CO4
 $( [d| -- should find the looping derivation
         -- abb -> bbaab -> bbabbaa
 
-        main d = looping_derivation rs d
+        main d = looping_derivation g03 d
 
         -- rewriting system  ab -> bbaa.
 
         rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
                             (Cons B(Cons B (Cons A (Cons A (Cons B Nil))))))
                   Nil)
+
+
+        g03 = RS 
+               (Cons (Rule (Cons A(Cons A(Cons A(Cons A Nil))))
+                           (Cons A(Cons A(Cons B(Cons B Nil)))))
+               (Cons (Rule (Cons B(Cons A(Cons A(Cons B Nil))))
+                           (Cons A(Cons A(Cons B(Cons A Nil)))))
+                     Nil))
 
         data Bool = False | True
 
@@ -173,11 +181,19 @@ uList i a  = constructors [ Just [] , Just [a, uList (i-1) a ] ]
 uRule wordLength = constructors [ Just [ uList wordLength uSigma
                                        , uList wordLength uSigma ] ]
 
-uStep wordLength = constructors [ Just [ uList wordLength uSigma
-                                       , uRule wordLength
-                                       , uList wordLength uSigma 
-                                       ] ]
+kNil       = known 0 2 []
+kCons x xs = known 1 2 [ x , xs ]
+kList 0 _  = kNil
+kList i a  = kCons a (kList (i-1) a)
 
-allocator = allocate ( uList 6 (uStep 6) )
+kRule wordLength = known 0 1 [ kList wordLength uSigma
+                             , kList wordLength uSigma
+                             ]
 
-result = solveAndTestBoolean GHC.Types.True allocator encMain main
+uStep  rw w = known 0 1 [ uList w uSigma
+                        , kRule rw
+                        , uList w uSigma
+                        ]
+allocator rw w l = ( kList l (uStep' rw w))
+
+result = solveAndTestBoolean GHC.Types.True (allocator 4 10 15)  encMain main

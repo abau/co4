@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.19
+Version:        	0.0.20
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -25,7 +25,6 @@ Library
                     , CO4.THUtil
                     , CO4.TypesUtil
                     , CO4.Unique
-                    , CO4.UnknownAdt
                     , CO4.Util
                     , CO4.Algorithms.Bound
                     , CO4.Algorithms.Collector

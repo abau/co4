@@ -11,7 +11,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert)
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
-import           CO4.EncodedAdt (EncodedAdt,encode,flags)
+import           CO4.EncodedAdt (EncodedAdt,encode,flags,isUnknown)
 import           CO4.Allocator (Allocator)
 
 -- | Equals 'solveAndTest'. Uses 'Boolean's for encoding.
@@ -50,10 +50,10 @@ solve verbose allocator constraint =
                       -}
     result <- constraint u
 
-    case flags result of
-      Nothing -> Backend.note "Known result"
-      Just fs -> do
-        let assertion = head fs
+    case isUnknown result of
+      False -> Backend.note "Known result"
+      True  -> do
+        let assertion = head $ flags result
         when verbose $ Backend.note $ "Assertion: " ++ (show assertion)
         assert [ assertion ]
     return $ decode u 

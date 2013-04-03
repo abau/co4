@@ -43,7 +43,7 @@ kCons x xs = known 1 2 [ x , xs ]
 kList 0 _  = kNil
 kList i a  = kCons a (kList (i-1) a)
 
-allocator1 = allocate (uList 3 uBool)
-allocator2 = kList 3 (allocate uBool)
+allocator1 = uList 3 uBool
+allocator2 = kList 3 uBool
 
-result = solveAndTestBoolean GHC.Types.True allocator1 encMain main
+result = solveAndTestBoolean GHC.Types.True allocator2 encMain main

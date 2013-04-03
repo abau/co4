@@ -4,6 +4,7 @@ module CO4.Algorithms.Eitherize
   (eitherize)
 where
 
+import           Prelude hiding (undefined)
 import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.Writer
@@ -22,6 +23,7 @@ import           CO4.Backend.TH ()
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.EncodedAdt 
+  (undefined,isUndefined,encodedConsCall,caseOf,constructorArgument)
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -100,7 +102,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
     where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-  instantiateUndefined = return $ returnE $ TH.VarE 'encodedUndefined
+  instantiateUndefined = return $ returnE $ TH.VarE 'undefined
 
   instantiateCase (ECase e ms) = do
     eScheme <- schemeOfExp e
