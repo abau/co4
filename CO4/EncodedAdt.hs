@@ -30,10 +30,11 @@ data EncodedAdt p = KConstructor { constructorIndex :: Int
                                  , constructors :: [UnknownConstructor p]
                                  }
                   | Undefined
+                  deriving (Eq,Ord)
 
 data UnknownConstructor p = UConstructor [EncodedAdt p] 
                           | UBottom
-                          deriving (Show)
+                          deriving (Eq,Ord)
 
 instance Show flag => Show (EncodedAdt flag) where
   show = drawTree . toTree 

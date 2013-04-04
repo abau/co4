@@ -194,6 +194,6 @@ uStep  rw w = known 0 1 [ uList w uSigma
                         , kRule rw
                         , uList w uSigma
                         ]
-allocator rw w l = ( kList l (uStep' rw w))
+allocator rw w l = ( kList l (uStep rw w))
 
 result = solveAndTestBoolean GHC.Types.True (allocator 4 10 15)  encMain main

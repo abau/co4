@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Algorithms.Eitherize.Solve
-   (solveAndTestBoolean, solveAndTestFormula, solve, solveAndTest)
+   (ConstraintSystem, solveAndTestBoolean, solveAndTestFormula, solve, solveAndTest)
 where
 
 import           Control.Monad (when)
@@ -13,13 +13,16 @@ import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
 import           CO4.EncodedAdt (EncodedAdt,encode,flags,isUnknown)
 import           CO4.Allocator (Allocator)
+import           CO4.Cache (Cache,runCache)
+
+type ConstraintSystem p = (EncodedAdt p) -> Cache p Backend.SAT (EncodedAdt p)
 
 -- | Equals 'solveAndTest'. Uses 'Boolean's for encoding.
 solveAndTestBoolean 
   :: ( Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
   => Bool                                           
   -> Allocator                                      
-  -> ((EncodedAdt Boolean) -> Backend.SAT (EncodedAdt Boolean)) 
+  -> ConstraintSystem Boolean
   -> (a -> b)                            
   -> IO ()
 solveAndTestBoolean = solveAndTest
@@ -29,7 +32,7 @@ solveAndTestFormula
   :: ( Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
   => Bool                                           
   -> Allocator                                      
-  -> ((EncodedAdt Formula) -> Backend.SAT (EncodedAdt Formula)) 
+  -> ConstraintSystem Formula
   -> (a -> b)                            
   -> IO ()
 solveAndTestFormula = solveAndTest
@@ -39,7 +42,7 @@ solve :: ( Primitive p, Show p
          , Decode Backend.SAT (EncodedAdt p) a) 
       => Bool                                           -- ^Be verbosely
       -> Allocator                                      -- ^Allocator
-      -> ((EncodedAdt p) -> Backend.SAT (EncodedAdt p)) -- ^Encoded constraint system
+      -> ConstraintSystem p                             -- ^Encoded constraint system
       -> IO (Maybe a)
 solve verbose allocator constraint = 
   Backend.solve verbose $ do 
@@ -48,7 +51,7 @@ solve verbose allocator constraint =
     when verbose $ do Backend.note "Unknown: "
                       Backend.note $ show u
                       -}
-    result <- constraint u
+    result <- runCache (constraint u)
 
     case isUnknown result of
       False -> Backend.note "Known result"
@@ -65,7 +68,7 @@ solveAndTest :: ( Primitive p, Show p
                 , Show a, Show b) 
       => Bool                                           -- ^Be verbosely
       -> Allocator                                      -- ^Allocator
-      -> ((EncodedAdt p) -> Backend.SAT (EncodedAdt p)) -- ^Encoded constraint system
+      -> ConstraintSystem p                             -- ^Encoded constraint system
       -> (a -> b)                                       -- ^Original constraint system
       -> IO ()
 solveAndTest verbose allocator constraint test = do

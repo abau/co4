@@ -24,6 +24,7 @@ import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.EncodedAdt 
   (undefined,isUndefined,encodedConsCall,caseOf,constructorArgument)
+import           CO4.Cache (withCache)
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -94,13 +95,19 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
   instantiateApp (EApp f args) = do
     args'    <- instantiate args
     case f of
-      EVar fName -> instantiateApplication (encodedName     fName) args'
       ECon cName -> instantiateApplication (encodedConsName cName) args'
-      _ ->  
-       error $ unwords [ "instantiateApp", show f ]
+      EVar fName -> do
+        --app <- instantiateApplication (encodedName fName) args'
 
+        bindAndApplyArgs (\args'' -> appsE (TH.VarE 'withCache) 
+                                           [ stringE $ encodedName fName 
+                                           , TH.ListE args''
+                                           , appsE (varE $ encodedName fName) args''
+                                           ]) args'
 
-    where instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
+    where 
+      instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
+
 
   instantiateUndefined = return $ returnE $ TH.VarE 'undefined
 

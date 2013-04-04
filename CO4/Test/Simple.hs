@@ -17,10 +17,12 @@ import           CO4
 
 $( [d| data Bool = False | True
 
-       main x = case x of False -> False
-                          True  -> True
+       not x = case x of False -> True
+                         True  -> False
 
-   |] >>= runIO . configurable [Verbose] . compile 
+       main x = not x
+
+   |] >>= runIO . configurable [Verbose, DumpAfter "satchmoUnqualified" ""] . compile 
   )
 
 allocator = constructors [ Just [] , Just [] ]
