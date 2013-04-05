@@ -1,7 +1,7 @@
 module CO4.Test.Closure where
 import qualified Prelude ; undefined = Prelude.undefined
 
-main d = looping_derivation g08 d
+main d = looping_derivation g03 d
 
 -- rewriting system  ab -> bbaa.
 
@@ -121,15 +121,17 @@ eqSigma x y = case x of
     A -> case y of
         A -> True
         B -> False
-        C -> False
+--        C -> False
     B -> case y of
         A -> False
         B -> True
+{-
         C -> False
     C -> case y of
         A -> False
         B -> False
         C -> True
+-}
 
 data List a = Nil | Cons a (List a)
 
@@ -220,14 +222,14 @@ overlap_ok c o = case o of
                        ( and2 (eqListSigma (append pre (append r1 suf)) l2)
                             (eqListSigma r2 r ) )
         
-data OStep = OStep Rule Overlap 
+data Step = Step Rule Overlap 
 -- type Derivation = List Step
 
 derivation_ok rs d = case d of
     Nil -> True
     Cons step ss -> 
        and2 ( case step of 
-            OStep c o -> or2 (extension_ok c o ss) (base_ok rs c) )
+            Step c o -> or2 (extension_ok c o ss) (base_ok rs c) )
             ( derivation_ok rs ss )
                       
 base_ok rs c = case rs of
@@ -235,8 +237,8 @@ base_ok rs c = case rs of
 
 extension_ok c o ss = case o of
     Overlap side pre suf c1 c2 -> 
-        and2 ( exists ss ( \ s -> case s of OStep c o -> eqCls c c1 ) )
-            ( and2 ( exists ss ( \ s -> case s of OStep c o -> eqCls c c2 ) )
+        and2 ( exists ss ( \ s -> case s of Step c o -> eqCls c c1 ) )
+            ( and2 ( exists ss ( \ s -> case s of Step c o -> eqCls c c2 ) )
                 ( overlap_ok c o ) ) 
 
 eqCls c1 c2 = case c1 of
@@ -250,6 +252,6 @@ looping_derivation rs d =
 self_embedding_derivation d =  case d of
               Nil -> False
               Cons step ss -> case step of
-                  OStep c o -> case c of
+                  Step c o -> case c of
                       Rule l r -> factor l r
 

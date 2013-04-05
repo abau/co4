@@ -34,30 +34,31 @@ uSigma     = constructors [ Just [] , Just [] ]
 uList 0 _  = constructors [ Just [] , Nothing ]
 uList i a  = constructors [ Just [] , Just [a, uList (i-1) a ] ]
 
+-- data Rule = Rule (List Sigma) (List Sigma)
 uRule wordLength = constructors [ Just [ uList wordLength uSigma
                                        , uList wordLength uSigma ] ]
+uClosure = uRule
 
 kNil       = known 0 2 []
 kCons x xs = known 1 2 [ x , xs ]
 kList 0 _  = kNil
 kList i a  = kCons a (kList (i-1) a)
 
-kRule wordLength = known 0 1 [ kList wordLength uSigma
-                             , kList wordLength uSigma
-                             ]
 
-uStep  rw w = known 0 1 [ uList w uSigma
-                        , kRule rw
-                        , uList w uSigma
-                        ]
+-- data Side = Left | Right | Inside | Outside
 
-kStep  rw w = known 0 1 [ kList w uSigma
-                        , kRule rw
-                        , kList w uSigma
-                        ]
+uSide = constructors $ Prelude.replicate 4 $ Just [] 
 
-allocator rw w l = ( uList l (uStep rw w))
+-- data Overlap = Overlap Side (List Sigma) (List Sigma) Rule Rule
 
-allokator rw w l = ( kList l (kStep rw w))
+uOverlap w = known 0 1 [ uSide, uList w uSigma, uList w uSigma, uClosure w, uClosure w ]
 
-result = solveAndTestBoolean GHC.Types.True (allocator 4 20 20)  encMain main
+-- data Step = Step Rule Overlap 
+
+uStep w = known 0 1 [ uClosure w, uOverlap w ]
+
+-- type Derivation = List Step
+
+allocator l w = ( uList l (uStep w ))
+
+result = solveAndTestBoolean GHC.Types.True (allocator 10 15 )  encMain main
