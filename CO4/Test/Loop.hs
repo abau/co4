@@ -15,13 +15,12 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( [d| -- should find the looping derivation
-        -- abb -> bbaab -> bbabbaa
 
-        main d = looping_derivation g03 d
+$( [d| 
+
+        main d = looping_derivation g08 d
 
         -- rewriting system  ab -> bbaa.
-
         rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
                             (Cons B(Cons B (Cons A (Cons A (Cons B Nil))))))
                   Nil)
@@ -30,6 +29,20 @@ $( [d| -- should find the looping derivation
         g03 = RS 
                (Cons (Rule (Cons A(Cons A(Cons A(Cons A Nil))))
                            (Cons A(Cons A(Cons B(Cons B Nil)))))
+               (Cons (Rule (Cons B(Cons A(Cons A(Cons B Nil))))
+                           (Cons A(Cons A(Cons B(Cons A Nil)))))
+                     Nil))
+
+        g08 = RS 
+               (Cons (Rule (Cons A(Cons A(Cons A(Cons A Nil))))
+                           (Cons A(Cons B(Cons B(Cons A Nil)))))
+               (Cons (Rule (Cons B(Cons A(Cons A(Cons B Nil))))
+                           (Cons A(Cons A(Cons B(Cons A Nil)))))
+                     Nil))
+
+        g10 = RS 
+               (Cons (Rule (Cons A(Cons A(Cons A(Cons A Nil))))
+                           (Cons A(Cons B(Cons B(Cons B Nil)))))
                (Cons (Rule (Cons B(Cons A(Cons A(Cons B Nil))))
                            (Cons A(Cons A(Cons B(Cons A Nil)))))
                      Nil))
@@ -127,10 +140,16 @@ $( [d| -- should find the looping derivation
         -- type Derivation = List Step
 
         looping_derivation rs d =
-           and2 (derivation_is_nonempty d)
-            ( and2 (derivation_uses_rules rs d)
+           and2 (break_symmetry d)
+            ( and2 (derivation_is_nonempty d)
+             ( and2 (derivation_uses_rules rs d)
               (and2 (derivation_is_joinable d)
-                   (derivation_is_looping d)))
+                   (derivation_is_looping d))))
+
+        break_symmetry d = case d of
+            Nil -> False
+            Cons s later -> case s of
+                Step p u s -> null p
 
         derivation_uses_rules rs d = case rs of
             RS rules -> forall d
@@ -194,6 +213,14 @@ uStep  rw w = known 0 1 [ uList w uSigma
                         , kRule rw
                         , uList w uSigma
                         ]
-allocator rw w l = ( kList l (uStep rw w))
 
-result = solveAndTestBoolean GHC.Types.True (allocator 4 10 15)  encMain main
+kStep  rw w = known 0 1 [ kList w uSigma
+                        , kRule rw
+                        , kList w uSigma
+                        ]
+
+allocator rw w l = ( uList l (uStep rw w))
+
+allokator rw w l = ( kList l (kStep rw w))
+
+result = solveAndTestBoolean GHC.Types.True (allocator 4 20 20)  encMain main
