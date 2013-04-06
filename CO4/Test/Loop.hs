@@ -26,6 +26,7 @@ $( [d|
                   Nil)
 
 
+
         g03 = RS 
                (Cons (Rule (Cons A(Cons A(Cons A(Cons A Nil))))
                            (Cons A(Cons A(Cons B(Cons B Nil)))))
