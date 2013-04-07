@@ -50,7 +50,7 @@ uStep  rw w = known 0 1 [ uWord w , uRule rw , uWord w ]
 --                 (List (List Sigma)) -- ^ image (concatenation of block letters)
 --                 (List Step)  -- ^ origin . pivot ->> pivot . image
 
-uMove rw k = known 0 1 [ uWord k , uBlock k, uList k (uStep rw (k*rw)) ]
+uMove rw k = known 0 1 [ uWord k , uBlock k, uList k (uStep rw k) ]
 
 -- type Morphism = (List Move)
 
@@ -59,7 +59,7 @@ uMorph rw k = uList k (uMove rw k)
 -- data Image = Image (List (List Sigma)) -- ^  phi^k (start)
 --                   ( List (List Sigma)) -- ^  start ^ pivot^k
 
-uImage k = known 0 1 [ uList k (uWord k), uList k (uWord k) ]
+uImage l k = known 0 1 [ uList l (uWord k), uList l (uWord k) ]
 
 
 -- data Transport = Transport (List Sigma) -- ^ pivot
@@ -67,7 +67,7 @@ uImage k = known 0 1 [ uList k (uWord k), uList k (uWord k) ]
 --                            (List Sigma) -- ^ start
 --                           (List Image)
 
-uTransport rw k = known 0 1 [ uWord k, uMorph rw k, uWord k, uImage k ]
+uTransport rw l k = known 0 1 [ uWord k, uMorph rw k, uWord k, uImage l k ]
 
 
-result = solveAndTestBoolean GHC.Types.True (uTransport 2 4)  encMain main
+result = solveAndTestBoolean GHC.Types.True (uTransport 5 10 3)  encMain main

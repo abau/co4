@@ -1,20 +1,25 @@
 module CO4.Test.Transport where
 import qualified Prelude ; undefined = Prelude.undefined
 
+
 -- looping transport system, see "Lindenmayer Loops"
 -- http://www.imn.htwk-leipzig.de/~waldmann/talk/07/ajrw/
 
-main ts = transport_system rs0 ts
+
+
+main ts = transport_system hw1 ts
+test_main = main hw1t
+
 
 -- Geser's system R_2 (slide 24)
 r2 = RS (Cons (Rule (Cons B (Cons A (Cons A Nil)))
                     (Cons A(Cons A (Cons B(Cons B(Cons A Nil)))))) Nil)
 
 -- HofWald1 (slide 22)
-hw1 = RS 
-    (Cons (Rule (Cons C(Cons B Nil)) (Cons B(Cons B(Cons A Nil))))
-    (Cons (Rule (Cons A(Cons B Nil)) (Cons B(Cons C(Cons A Nil))))
-          Nil))
+hw1 = RS (Cons hw_r1 (Cons hw_r2 Nil))
+
+hw_r1 =  (Rule (Cons C(Cons B Nil)) (Cons B(Cons B(Cons A Nil))))
+hw_r2 =  (Rule (Cons A(Cons B Nil)) (Cons B(Cons C(Cons A Nil))))
 
 s11a3n1 = RS
     (Cons (Rule (Cons A Nil) Nil)
@@ -32,6 +37,7 @@ s11a3n15 = RS
 data Move = Move (List Sigma) -- ^ origin (block letter)
                  (List (List Sigma)) -- ^ image (concatenation of block letters)
                  (List Step)  -- ^ origin . pivot ->> pivot . image
+    -- deriving Prelude.Show
 
 -- type Morphism = (List Move)
 
@@ -39,9 +45,39 @@ data Transport = Transport (List Sigma) -- ^ pivot
                            (List Move)  -- ^ morphism
                            (List Sigma) -- ^ start
                            (List Image)
+    -- deriving Prelude.Show
 
 data Image = Image (List (List Sigma)) -- ^  phi^k (start)
                    ( List (List Sigma)) -- ^  start ^ pivot^k
+    -- deriving Prelude.Show
+
+-- transport system for hw1
+
+hw1t :: Transport
+hw1t = Transport (Cons B Nil) 
+                 hw1m
+                 (Cons A Nil)
+                 hw1i
+
+hw1i = -- api 5 hw1m (Cons B Nil)  (Cons A Nil) 
+   Cons (Image (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) Nil)))))))))))))))))))) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) Nil))))))) (Cons (Image (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) Nil)))))))))))) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) Nil)))))) (Cons (Image (Cons (Cons B Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) Nil))))))) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) Nil))))) (Cons (Image (Cons (Cons B Nil) (Cons (Cons A Nil) (Cons (Cons C Nil) (Cons (Cons A Nil) Nil)))) (Cons (Cons A Nil) (Cons (Cons B Nil) (Cons (Cons B Nil) Nil)))) (Cons (Image (Cons (Cons C Nil) (Cons (Cons A Nil) Nil)) (Cons (Cons A Nil) (Cons (Cons B Nil) Nil))) (Cons (Image (Cons (Cons A Nil) Nil) (Cons (Cons A Nil) Nil)) Nil)))))
+
+
+hw1m =                  (Cons (Move (Cons A Nil)
+                             (Cons (Cons C Nil) (Cons (Cons A Nil) Nil))
+                             (Cons (Step Nil hw_r2 Nil  ) Nil ))
+                    (Cons (Move (Cons C Nil)
+                             (Cons (Cons B Nil) (Cons (Cons A Nil) Nil))
+                             (Cons (Step Nil hw_r1 Nil) Nil))
+                      (Cons (Move (Cons B Nil) (Cons (Cons B Nil) Nil) Nil) Nil)))
+
+{-
+api k m p s = if k Prelude.== 0 then Cons (Image (Cons s Nil) (Cons s Nil)) Nil
+   else let c = api (k Prelude.- 1) m p s 
+            Cons i  x = c
+            Image u v = i
+        in  Cons (Image (apply m u) (append v (Cons p Nil))) c
+-}
 
 transport_system r ts = case ts of 
     Transport pivot morphism start images -> 
@@ -132,6 +168,9 @@ rs1 = RS (Cons (Rule (Cons A(Cons B Nil))
                     (Cons B(Cons B (Cons A (Cons A Nil)))) )
           Nil)
 
+
+
+
 e08 = RS 
    (Cons (Rule (Cons A(Cons A(Cons B(Cons B Nil))))
                (Cons B(Cons B(Cons B(Cons A Nil)))))
@@ -195,6 +234,7 @@ g20 = RS
 
 
 data Bool = False | True
+    -- deriving Prelude.Show
 
 or2 x y = case x of
     False -> y
@@ -209,6 +249,7 @@ not x  = case x of
     True -> False
 
 data Sigma = A | B | C
+    -- deriving Prelude.Show
 
 eqSigma x y = case x of
     A -> case y of
@@ -225,6 +266,7 @@ eqSigma x y = case x of
         C -> True
 
 data List a = Nil | Cons a (List a)
+    -- deriving Prelude.Show
 
 null xs = case xs of
     Nil -> True
@@ -233,6 +275,10 @@ null xs = case xs of
 head xs = case xs of
     Nil -> undefined
     Cons x xs -> x
+
+tail xs = case xs of
+    Nil -> undefined
+    Cons x xs -> xs
 
 last xs = case xs of
     Nil -> undefined
@@ -281,6 +327,7 @@ forall xs f = and ( map f xs )
 exists xs f = or  ( map f xs )
 
 data Rule = Rule (List Sigma) (List Sigma)
+    -- deriving Prelude.Show
 
 eqRule u1 u2 = case u1 of
         Rule l1 r1 -> case u2 of
@@ -293,6 +340,7 @@ data RS = RS (List Rule)
 data Step = Step (List Sigma) -- prefix
                  Rule
                  (List Sigma) -- suffix
+    -- deriving Prelude.Show
 
 -- type Derivation = List Step
 
