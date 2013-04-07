@@ -19,7 +19,7 @@ import           CO4
 
 $( [d| 
 
-        main d = looping_derivation g08 d
+        main d = looping_derivation n522 d
 
         -- rewriting system  ab -> bbaa.
         rs = RS (Cons (Rule (Cons A(Cons B (Cons B Nil)))
@@ -49,6 +49,26 @@ $( [d|
                            (Cons A(Cons A(Cons B(Cons A Nil)))))
                      Nil))
 
+        n11 = RS (Cons (Rule (Cons A Nil) Nil)
+                 (Cons (Rule (Cons A Nil) (Cons B Nil))
+                 (Cons (Rule (Cons A (Cons B (Cons C Nil))) 
+                             (Cons C (Cons C (Cons B (Cons A (Cons A Nil))))))
+                 (Cons (Rule (Cons C Nil) Nil)
+                       Nil))))
+
+        n515 = RS
+               (Cons (Rule (Cons A(Cons A(Cons A Nil)))
+                           (Cons B Nil))
+               (Cons (Rule (Cons B(Cons C Nil))
+                           (Cons C (Cons C (Cons A (Cons A (Cons A (Cons A Nil)))))))
+                     Nil))
+
+        n522 = RS (Cons (Rule (Cons A (Cons A (Cons B Nil)))
+                              (Cons A (Cons C (Cons C (Cons A (Cons A (Cons A Nil)))))))
+                  (Cons (Rule (Cons A (Cons C Nil)) (Cons B Nil))
+                        Nil))
+              
+
         data Bool = False | True
 
         or2 x y = case x of
@@ -63,15 +83,21 @@ $( [d|
             False -> True
             True -> False
 
-        data Sigma = A | B
+        data Sigma = A | B | C
 
         eqSigma x y = case x of
             A -> case y of
                 A -> True
                 B -> False
+                C -> False
             B -> case y of
                 A -> False
                 B -> True
+                C -> False
+            C -> case y of
+                A -> False
+                B -> False
+                C -> True
 
         data List a = Nil | Cons a (List a)
 
@@ -113,6 +139,12 @@ $( [d|
                 Cons y ys -> 
                     and2 (eqSigma x y) (prefix xs ys)
 
+        -- this is tricky (can we do it in linear size, as we do for prefix?)
+        suffix xs ys = or2 (eqListSigma xs ys) ( case ys of
+            Nil -> False
+            Cons y ys' -> suffix xs ys' )
+
+
         foldr f z xs = case xs of
             Nil -> z
             Cons x xs -> f x (foldr f z xs)
@@ -142,7 +174,7 @@ $( [d|
         -- type Derivation = List Step
 
         looping_derivation rs d =
-           and2 (break_symmetry d)
+           and2  True -- (break_symmetry d)
             ( and2 (derivation_is_nonempty d)
              ( and2 (derivation_uses_rules rs d)
               (and2 (derivation_is_joinable d)
@@ -158,10 +190,6 @@ $( [d|
                 ( \ s -> step_uses_rules rules s )
 
         derivation_is_nonempty d = not (null d)
-
-        derivation_is_looping d = 
-              factor (left_semantics (head d))
-                   (right_semantics (last d))
 
         derivation_is_joinable d = case d of
             Nil -> True
@@ -183,9 +211,14 @@ $( [d|
             Step p u s -> case u of
                 Rule l r -> append p (append r s)
 
+        derivation_is_looping d = 
+              -- factor (left_semantics (head d)) (right_semantics (last d))
+              suffix (left_semantics (head d)) (right_semantics (last d))
+
         joinable_steps step1 step2 = 
-            eqListSigma (right_semantics step1)
-                        (left_semantics  step2)
+            -- eqListSigma (right_semantics step1) (left_semantics  step2)
+            -- factor (left_semantics  step2) (right_semantics step1) 
+            prefix (left_semantics  step2) (right_semantics step1) 
 
         step_uses_rules rules step = case step of
            Step p u s -> 
@@ -195,7 +228,7 @@ $( [d|
   )
 
 uBool      = constructors [ Just [] , Just [] ]
-uSigma     = constructors [ Just [] , Just [] ]
+uSigma     = constructors [ Just [] , Just [], Just [] ]
 uList 0 _  = constructors [ Just [] , Nothing ]
 uList i a  = constructors [ Just [] , Just [a, uList (i-1) a ] ]
 
@@ -212,19 +245,19 @@ kRule wordLength = known 0 1 [ kList wordLength uSigma
                              ]
 
 uStep  rw w = known 0 1 [ uList w uSigma
+                        , uRule rw
+                        , uList w uSigma
+                        ]
+
+kStep  rw w = known 0 1 [ uList w uSigma
                         , kRule rw
                         , uList w uSigma
                         ]
 
-kStep  rw w = known 0 1 [ kList w uSigma
-                        , kRule rw
-                        , kList w uSigma
-                        ]
-
 allocator rw w l = ( uList l (uStep rw w))
 
-allokator rw w l = ( kList l (kStep rw w))
+allokator rw w l = ( uList l (kStep rw w))
 
-result = solveAndTestBoolean GHC.Types.True (allocator 4 20 20)  encMain main
+result = solveAndTestBoolean GHC.Types.True (allocator 6 20 20)  encMain main
 
 
