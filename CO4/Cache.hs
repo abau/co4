@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# language LambdaCase #-}
+
 module CO4.Cache
   (MonadCache, Cache, runCache, withCache)
 where

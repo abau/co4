@@ -1,4 +1,6 @@
 {-# language FlexibleContexts #-}
+{-# language LambdaCase #-}
+
 module CO4.EncodedAdt
   ( EncodedAdt, IntermediateAdt (..)
   , flags, isUnknown, isUndefined, undefined, encode, caseOf, encodedConsCall

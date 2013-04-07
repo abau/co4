@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# language LambdaCase #-}
+
 module CO4.Compilation
   (compile, stageNames)
 where

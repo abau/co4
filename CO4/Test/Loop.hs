@@ -3,11 +3,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE LambdaCase #-}
 
 module CO4.Test.Loop
 where
 
-import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-))
+import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-),print)
 import           Data.Maybe
 import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
@@ -190,7 +191,7 @@ $( [d|
            Step p u s -> 
                exists rules ( \ v -> eqRule u v )
 
-   |] >>= runIO . configurable [Verbose] . compile 
+   |] >>= runIO . configurable [Verbose, DumpAll "/tmp/Loop" ] . compile 
   )
 
 uBool      = constructors [ Just [] , Just [] ]
@@ -225,3 +226,5 @@ allocator rw w l = ( uList l (uStep rw w))
 allokator rw w l = ( kList l (kStep rw w))
 
 result = solveAndTestBoolean GHC.Types.True (allocator 4 20 20)  encMain main
+
+

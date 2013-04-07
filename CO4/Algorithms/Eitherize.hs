@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# language LambdaCase #-}
+
 module CO4.Algorithms.Eitherize
   (eitherize)
 where
