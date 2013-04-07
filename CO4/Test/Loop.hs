@@ -128,6 +128,12 @@ $( [d|
             Nil -> ys
             Cons x xs -> Cons x (append xs ys)
 
+        reverse xs = rev_app xs Nil
+
+        rev_app xs ys = case xs of
+            Nil -> ys
+            Cons x xs' -> rev_app xs' (Cons x ys)
+
         factor xs ys = or2 (prefix xs ys ) ( case ys of
             Nil -> False
             Cons y ys -> factor xs ys )
@@ -140,9 +146,12 @@ $( [d|
                     and2 (eqSigma x y) (prefix xs ys)
 
         -- this is tricky (can we do it in linear size, as we do for prefix?)
-        suffix xs ys = or2 (eqListSigma xs ys) ( case ys of
+        suffix xs ys = prefix (reverse xs) (reverse ys)
+{-
+        or2 (eqListSigma xs ys) ( case ys of
             Nil -> False
             Cons y ys' -> suffix xs ys' )
+-}
 
 
         foldr f z xs = case xs of
