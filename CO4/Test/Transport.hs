@@ -67,7 +67,9 @@ uImage l k = known 0 1 [ uList l (uWord k), uList l (uWord k) ]
 --                            (List Sigma) -- ^ start
 --                           (List Image)
 
-uTransport rw l k = known 0 1 [ uWord k, uMorph rw k, uWord k, uImage l k ]
+uTransport rw l k = known 0 1 [ uWord k, uMorph rw k, uWord k, uList 6 (uImage l k) ]
 
+allocator = uTransport 5 19 3
 
-result = solveAndTestBoolean GHC.Types.True (uTransport 5 10 3)  encMain main
+result = solveAndTestBoolean GHC.Types.True allocator encMain main
+

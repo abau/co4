@@ -4,7 +4,7 @@
 module CO4.EncodedAdt
   ( EncodedAdt, IntermediateAdt (..)
   , flags, isUnknown, isUndefined, undefined, encode, caseOf, encodedConsCall
-  , constructorArgument, toIntermediateAdt
+  , constructorArgument, toIntermediateAdt, allocates
   )
 where
 
@@ -19,10 +19,9 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive 
   (Primitive,primitive,constant,assert,and,implies,select,antiSelect)
 import           Satchmo.Core.Decode (Decode,decode)
+import qualified Satchmo.Core.Boolean
 import           CO4.Util (replaceAt,equal,for,toBinary,binaries,bitWidth,fromBinary)
 import qualified CO4.Allocator as A
-
---import Debug.Trace
 
 data EncodedAdt p = KConstructor { constructorIndex :: Int
                                  , numConstructors  :: Int
@@ -225,3 +224,65 @@ toIntermediateAdt adt = case adt of
       intermediate i = case constructorArguments i adt of
         Nothing -> IntermediateUndefined
         Just as -> IntermediateConstructorIndex i as
+
+allocates :: Monad m => A.Allocator -> m (EncodedAdt Satchmo.Core.Boolean.Boolean)
+                     -> m ( Maybe ([(Int,Int)],String) )
+allocates _allocator _adt = _adt >>= return . go [] _allocator
+  where 
+    go path allocator adt = case (allocator,adt) of
+      (A.Known i n as, KConstructor i' n' as') 
+        | P.and [ i == i', n == n', length as == length as'] ->
+          if null as 
+          then Nothing 
+          else 
+            foldl (\result (j,a,a') -> case result of
+                      Just r  -> Just r
+                      Nothing -> go (path ++ [(i,j)]) a a'
+                  ) Nothing $ zip3 [0..] as as'
+
+      (A.Known i _ _, KConstructor i' _ _) | i /= i' ->
+        Just (path, unwords [ "Allocator.Known.constructorIndex:", show i, "/="
+                            , "EncodedAdt.KConstructor.constructorIndex:", show i' ])
+
+      (A.Known _ n _, KConstructor _ n' _) | n /= n' ->
+        Just (path, unwords [ "Allocator.Known.numConstructors:", show n, "/="
+                            , "EncodedAdt.KConstructor.numConstructors:", show n' ])
+
+      (A.Known _ _ as, KConstructor _ _ as') | length as /= length as' ->
+        Just (path, unwords [ "Allocator.Known.|arguments|:", show (length as), "/="
+                            , "EncodedAdt.KConstructor.|arguments|:", show (length as') ])
+
+      (A.Known i n as, UAdt _ conss) ->
+        if i < length conss && n == length conss
+        then goConstructor path i (A.AllocateConstructor as) (conss !! i)
+        else Just (path, unwords [ "Allocator.Known", show i, show n
+                                 , "... /= EncodedAdt.UAdt.|constructors|" ])
+
+      (A.Unknown conss, UAdt _ conss') | length conss == length conss' ->
+          if null conss
+          then Nothing 
+          else 
+            foldl (\result (i,c,c') -> case result of
+                      Just r  -> Just r
+                      Nothing -> goConstructor path i c c'
+                  ) Nothing $ zip3 [0..] conss conss'
+
+      (A.Unknown conss, KConstructor i n as) ->
+        if i < length conss && n == length conss
+        then goConstructor path i (conss !! i) (UConstructor as)
+        else Just (path, unwords [ "Allocator.Unknown.|constructors| /=" 
+                                 , "EncodedAdt.KConstructor", show i, show n, "..." ])
+
+    goConstructor path i allocator constructor = case (allocator, constructor) of
+      (A.AllocateBottom, UBottom) -> Nothing
+      (A.AllocateBottom, UConstructor as') -> 
+        Just (path, "Allocator.AllocateBottom /= EncodedAdt.UConstructor")
+      (A.AllocateConstructor {}, UBottom) ->
+        Nothing
+      (A.AllocateConstructor as, UConstructor as') | length as == length as' ->
+        foldl (\result (j,a,a') -> case result of
+                  Just r  -> Just r
+                  Nothing -> go (path ++ [(i,j)]) a a'
+              ) Nothing $ zip3 [0..] as as'
+      (A.AllocateConstructor as, UConstructor as') | length as /= length as' ->
+        Just (path, "Allocator.AllocateConstructor.|arguments| /= EncodedAdt.UConstructor.|arguments|")
