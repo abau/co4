@@ -11,22 +11,12 @@ import           Data.Maybe
 import qualified GHC.Types
 
 import           Language.Haskell.TH (runIO)
-import qualified Language.Haskell.Exts as HE
 
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-
-$( runIO $ do 
-   full_input <- Prelude.readFile "CO4/Test/Transport.standalone.hs" 
-   let -- die ersten Zeilen werden für stand-alone benötigt, stören aber hier:
-       -- "module .. where" benötigt, weil sonst main den falschen Typ hat
-       -- "import qualified Prelude ; undefined = Prelude.undefined"
-       input = Prelude.unlines $ Prelude.drop 2 $ Prelude.lines full_input 
-   case HE.parseModule input of
-       HE.ParseOk p -> configurable [Verbose] $ compile p 
- )
+$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/Transport.standalone.hs" )
 
 uBool      = constructors [ Just [] , Just [] ]
 uSigma     = constructors [ Just [] , Just [], Just [] ]

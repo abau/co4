@@ -1,5 +1,6 @@
 module CO4.Test.Transport where
-import qualified Prelude ; undefined = Prelude.undefined
+import qualified Prelude 
+import           Prelude (undefined)
 
 
 -- looping transport system, see "Lindenmayer Loops"
