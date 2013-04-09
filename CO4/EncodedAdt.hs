@@ -275,7 +275,7 @@ allocates _allocator _adt = _adt >>= return . go [] _allocator
 
     goConstructor path i allocator constructor = case (allocator, constructor) of
       (A.AllocateBottom, UBottom) -> Nothing
-      (A.AllocateBottom, UConstructor as') -> 
+      (A.AllocateBottom, UConstructor _) -> 
         Just (path, "Allocator.AllocateBottom /= EncodedAdt.UConstructor")
       (A.AllocateConstructor {}, UBottom) ->
         Nothing
