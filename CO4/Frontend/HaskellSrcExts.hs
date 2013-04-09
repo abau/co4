@@ -6,16 +6,23 @@ where
 
 import qualified Language.Haskell.Exts as HE
 import qualified Language.Haskell.Meta as HM
+import           Debug.Trace (trace)
 import           CO4.Frontend
 import           CO4.Frontend.TH ()
 
 instance ProgramFrontend HE.Module where
-  parseProgram (HE.Module _ _ [] Nothing _ [] decs) =
-    parseProgram $ HM.toDecs decs
+  parseProgram (HE.Module _ _ [] Nothing _ imports decs) =
+    if null imports then p
+    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be ignored" p
+    where 
+      p = parseProgram $ HM.toDecs decs
 
-  parseProgram _ = error $ "Frontend.HaskellSrcExts.parseProgram: no pragmas, warning texts or import declarations allowed"
+  parseProgram _ = error $ "Frontend.HaskellSrcExts.parseProgram: no pragmas or warning texts allowed"
 
-  parsePreprocessedProgram (HE.Module _ _ [] Nothing _ [] decs) =
-    parsePreprocessedProgram $ HM.toDecs decs
+  parsePreprocessedProgram (HE.Module _ _ [] Nothing _ imports decs) =
+    if null imports then p
+    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be ignored" p
+    where 
+      p = parsePreprocessedProgram $ HM.toDecs decs
 
-  parsePreprocessedProgram _ = error $ "Frontend.HaskellSrcExts.parsePreprocessedProgram: no pragmas, warning texts or import declarations allowed"
+  parsePreprocessedProgram _ = error $ "Frontend.HaskellSrcExts.parsePreprocessedProgram: no pragmas or warning texts allowed"

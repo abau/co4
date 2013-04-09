@@ -2,17 +2,19 @@
 {-# language LambdaCase #-}
 
 module CO4.Compilation
-  (compile, stageNames)
+  (compileFile, compile, stageNames)
 where
 
 import           Control.Monad.Reader 
 import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Quasi)
+import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
 import           CO4.THUtil (unqualifiedNames,deriveShows)
 import           CO4.Util (addDeclarations)
 import           CO4.Frontend
+import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
 import           CO4.Config (MonadConfigurable,Config(..),is)
@@ -48,6 +50,14 @@ stageNames                  = [ stageParsed
                               , stageSatchmo
                               , stageSatchmoUnqualified
                               ]
+
+compileFile :: (MonadConfigurable m, MonadIO m, Quasi m) => FilePath -> m [TH.Dec]
+compileFile filePath = 
+  liftIO (HE.parseFile filePath) >>= \case
+    HE.ParseOk _module     -> compile _module
+    HE.ParseFailed loc msg -> error $ concat 
+                                [ "Compilation.compileFile: can not compile `"
+                                , filePath, "` (", msg, " at ", show loc, ")" ]
 
 compile :: (ProgramFrontend a, MonadConfigurable m, MonadIO m, Quasi m) 
         => a -> m [TH.Dec]
