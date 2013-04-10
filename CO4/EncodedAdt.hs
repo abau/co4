@@ -3,7 +3,7 @@
 
 module CO4.EncodedAdt
   ( EncodedAdt (..), UnknownConstructor (..), IntermediateAdt (..)
-  , isUnknown, isDefined, isUndefined, undefined, caseOf, encodedConsCall
+  , isUnknown, isDefined, isUndefined, undefined, caseOf, encodedConstructor
   , constructorArgument, toIntermediateAdt
   )
 where
@@ -135,8 +135,8 @@ toUnknown i numCons args = Exception.assert (i < numCons) $
     i'                    = toBinary (bitWidth numCons) i 
     containsUndefinedArgs = any (P.not . isDefined) args
 
-encodedConsCall :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
-encodedConsCall i n = Exception.assert (i < n) $ KConstructor i n
+encodedConstructor :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
+encodedConstructor i n = Exception.assert (i < n) $ KConstructor i n
 
 constructorArgument :: Int -> Int -> EncodedAdt p -> EncodedAdt p
 constructorArgument i j = maybe Undefined getArg . constructorArguments j

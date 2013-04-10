@@ -9,7 +9,6 @@ where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
 import           Data.Maybe
-import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -20,11 +19,17 @@ $( [d| data Bool = False | True
        not x = case x of False -> True
                          True  -> False
 
-       main x = not x
+       and x y = case x of
+        False -> False
+        True  -> y
+
+       main p x = and p (not x)
+       --main x = (not x)
 
    |] >>= runIO . configurable [Verbose, DumpAfter "satchmoUnqualified" ""] . compile 
   )
 
 allocator = constructors [ Just [] , Just [] ]
 
-result = solveAndTestBoolean GHC.Types.True allocator encMain main
+result = solveAndTestBooleanP True allocator encMain main 
+--result = solveAndTestBoolean allocator encMain main 

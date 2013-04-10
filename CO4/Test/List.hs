@@ -9,7 +9,6 @@ where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-))
 import           Data.Maybe
-import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -30,7 +29,7 @@ $( [d| data Bool   = False | True
 
        main xs = and xs
 
-   |] >>= runIO . configurable [Verbose] . compile 
+   |] >>= runIO . configurable [Verbose, DumpAfter "satchmoUnqualified" ""] . compile 
   )
 
 uBool      = constructors [ Just [] , Just [] ]
@@ -46,4 +45,4 @@ kList i a  = kCons a (kList (i-1) a)
 allocator1 = uList 3 uBool
 allocator2 = kList 3 uBool
 
-result = solveAndTestBoolean GHC.Types.True allocator2 encMain main
+result = solveAndTestBoolean allocator2 encMain main

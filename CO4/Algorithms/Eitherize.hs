@@ -24,8 +24,9 @@ import           CO4.Backend (displayExpression)
 import           CO4.Backend.TH ()
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
+import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
-  (undefined,isUndefined,encodedConsCall,caseOf,constructorArgument)
+  (undefined,isUndefined,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Cache (withCache)
 import           CO4.Allocator (known)
 
@@ -57,12 +58,15 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
     forM_ (zip [0..] $ dAdtConstructors adt) $ \constructor -> do
       mkAllocator constructor
       mkEncodedConstructor constructor
+
+    mkEncodeableInstance
     mkDecodeInstance
 
     where 
       mkDecodeInstance     = decodeInstance adt >>= tellOne
+      mkEncodeableInstance = encodeableInstance adt >>= tellOne
       mkAllocator          = withConstructor allocatorName   id      'known
-      mkEncodedConstructor = withConstructor encodedConsName returnE 'encodedConsCall
+      mkEncodedConstructor = withConstructor encodedConsName returnE 'encodedConstructor
 
       withConstructor bindTo returnE callThis (i,CCon name args) = do
         paramNames <- forM args $ const $ newName ""

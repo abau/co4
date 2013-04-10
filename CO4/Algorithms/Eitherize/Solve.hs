@@ -1,82 +1,126 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Algorithms.Eitherize.Solve
-   (ConstraintSystem, solveAndTestBoolean, solveAndTestFormula, solve, solveAndTest)
+   ( ConstraintSystem
+   , solveAndTestBoolean, solveAndTestBooleanP
+   , solveAndTestFormula, solveAndTestFormulaP
+   , solveAndTest, solveAndTestP, solve)
 where
 
-import           Control.Monad (when)
 import           System.IO (hFlush,stdout)
 import qualified Satchmo.Core.SAT.Minisat as Backend 
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert)
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
-import           CO4.EncodedAdt (EncodedAdt,flags,isUnknown)
+import           CO4.EncodedAdt (EncodedAdt (..))
 import           CO4.Allocator (Allocator)
 import           CO4.Cache (Cache,runCache)
-import           CO4.Encodeable (encode)
+import           CO4.Encodeable (Encodeable (..))
 
-type ConstraintSystem p = (EncodedAdt p) -> Cache p Backend.SAT (EncodedAdt p)
+type ConstraintSystem      p = (EncodedAdt p) -> Cache p Backend.SAT (EncodedAdt p)
+type ParamConstraintSystem p = (EncodedAdt p) -> ConstraintSystem p
 
 -- | Equals 'solveAndTest'. Uses 'Boolean's for encoding.
 solveAndTestBoolean 
-  :: ( Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
-  => Bool                                           
-  -> Allocator                                      
+  :: (Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
+  => Allocator                                      
   -> ConstraintSystem Boolean
   -> (a -> b)                            
   -> IO ()
 solveAndTestBoolean = solveAndTest
 
+-- | Equals 'solveAndTestP'. Uses 'Boolean's for encoding.
+solveAndTestBooleanP
+  :: (Encodeable k, Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
+  => k
+  -> Allocator                                      
+  -> ParamConstraintSystem Boolean
+  -> (k -> a -> b)                            
+  -> IO ()
+solveAndTestBooleanP = solveAndTestP
+
 -- | Equals 'solveAndTest'. Uses 'Formula's for encoding.
 solveAndTestFormula 
-  :: ( Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
-  => Bool                                           
-  -> Allocator                                      
+  :: (Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
+  => Allocator                                      
   -> ConstraintSystem Formula
   -> (a -> b)                            
   -> IO ()
 solveAndTestFormula = solveAndTest
 
--- |Solves an encoded constraint system
-solve :: ( Primitive p, Show p
-         , Decode Backend.SAT (EncodedAdt p) a) 
-      => Bool                                           -- ^Be verbosely
-      -> Allocator                                      -- ^Allocator
-      -> ConstraintSystem p                             -- ^Encoded constraint system
-      -> IO (Maybe a)
-solve verbose allocator constraint = 
-  Backend.solve verbose $ do 
-    u <- encode allocator
-    {-
-    when verbose $ do Backend.note "Unknown: "
-                      Backend.note $ show u
-                      -}
-    result <- runCache (constraint u)
-
-    case isUnknown result of
-      False -> Backend.note "Known result"
-      True  -> do
-        let assertion = head $ flags result
-        when verbose $ Backend.note $ "Assertion: " ++ (show assertion)
-        assert [ assertion ]
-    return $ decode u 
+-- | Equals 'solveAndTestP'. Uses 'Formula's for encoding.
+solveAndTestFormulaP 
+  :: (Encodeable k, Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
+  => k 
+  -> Allocator                                      
+  -> ParamConstraintSystem Formula
+  -> (k -> a -> b)                            
+  -> IO ()
+solveAndTestFormulaP = solveAndTestP
 
 -- |Solves an encoded constraint system and tests the found solution
 -- against the original constraint system
 solveAndTest :: ( Primitive p, Show p
                 , Decode Backend.SAT (EncodedAdt p) a
                 , Show a, Show b) 
-      => Bool                                           -- ^Be verbosely
-      -> Allocator                                      -- ^Allocator
+      => Allocator                                      -- ^Allocator
       -> ConstraintSystem p                             -- ^Encoded constraint system
       -> (a -> b)                                       -- ^Original constraint system
       -> IO ()
-solveAndTest verbose allocator constraint test = do
-  solution <- solve verbose allocator constraint
+solveAndTest allocator constraint test = do
+  solution <- solve allocator constraint
   case solution of
     Nothing ->    putStrLn "No solution found"
     Just s  -> do putStrLn $ "Solution: " ++ (show s)
                   putStr "Test: "
                   hFlush stdout 
                   putStrLn $ show $ test s
+
+-- |Solves an encoded parametrized constraint system and tests the found solution
+-- against the original constraint system
+solveAndTestP :: ( Encodeable k, Primitive p, Show p
+                 , Decode Backend.SAT (EncodedAdt p) a
+                 , Show a, Show b) 
+      => k                                              -- ^Known parameter
+      -> Allocator                                      -- ^Allocator
+      -> ParamConstraintSystem p                        -- ^Encoded constraint system
+      -> (k -> a -> b)                                  -- ^Original constraint system
+      -> IO ()
+solveAndTestP k allocator constraint test = do
+  solution <- solve allocator $ constraint $ encodeConstant k
+  case solution of
+    Nothing ->    putStrLn "No solution found"
+    Just s  -> do putStrLn $ "Solution: " ++ (show s)
+                  putStr "Test: "
+                  hFlush stdout 
+                  putStrLn $ show $ test k s
+
+-- |Solves an encoded constraint system
+solve :: ( Primitive p, Show p
+         , Decode Backend.SAT (EncodedAdt p) a) 
+      => Allocator                                      -- ^Allocator
+      -> ConstraintSystem p                             -- ^Encoded constraint system
+      -> IO (Maybe a)
+solve allocator constraint = 
+  Backend.solve' True $ do 
+    u <- encode allocator
+    result <- runCache (constraint u)
+
+    case result of
+      KConstructor 0 2 [] -> do 
+        Backend.note "Known result: unsatisfiable"
+        return Nothing
+
+      KConstructor 1 2 [] -> do 
+        Backend.note "Known result: valid"
+        return Nothing
+
+      UAdt [flag] _ -> do
+        Backend.note $ "Assertion: " ++ (show flag)
+        assert [ flag ]
+        return $ Just $ decode u 
+
+      _ -> do 
+        Backend.note "Error: constraint system did not evaluate to a Boolean"
+        return Nothing

@@ -58,6 +58,9 @@ instance Encodeable Allocator where
           then return   UBottom
           else return $ UConstructor args'
 
+  encodeConstant = \case
+    Known i n as -> KConstructor i n $ map encodeConstant as
+
 excludeBottom :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeBottom = go 
   where

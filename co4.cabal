@@ -44,6 +44,7 @@ Library
                     , CO4.Algorithms.UniqueNames
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.Eitherize.DecodeInstance
+                    , CO4.Algorithms.Eitherize.EncodeableInstance
                     , CO4.Algorithms.Eitherize.Solve
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
@@ -63,7 +64,7 @@ Library
                     , syb == 0.3.*
                     , pretty == 1.1.*
                     , parsec == 3.1.*
-                    , satchmo-core == 0.1.*
+                    , satchmo-core == 0.2.*
                     , haskell-src-exts == 1.13.*
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*

@@ -8,7 +8,6 @@ module CO4.Test.Transport where
 import qualified Prelude ; import Prelude (($), (-), (*))
 
 import           Data.Maybe
-import qualified GHC.Types
 
 import           Language.Haskell.TH (runIO)
 
@@ -61,5 +60,5 @@ uTransport rw l k = known 0 1 [ uWord k, uMorph rw k, uWord k, uList 6 (uImage l
 
 allocator = uTransport 5 19 3
 
-result = solveAndTestBoolean GHC.Types.True allocator encMain main
+result = solveAndTestBoolean allocator encMain main
 
