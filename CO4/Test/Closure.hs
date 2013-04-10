@@ -9,7 +9,6 @@ where
 import qualified Prelude ; import Prelude (($), (-))
 
 import           Data.Maybe
-import qualified GHC.Types
 
 import           Language.Haskell.TH (runIO)
 import qualified Language.Haskell.Exts as HE
@@ -61,4 +60,4 @@ uStep w = known 0 1 [ uClosure w, uOverlap w ]
 
 allocator l w = ( uList l (uStep w ))
 
-result = solveAndTestBoolean GHC.Types.True (allocator 10 15 )  encMain main
+result = solveAndTestBoolean (allocator 10 15 )  encMain main

@@ -192,6 +192,6 @@ uStep  rw w = known 0 1 [ uWord w
 
 allocator rw w l = ( uList l (uStep rw w))
 
-result = solveAndTestBoolean GHC.Types.True (allocator 4 10 20)  encMain main
+result = solveAndTestBoolean (allocator 4 10 20)  encMain main
 
 
