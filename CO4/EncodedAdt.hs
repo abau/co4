@@ -1,27 +1,24 @@
-{-# language FlexibleContexts #-}
-{-# language LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 
 module CO4.EncodedAdt
-  ( EncodedAdt, IntermediateAdt (..)
-  , flags, isUnknown, isUndefined, undefined, encode, caseOf, encodedConsCall
-  , constructorArgument, toIntermediateAdt, allocates
+  ( EncodedAdt (..), UnknownConstructor (..), IntermediateAdt (..)
+  , isUnknown, isDefined, isUndefined, undefined, caseOf, encodedConsCall
+  , constructorArgument, toIntermediateAdt
   )
 where
 
 import           Prelude hiding (not,or,and,undefined)
 import qualified Prelude as P
-import           Control.Monad (liftM,forM,forM_,zipWithM)
+import           Control.Monad (liftM,forM,zipWithM)
 import qualified Control.Exception as Exception 
 import           Data.List (transpose)
 import           Data.Maybe (catMaybes,fromMaybe)
 import           Data.Tree
 import           Satchmo.Core.MonadSAT (MonadSAT)
-import           Satchmo.Core.Primitive 
-  (Primitive,primitive,constant,assert,and,implies,select,antiSelect)
+import           Satchmo.Core.Primitive (Primitive,constant,and,implies,select)
 import           Satchmo.Core.Decode (Decode,decode)
-import qualified Satchmo.Core.Boolean
 import           CO4.Util (replaceAt,equal,for,toBinary,binaries,bitWidth,fromBinary)
-import qualified CO4.Allocator as A
 
 data EncodedAdt p = KConstructor { constructorIndex :: Int
                                  , numConstructors  :: Int
@@ -66,58 +63,6 @@ isBottom = \case UBottom -> True
 
 undefined :: EncodedAdt p
 undefined = Undefined
-
-encode :: (MonadSAT m, Primitive p) => A.Allocator -> m (EncodedAdt p)
-encode = \case
-  A.Known i n as -> liftM (KConstructor i n) $ mapM encode as
-  A.Unknown [allocCons] -> encodeConstructor allocCons >>= \case
-    UBottom           -> return Undefined
-    UConstructor args -> return $ KConstructor 0 1 args
-
-  A.Unknown allocConss -> do
-    flags <- sequence $ replicate (bitWidth $ length allocConss) primitive
-    cons  <- mapM encodeConstructor allocConss
-    let uAdt = UAdt flags cons
-    excludeBottom uAdt
-    excludeInvalidConstructorPatterns uAdt
-    return uAdt
-  where
-    encodeConstructor A.AllocateBottom             = return UBottom
-    encodeConstructor (A.AllocateConstructor args) = do
-      args' <- mapM encode args
-      if any (P.not . isDefined) args'
-        then return   UBottom
-        else return $ UConstructor args'
-
-excludeBottom :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
-excludeBottom = go 
-  where
-    go (KConstructor _ _ args) = forM_ args go
-    go (UAdt flags conss)      = forM_ (zip [0..] conss) $ uncurry 
-                                                         $ goConstructor flags 
-    goConstructor _ _     (UConstructor args) = forM_ args go 
-    goConstructor flags i  UBottom            = 
-      let pattern = toBinary (length flags) i
-      in
-        excludePattern flags pattern
-
-excludeInvalidConstructorPatterns :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
-excludeInvalidConstructorPatterns = go
-  where
-    go (KConstructor _ _ args) = forM_ args go
-    go (UAdt flags conss)      = do
-      forM_ nonConstructorPatterns $ excludePattern flags 
-      forM_ conss goConstructor 
-
-      where
-        nonConstructorPatterns = drop (length conss) $ binaries $ length flags 
-
-    goConstructor (UConstructor args) = forM_ args go
-    goConstructor  UBottom            = return ()
-
-excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
-excludePattern flags pattern = Exception.assert (length flags == length pattern)
-                             $ assert $ zipWith antiSelect pattern flags 
 
 caseOf :: (MonadSAT m, Primitive p) => EncodedAdt p -> [EncodedAdt p] -> m (EncodedAdt p)
 caseOf adt branches = case adt of
@@ -224,65 +169,3 @@ toIntermediateAdt adt = case adt of
       intermediate i = case constructorArguments i adt of
         Nothing -> IntermediateUndefined
         Just as -> IntermediateConstructorIndex i as
-
-allocates :: Monad m => A.Allocator -> m (EncodedAdt Satchmo.Core.Boolean.Boolean)
-                     -> m ( Maybe ([(Int,Int)],String) )
-allocates _allocator _adt = _adt >>= return . go [] _allocator
-  where 
-    go path allocator adt = case (allocator,adt) of
-      (A.Known i n as, KConstructor i' n' as') 
-        | P.and [ i == i', n == n', length as == length as'] ->
-          if null as 
-          then Nothing 
-          else 
-            foldl (\result (j,a,a') -> case result of
-                      Just r  -> Just r
-                      Nothing -> go (path ++ [(i,j)]) a a'
-                  ) Nothing $ zip3 [0..] as as'
-
-      (A.Known i _ _, KConstructor i' _ _) | i /= i' ->
-        Just (path, unwords [ "Allocator.Known.constructorIndex:", show i, "/="
-                            , "EncodedAdt.KConstructor.constructorIndex:", show i' ])
-
-      (A.Known _ n _, KConstructor _ n' _) | n /= n' ->
-        Just (path, unwords [ "Allocator.Known.numConstructors:", show n, "/="
-                            , "EncodedAdt.KConstructor.numConstructors:", show n' ])
-
-      (A.Known _ _ as, KConstructor _ _ as') | length as /= length as' ->
-        Just (path, unwords [ "Allocator.Known.|arguments|:", show (length as), "/="
-                            , "EncodedAdt.KConstructor.|arguments|:", show (length as') ])
-
-      (A.Known i n as, UAdt _ conss) ->
-        if i < length conss && n == length conss
-        then goConstructor path i (A.AllocateConstructor as) (conss !! i)
-        else Just (path, unwords [ "Allocator.Known", show i, show n
-                                 , "... /= EncodedAdt.UAdt.|constructors|" ])
-
-      (A.Unknown conss, UAdt _ conss') | length conss == length conss' ->
-          if null conss
-          then Nothing 
-          else 
-            foldl (\result (i,c,c') -> case result of
-                      Just r  -> Just r
-                      Nothing -> goConstructor path i c c'
-                  ) Nothing $ zip3 [0..] conss conss'
-
-      (A.Unknown conss, KConstructor i n as) ->
-        if i < length conss && n == length conss
-        then goConstructor path i (conss !! i) (UConstructor as)
-        else Just (path, unwords [ "Allocator.Unknown.|constructors| /=" 
-                                 , "EncodedAdt.KConstructor", show i, show n, "..." ])
-
-    goConstructor path i allocator constructor = case (allocator, constructor) of
-      (A.AllocateBottom, UBottom) -> Nothing
-      (A.AllocateBottom, UConstructor _) -> 
-        Just (path, "Allocator.AllocateBottom /= EncodedAdt.UConstructor")
-      (A.AllocateConstructor {}, UBottom) ->
-        Nothing
-      (A.AllocateConstructor as, UConstructor as') | length as == length as' ->
-        foldl (\result (j,a,a') -> case result of
-                  Just r  -> Just r
-                  Nothing -> go (path ++ [(i,j)]) a a'
-              ) Nothing $ zip3 [0..] as as'
-      (A.AllocateConstructor as, UConstructor as') | length as /= length as' ->
-        Just (path, "Allocator.AllocateConstructor.|arguments| /= EncodedAdt.UConstructor.|arguments|")

@@ -27,6 +27,7 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.EncodedAdt 
   (undefined,isUndefined,encodedConsCall,caseOf,constructorArgument)
 import           CO4.Cache (withCache)
+import           CO4.Allocator (known)
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -41,6 +42,9 @@ encodedConsName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons")
 encodedName :: Namelike a => a -> a
 encodedName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns)) 
 
+allocatorName :: Namelike a => a -> a
+allocatorName = mapName (\(n:ns) -> "alloc" ++ (toUpper n : ns)) 
+
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
   deriving (Monad, MonadWriter [TH.Dec], MonadUnique)
@@ -50,28 +54,27 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
   collectAdt (DAdt name [] _) | noEitherize name = return ()
 
   collectAdt adt = do
-    forM_ (zip [0..] $ dAdtConstructors adt) mkEncodedConstructor
+    forM_ (zip [0..] $ dAdtConstructors adt) $ \constructor -> do
+      mkAllocator constructor
+      mkEncodedConstructor constructor
     mkDecodeInstance
 
     where 
-      mkDecodeInstance = decodeInstance adt >>= tellOne
+      mkDecodeInstance     = decodeInstance adt >>= tellOne
+      mkAllocator          = withConstructor allocatorName   id      'known
+      mkEncodedConstructor = withConstructor encodedConsName returnE 'encodedConsCall
 
-      mkEncodedConstructor (i,CCon name []) = 
-        let exp = returnE $ appsE (TH.VarE 'encodedConsCall) 
-                                  [ intE i
-                                  , intE $ length $ dAdtConstructors adt
-                                  , TH.ListE [] ]
-        in
-          tellOne $ valD' (encodedConsName name) exp
-
-      mkEncodedConstructor (i,CCon name args) = do
+      withConstructor bindTo returnE callThis (i,CCon name args) = do
         paramNames <- forM args $ const $ newName ""
 
-        let exp = returnE $ appsE (TH.VarE 'encodedConsCall) 
-                                  [ intE i
-                                  , intE $ length $ dAdtConstructors adt
-                                  , TH.ListE $ map varE paramNames ]
-        tellOne $ valD' (encodedConsName name) $ lamE' paramNames exp
+        let exp = returnE $ appsE (TH.VarE callThis) 
+                      [ intE i
+                      , intE $ length $ dAdtConstructors adt
+                      , TH.ListE $ map varE paramNames ]
+        tellOne $ valD' (bindTo name) 
+                $ if null args 
+                  then exp
+                  else lamE' paramNames exp
 
       tellOne x    = tell [x]
 

@@ -4,7 +4,6 @@ module CO4
   , prelude
   , module CO4.Algorithms.Eitherize.Solve
   , module CO4.Allocator
-  , allocates
   ) 
 where
 
@@ -16,4 +15,3 @@ import           CO4.Config (Config (..),Configs,configurable)
 import           CO4.Prelude (prelude)
 import           CO4.Algorithms.Eitherize.Solve 
 import           CO4.Allocator
-import           CO4.EncodedAdt (allocates)

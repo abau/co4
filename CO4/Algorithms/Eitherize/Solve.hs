@@ -11,9 +11,10 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert)
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
-import           CO4.EncodedAdt (EncodedAdt,encode,flags,isUnknown)
+import           CO4.EncodedAdt (EncodedAdt,flags,isUnknown)
 import           CO4.Allocator (Allocator)
 import           CO4.Cache (Cache,runCache)
+import           CO4.Encodeable (encode)
 
 type ConstraintSystem p = (EncodedAdt p) -> Cache p Backend.SAT (EncodedAdt p)
 
