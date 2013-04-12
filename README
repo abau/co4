@@ -1,9 +1,0 @@
-CO4 - complexity concerned constraint compiler
-
-1. Building
-
-> cabal install
-
-2. Running
-
-See examples in CO4/Test/: start with CO4/Test/Simple.hs.
