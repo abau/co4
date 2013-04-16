@@ -4,7 +4,7 @@
 {-# language LambdaCase #-}
 
 module CO4.Cache
-  (MonadCache, Cache, runCache, withCache)
+  (MonadCache (..), Cache, runCache, withCache)
 where
 
 import           Control.Monad.State
@@ -19,7 +19,7 @@ class Monad m => MonadCache p m where
 type CacheMap p = M.Map (String,[EncodedAdt p]) (EncodedAdt p)
 
 newtype Cache p m a = Cache { fromCache :: StateT (CacheMap p) m a }
-  deriving (Monad, MonadState (CacheMap p), MonadTrans)
+  deriving (Monad, MonadState (CacheMap p), MonadTrans, MonadIO)
 
 instance (Monad m, Ord p) => MonadCache p (Cache p m) where
   retrieve fun args        = gets   $ M.lookup (fun,args)

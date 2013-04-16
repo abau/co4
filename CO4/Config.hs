@@ -24,6 +24,7 @@ data Config  = Verbose
              | KeepTmp
              | UndefinedSize String
              | MakeFormula
+             | Profiling
              deriving (Eq,Show)
 
 type Configs      = [Config]

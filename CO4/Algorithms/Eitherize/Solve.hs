@@ -17,8 +17,11 @@ import           CO4.EncodedAdt (EncodedAdt (..))
 import           CO4.Allocator (Allocator)
 import           CO4.Cache (Cache,runCache)
 import           CO4.Encodeable (Encodeable (..))
+import           CO4.Profiling (SimpleProfiling, simpleProfiling)
 
-type ConstraintSystem      p = (EncodedAdt p) -> Cache p Backend.SAT (EncodedAdt p)
+type ConstraintSystem p = (EncodedAdt p) 
+                       -> SimpleProfiling (Cache p Backend.SAT) (EncodedAdt p)
+
 type ParamConstraintSystem p = (EncodedAdt p) -> ConstraintSystem p
 
 -- | Equals 'solveAndTest'. Uses 'Boolean's for encoding.
@@ -105,7 +108,7 @@ solve :: ( Primitive p, Show p
 solve allocator constraint = 
   Backend.solve' True $ do 
     u <- encode allocator
-    result <- runCache (constraint u)
+    result <- runCache $ simpleProfiling (constraint u)
 
     case result of
       KConstructor 0 2 [] -> do 

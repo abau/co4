@@ -29,6 +29,7 @@ import           CO4.EncodedAdt
   (undefined,isUndefined,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Cache (withCache)
 import           CO4.Allocator (known)
+import           CO4.Profiling (traced)
 
 noEitherize :: Namelike a => a -> Bool
 noEitherize a = "Param" `isPrefixOf` (fromName a)
@@ -83,13 +84,17 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
       tellOne x    = tell [x]
 
 type ToplevelName = Name
+data ExpInstantiatorData = ExpInstantiatorData 
+  { toplevelNames :: [ToplevelName]
+  , profiling     :: Bool
+  }
 
 newtype ExpInstantiator u a = ExpInstantiator 
-  { runExpInstantiator :: ReaderT [ToplevelName] u a } 
-  deriving (Monad, MonadUnique, MonadReader [ToplevelName])
+  { runExpInstantiator :: ReaderT ExpInstantiatorData u a } 
+  deriving (Monad, MonadUnique, MonadReader ExpInstantiatorData)
 
 isToplevelName :: Monad u => ToplevelName -> ExpInstantiator u Bool
-isToplevelName = asks . elem 
+isToplevelName name = asks $ elem name . toplevelNames
 
 instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
   
@@ -180,21 +185,28 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
         return $ bindS' name' value'
 
   instantiateBind (DBind (Binding name exp)) = do
-    name' <- instantiateName name
-    exp'  <- instantiate exp
-    return [valD' name' exp']
+    name'        <- instantiateName name
+    exp'         <- instantiate exp
+    profiledExp' <- asks profiling >>= return . \case 
+      False -> exp'
+      True  -> case exp' of
+        TH.LamE patterns exp'' -> TH.LamE patterns 
+                                $ appsE (TH.VarE 'traced) [ stringE name, exp'' ]
+        _                      -> appsE (TH.VarE 'traced) [ stringE name, exp' ]
+    return [ valD' name' profiledExp' ]
 
--- |Passed program must be first order.
--- Note that @eitherize@ produces a Template-Haskell program
-eitherize :: MonadUnique u => Program -> u [TH.Dec]
-eitherize program = do
+-- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
+-- @prof@ enables profiling.
+eitherize :: MonadUnique u => Bool -> Program -> u [TH.Dec]
+eitherize profiling program = do
   typedProgram <- schemes program
   let (adts,values) = splitDeclarations typedProgram 
       toplevelNames = map boundName $ programToplevelBindings typedProgram
 
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
-  values' <- liftM concat $ runReaderT (runExpInstantiator $ instantiate values)
-                                       toplevelNames
+  values' <- liftM concat $ runReaderT 
+                (runExpInstantiator $ instantiate $ map DBind values)
+                (ExpInstantiatorData toplevelNames profiling)
                          
   return $ decls ++ (deleteSignatures values')
 
