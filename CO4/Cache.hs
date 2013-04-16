@@ -26,9 +26,11 @@ instance (Monad m, Ord p) => MonadCache p (Cache p m) where
   cache    fun args result = modify $ M.insert (fun,args) result
 
 instance (MonadSAT m) => MonadSAT (Cache p m) where
-  fresh = lift fresh
-  emit  = lift . emit
-  note  = lift . note
+  fresh        = lift fresh
+  emit         = lift . emit
+  note         = lift . note
+  numVariables = lift numVariables
+  numClauses   = lift numClauses
 
 runCache :: (Monad m) => Cache p m a -> m a
 runCache c = evalStateT (fromCache c) M.empty
