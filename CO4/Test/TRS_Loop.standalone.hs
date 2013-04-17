@@ -1,7 +1,9 @@
 module TRS_Loop where
 
 import qualified Prelude
+import           Prelude (undefined)
 
+main :: Looping_Derivation -> Bool
 main ld = looping_derivation_ok nonTermF ld
 
 -- http://termcomp.uibk.ac.at/termcomp/tpdb/tpviewer.seam?tpId=54227&cid=3363
@@ -33,84 +35,238 @@ data Bool = False | True
 type Position = List Bool -- False = links, ..
 
 data Pair a b = Pair a b
+
+fst :: Pair a b -> a
+fst p = case p of Pair a _ -> a
+
+snd :: Pair a b -> b
+snd p = case p of Pair _ b -> b
+
 type Substitution = List (Pair Name Term)
 
-data Step = Step Term Rule Position Substitution Term
+domain :: Substitution -> List Name
+domain = map fst
+
+--data Step = Step Term Rule Position Substitution Term
+data Step = Step Term Rule (List Bool) (List (Pair Name Term)) Term
+
+stepInput :: Step -> Term
+stepInput step = case step of Step t _ _ _ _ -> t
+
+stepResult :: Step -> Term
+stepResult step = case step of Step _ _ _ _ t -> t
 
 -- substitution auf term anwenden.
 -- dabei soll JEDE variable im term auch
 -- ersetzt werden 
 apply :: Term -> Substitution -> Term
-apply = Prelude.undefined
+apply = foldr apply'
+  where
+    apply' pair term = case pair of
+      Pair name term' -> replaceName term name term'
+
+replaceName :: Term -> Name -> Term -> Term
+replaceName term name term' = case term of
+  V n    -> case equalName n name of
+              False -> term
+              True  -> term'
+  Ap a b -> Ap (replaceName a name term') (replaceName b name term')
+  F      -> F
+  C      -> C
+  N      -> N
+  Foldr  -> Foldr
 
 data Maybe a = Nothing | Just a
 
 get :: Term -> Position -> Term
-get = Prelude.undefined
+get term pos = case pos of
+  Nil -> term
+  Cons p pos' -> case term of
+    V _     -> undefined
+    Ap a b -> case p of False -> get a pos'
+                        True  -> get b pos'
+    F       -> undefined
+    C       -> undefined
+    N       -> undefined
+    Foldr   -> undefined
 
 put :: Term -> Position -> Term -> Term
-put = Prelude.undefined
-
+put term pos term' = case pos of
+  Nil -> term'
+  Cons p pos' -> 
+    case term of
+      V _     -> undefined
+      Ap a b -> case p of False -> Ap (put a pos' term') b
+                          True  -> Ap a (put b pos' term')
+      F       -> undefined
+      C       -> undefined
+      N       -> undefined
+      Foldr   -> undefined
+  
 step_ok :: TRS -> Step -> Bool
 step_ok trs s = case s of
   Step t0 rule pos sub t1 -> 
-    and2 (elemRule rule trs) 
+    and2 (elem equalRule rule trs) 
      (case rule of
         Rule vars lhs rhs -> 
-            -- domain sub == vars  ??
-         and2 
-           ( equalTerm (get t0 pos) (apply lhs sub))
-           (equalTerm (put t0 pos (apply rhs sub)) t1))
+         and (Cons (equalList equalName (domain sub) vars)
+             (Cons (equalTerm (get t0 pos) (apply lhs sub))
+             (Cons (equalTerm (put t0 pos  (apply rhs sub)) t1)
+             Nil))))
 
 type Derivation = List Step
 
 derivation_ok :: TRS -> Derivation -> Bool
-derivation_ok = Prelude.undefined
+derivation_ok trs steps = snd ( foldr derive_ok (Pair Nothing True) steps )
+  where 
+    derive_ok step state = case state of
+      Pair previous isOk ->
+        case previous of 
+          Nothing -> Pair (Just step)       (step_ok trs step)
+          Just p  -> Pair (Just step) (and2 (step_ok trs step)
+                                            (match p step))
 
-data Looping_Derivation = 
-   Looping_Derivation Derivation Position Substitution
+    match a b = equalTerm (stepResult a) (stepInput b)
+
+
+--data Looping_Derivation = Looping_Derivation Derivation Position Substitution
+data Looping_Derivation = Looping_Derivation (List Step) 
+                                             (List Bool) 
+                                             (List (Pair Name Term))
+
+looping_derivation_ok :: TRS -> Looping_Derivation -> Bool
 looping_derivation_ok trs ld = case ld of
     Looping_Derivation der pos sub ->
         and2 (derivation_ok trs der)
-            (equalTerm (get (last der) pos)
-                       (apply (head der) sub))
+            (equalTerm (get   (stepResult (last der)) pos)
+                       (apply (stepInput  (head der)) sub))
 
+equalRule :: Rule -> Rule -> Bool
+equalRule x y = case x of
+  Rule xNames xLhs xRhs -> case y of 
+    Rule yNames yLhs yRhs -> 
+      and (Cons (equalList equalName xNames yNames)
+          (Cons (equalTerm xLhs yLhs)
+          (Cons (equalTerm xRhs yRhs)
+          Nil)))
+
+equalList :: (a -> a -> Bool) -> List a -> List a -> Bool
+equalList eq xs ys = and2 (all (\n -> elem eq n ys) xs)
+                          (all (\n -> elem eq n xs) ys)
+    
+elem :: (a -> a -> Bool) -> a -> List a -> Bool
+elem eq x xs = case xs of
+  Nil       -> False
+  Cons y ys -> or2 (eq x y) (elem eq x ys)
 
 equalTerm :: Term -> Term -> Bool
-equalTerm = Prelude.undefined
+equalTerm x y = case x of
+  V nX -> 
+    case y of V nY     -> equalName nX nY
+              Ap _ _   -> False
+              F        -> False
+              C        -> False
+              N        -> False
+              Foldr    -> False
+  Ap aX bX ->
+    case y of V _      -> False
+              Ap aY bY -> and2 (equalTerm aX aY) (equalTerm bX bY)
+              F        -> False
+              C        -> False
+              N        -> False
+              Foldr    -> False
+  F ->
+    case y of V _      -> False
+              Ap _ _   -> False
+              F        -> True
+              C        -> False
+              N        -> False
+              Foldr    -> False
+  C ->
+    case y of V _      -> False
+              Ap _ _   -> False
+              F        -> False
+              C        -> True
+              N        -> False
+              Foldr    -> False
+  N ->
+    case y of V _      -> False
+              Ap _ _   -> False
+              F        -> False
+              C        -> False
+              N        -> True
+              Foldr    -> False
+  Foldr ->
+    case y of V _      -> False
+              Ap _ _   -> False
+              F        -> False
+              C        -> False
+              N        -> False
+              Foldr    -> True
 
-elemRule :: Rule -> List Rule -> Bool
-elemRule = Prelude.undefined
+equalName :: Name -> Name -> Bool
+equalName x y = case x of 
+  X -> 
+    case y of X  -> True
+              XS -> False
+              G  -> False
+              H  -> False
+  XS -> 
+    case y of X  -> False
+              XS -> True
+              G  -> False
+              H  -> False
+  G -> 
+    case y of X  -> False
+              XS -> False
+              G  -> True
+              H  -> False
+  H -> 
+    case y of X  -> False
+              XS -> False
+              G  -> False
+              H  -> True
 
+all :: (a -> Bool) -> List a -> Bool
+all f xs = and (map f xs)
 
+and :: List Bool -> Bool
+and xs = foldr and2 True xs
 
+foldr :: (a -> b -> b) -> b -> List a -> b
+foldr f z xs = case xs of
+    Nil -> z
+    Cons x xs -> f x (foldr f z xs)
 
+map :: (a -> b) -> List a -> List b
+map f xs = foldr ( \ x y -> Cons (f x) y ) Nil xs
 
-
-
+or2 :: Bool -> Bool -> Bool
 or2 x y = case x of
     False -> y
     True  -> x
 
+and2 :: Bool -> Bool -> Bool
 and2 x y = case x of
     False -> x
     True  -> y
 
+not :: Bool -> Bool 
 not x  = case x of
     False -> True
     True -> False
 
-
-
-
+null :: List a -> Bool
 null xs = case xs of
     Nil -> True
     Cons x xs -> False
 
+head :: List a -> a
 head xs = case xs of
     Nil -> undefined
     Cons x xs -> x
 
+last :: List a -> a
 last xs = case xs of
     Nil -> undefined
     Cons x xs -> case xs of
