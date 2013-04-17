@@ -32,7 +32,6 @@ stageParsed                 = "parsed"
 stageUniqueLocalNames       = "uniqueLocalNames"
 stageTypeInference          = "typeInference"
 stageEtaExpansion           = "etaExpansion"
-stageCloseLocalAbstractions = "closeLocalAbstractions"
 stageGlobalize              = "globalize"
 stageSaturateApplication    = "saturateApplication"
 stageInstantiation          = "instantiation"
@@ -43,7 +42,6 @@ stageNames                  = [ stageParsed
                               , stageUniqueLocalNames
                               , stageTypeInference
                               , stageEtaExpansion
-                              , stageCloseLocalAbstractions
                               , stageGlobalize
                               , stageSaturateApplication
                               , stageInstantiation
