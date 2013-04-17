@@ -10,7 +10,6 @@ where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-),print)
 import           Data.Maybe
-import qualified GHC.Types
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -233,7 +232,7 @@ $( [d|
            Step p u s -> 
                exists rules ( \ v -> eqRule u v )
 
-   |] >>= runIO . configurable [Verbose, DumpAll "/tmp/Loop" ] . compile 
+   |] >>= runIO . configurable [Verbose, Profiling, DumpAll "/tmp/Loop" ] . compile 
   )
 
 uBool      = constructors [ Just [] , Just [] ]
@@ -267,6 +266,6 @@ allocator rw w l = ( uList l (uStep rw w))
 
 allokator rw w l = ( uList l (kStep rw w))
 
-result = solveAndTestBoolean GHC.Types.True (allocator 6 20 20)  encMain main
+result = solveAndTestBoolean (allocator 6 20 20)  encMain main
 
 
