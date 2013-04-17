@@ -14,7 +14,8 @@ import           CO4.Unique (MonadUnique,newName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
 import           CO4.Algorithms.Free (free)
-import           CO4.Algorithms.Util (eraseTypedNames,eraseTLamTApp,collapseApplications)
+import           CO4.Algorithms.Util 
+  (eraseTypedNames,eraseTLamTApp,collapseApplications,collapseAbstractions)
 import           CO4.TypesUtil
 import           CO4.Names
 
@@ -162,7 +163,8 @@ instantiation maxDepth program = do
                           initState
   return $ eraseTLamTApp
          $ eraseTypedNames
-         $ collapseApplications -- TODO: really?
+         $ collapseApplications 
+         $ collapseAbstractions
          $ programFromDeclarations (mainName program) 
          $ p' ++ (map DBind $ instances state)
    
