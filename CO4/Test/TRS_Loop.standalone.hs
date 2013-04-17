@@ -117,7 +117,8 @@ step_ok trs s = case s of
 type Derivation = List Step
 
 derivation_ok :: TRS -> Derivation -> Bool
-derivation_ok trs steps = snd ( foldr derive_ok (Pair Nothing True) steps )
+derivation_ok trs steps = and2 ( snd ( foldr derive_ok (Pair Nothing True) steps ) )
+                               ( not ( null steps ) )
   where 
     derive_ok step state = case state of
       Pair previous isOk ->
