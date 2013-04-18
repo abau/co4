@@ -4,7 +4,9 @@ import qualified Prelude
 import           Prelude (undefined)
 
 main :: Looping_Derivation -> Bool
-main ld = looping_derivation_ok nonTermF ld
+--main ld = looping_derivation_ok toyama ld
+--main ld = looping_derivation_ok nonTermF ld
+main ld = looping_derivation_ok simple ld
 
 -- http://termcomp.uibk.ac.at/termcomp/tpdb/tpviewer.seam?tpId=54227&cid=3363
 data Term = V Name | Ap Term Term | F | C | N | Foldr
@@ -18,6 +20,7 @@ data Rule = Rule ( List Name ) -- variables
                  Term -- rhs
 
 type TRS = List Rule
+
 nonTermF :: TRS
 nonTermF = 
     Cons ( Rule (Cons X Nil)
@@ -31,7 +34,47 @@ nonTermF =
                (Ap(Ap(V G)(V X))(Ap(Ap(Ap(Foldr)(V G))(V H))(V XS))))
          Nil))
 
+toyamaRule1 =
+  let x = X; f = F; a = C; b = N
+  in
+    Rule (Cons x Nil) (Ap (Ap (Ap f a) b) (V x)) 
+                      (Ap (Ap (Ap f (V x)) (V x)) (V x))
+
+toyamaRule2 = 
+  let x = X; y = XS; g = Foldr
+  in
+   Rule (Cons x (Cons y Nil)) (Ap (Ap g (V x)) (V y)) (V x)
+
+toyamaRule3 = 
+  let x = X; y = XS; g = Foldr
+  in
+   Rule (Cons x (Cons y Nil)) (Ap (Ap g (V x)) (V y)) (V y)
+
+toyama :: TRS
+toyama = Cons toyamaRule1 (Cons toyamaRule2 (Cons toyamaRule3 Nil))
+		
+simpleRule1 = Rule (Cons X Nil) (Ap F (V X)) (Ap C (V X))
+simpleRule2 = Rule (Cons X Nil) (Ap C (V X)) (Ap F (V X))
+
+simple :: TRS
+simple = Cons simpleRule1 (Cons simpleRule2 Nil)
+
+simpleSolution :: Looping_Derivation
+simpleSolution = 
+  let step1 = Step (Ap F (V X)) simpleRule1 Nil Nil (Ap C (V X))
+      step2 = Step (Ap C (V X)) simpleRule2 Nil Nil (Ap F (V X))
+  in
+    Looping_Derivation (Cons step1 (Cons step2 Nil))
+                       Nil
+                       Nil
+
+noSimpleSolution = Looping_Derivation 
+  (Cons (Step (Ap C (V X)) (Rule (Cons X Nil) (Ap C (V X)) (Ap F (V X))) Nil Nil (Ap F (V X)))
+  (Cons (Step N (Rule Nil N (V X)) Nil Nil (Ap C (V X))) Nil)) 
+  Nil Nil
+
 data Bool = False | True
+  --deriving Prelude.Show
 type Position = List Bool -- False = links, ..
 
 data Pair a b = Pair a b
@@ -102,14 +145,17 @@ put term pos term' = case pos of
       C       -> undefined
       N       -> undefined
       Foldr   -> undefined
+
+rule_ok :: TRS -> Rule -> Bool
+rule_ok trs rule = elem equalRule rule trs
   
 step_ok :: TRS -> Step -> Bool
 step_ok trs s = case s of
   Step t0 rule pos sub t1 -> 
-    and2 (elem equalRule rule trs) 
+    and2 (rule_ok trs rule)
      (case rule of
         Rule vars lhs rhs -> 
-         and (Cons (equalList equalName (domain sub) vars)
+         and ( -- Cons (equalList equalName (domain sub) vars)
              (Cons (equalTerm (get t0 pos) (apply lhs sub))
              (Cons (equalTerm (put t0 pos  (apply rhs sub)) t1)
              Nil))))
@@ -124,8 +170,10 @@ derivation_ok trs steps = and2 ( snd ( foldr derive_ok (Pair Nothing True) steps
       Pair previous isOk ->
         case previous of 
           Nothing -> Pair (Just step)       (step_ok trs step)
-          Just p  -> Pair (Just step) (and2 (step_ok trs step)
-                                            (match p step))
+          Just p  -> Pair (Just step) (and (Cons (step_ok trs step)
+                                           (Cons (match p step)
+                                           (Cons isOk Nil)))
+                                      )
 
     match a b = equalTerm (stepResult a) (stepInput b)
 
