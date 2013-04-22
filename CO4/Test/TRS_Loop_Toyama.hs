@@ -26,7 +26,7 @@ uName = constructors [ M.Just [], M.Just [] ]
 
 uTerm 0 = constructors [ M.Just [ uName ]
                        , M.Nothing
-                       , M.Nothing
+                       , M.Just []
                        , M.Just []
                        , M.Just []
                        ]
@@ -34,7 +34,7 @@ uTerm 0 = constructors [ M.Just [ uName ]
 uTerm depth = constructors 
   [ M.Just [ uName ]
   , M.Just [ uTerm (depth - 1), uTerm (depth - 1), uTerm (depth - 1) ]
-  , M.Just [ uTerm (depth - 1), uTerm (depth - 1) ]
+  , M.Just []
   , M.Just []
   , M.Just []
   ]
