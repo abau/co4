@@ -7,8 +7,11 @@ import           Prelude (undefined)
 main :: Looping_Derivation -> Bool
 main ld = looping_derivation_ok toyama ld
 
+--main :: Derivation -> Bool
+--main d = derivation_ok toyama d
+
 -- http://termcomp.uibk.ac.at/termcomp/tpdb/tpviewer.seam?tpId=54227&cid=3363
-data Term = V Name | F Term Term Term | G Term Term | A | B
+data Term = V Name | F Term Term Term | A | B | C
 
 data Name = X | Y
 
@@ -24,10 +27,10 @@ toyamaRule1 =
     Rule (Cons X Nil) (F A B (V X)) (F (V X) (V X) (V X))
 
 toyamaRule2 = 
-   Rule (Cons X (Cons Y Nil)) (G (V X) (V Y)) (V X)
+   Rule (Cons X (Cons Y Nil)) (F (V X) (V Y) C) (V X)
 
 toyamaRule3 = 
-   Rule (Cons X (Cons Y Nil)) (G (V X) (V Y)) (V Y)
+   Rule (Cons X (Cons Y Nil)) (F (V X) (V Y) C) (V Y)
 
 toyama :: TRS
 toyama = Cons toyamaRule1 (Cons toyamaRule2 (Cons toyamaRule3 Nil))
@@ -59,14 +62,28 @@ stepInput step = case step of Step t _ _ _ _ -> t
 stepResult :: Step -> Term
 stepResult step = case step of Step _ _ _ _ t -> t
 
+bind :: Maybe a -> (a -> Maybe b) -> Maybe b
+bind mA f = case mA of 
+  Nothing -> Nothing
+  Just a  -> f a
+
 -- substitution auf term anwenden.
 -- dabei soll JEDE variable im term auch
 -- ersetzt werden 
-apply :: Term -> Substitution -> Term
-apply = foldr apply'
-  where
-    apply' pair term = case pair of
-      Pair name term' -> replaceName term name term'
+apply :: Term -> Substitution -> Maybe Term
+apply term subs = case term of
+  V v -> applyVar subs v
+  F a b c -> bind (apply a subs) (\a' -> bind (apply b subs) (\b' -> bind (apply c subs) (\c' -> Just (F a' b' c'))))
+  A -> Just A
+  B -> Just B
+  C -> Just C
+
+applyVar :: Substitution -> Name -> Maybe Term
+applyVar sub n = case sub of
+  Nil -> Nothing
+  Cons s ss -> case s of Pair name term -> case equalName name n of 
+                                              False -> applyVar ss n
+                                              True  -> Just term
 
 replaceName :: Term -> Name -> Term -> Term
 replaceName term name term' = case term of
@@ -74,47 +91,48 @@ replaceName term name term' = case term of
               False -> term
               True  -> term'
   F a b c -> F (replaceName a name term') (replaceName b name term') (replaceName c name term')
-  G a b   -> G (replaceName a name term') (replaceName b name term') 
   A      -> A
   B      -> B
+  C      -> C
 
 data Maybe a = Nothing | Just a
 
-get :: Term -> Position -> Term
+fmap :: (a -> b) -> Maybe a -> Maybe b
+fmap f mA = case mA of Nothing -> Nothing
+                       Just a  -> Just (f a)
+
+get :: Term -> Position -> Maybe Term
 get term pos = case pos of
-  Nil -> term
+  Nil -> Just term
   Cons p pos' -> case term of
-    V _     -> undefined
+    V _     -> Nothing
     F a b c -> case p of
       Pos1 -> get a pos'
       Pos2 -> get b pos'
       Pos3 -> get c pos'
-    G a b -> case p of
-      Pos1 -> get a pos'
-      Pos2 -> get b pos'
-      Pos3 -> undefined
-    A       -> undefined
-    B       -> undefined
+    A       -> Nothing
+    B       -> Nothing
+    C       -> Nothing
 
-put :: Term -> Position -> Term -> Term
+put :: Term -> Position -> Term -> Maybe Term
 put term pos term' = case pos of
-  Nil -> term'
+  Nil -> Just term'
   Cons p pos' -> 
     case term of
-      V _     -> undefined
+      V _     -> Nothing
       F a b c -> case p of 
-        Pos1 -> F (put a pos' term') b c
-        Pos2 -> F a (put b pos' term') c
-        Pos3 -> F a b (put c pos' term')
-      G a b -> case p of 
-        Pos1 -> G (put a pos' term') b 
-        Pos2 -> G a (put b pos' term')
-        Pos3 -> undefined
-      A       -> undefined
-      B       -> undefined
+        Pos1 -> fmap (\a' -> F a' b c) (put a pos' term')
+        Pos2 -> fmap (\b' -> F a b' c) (put b pos' term')
+        Pos3 -> fmap (\c' -> F a b c') (put c pos' term')
+      A       -> Nothing
+      B       -> Nothing
+      C       -> Nothing
 
 rule_ok :: TRS -> Rule -> Bool
 rule_ok trs rule = elem equalRule rule trs
+
+fromMaybe a mA = case mA of Nothing -> a
+                            Just a' -> a'
   
 step_ok :: TRS -> Step -> Bool
 step_ok trs s = case s of
@@ -122,13 +140,25 @@ step_ok trs s = case s of
     and2 (rule_ok trs rule)
      (case rule of
         Rule vars lhs rhs -> 
+          fromMaybe False (
+            bind (get t0 pos) (\g -> bind (apply lhs sub) (\lhs' -> bind (apply rhs sub) (\rhs' -> bind (put t0 pos rhs') (\p -> 
+                Just (and2 (equalTerm g lhs') (equalTerm p t1))
+                ))))
+          )
+      )
+
+
+
+{-
          and ( -- Cons (equalList equalName (domain sub) vars)
              (Cons (equalTerm (get t0 pos) (apply lhs sub))
              (Cons (equalTerm (put t0 pos  (apply rhs sub)) t1)
              Nil))))
+             -}
 
 type Derivation = List Step
 
+{-
 derivation_ok :: TRS -> Derivation -> Bool
 derivation_ok trs steps = and2 ( snd ( foldr derive_ok (Pair Nothing True) steps ) )
                                ( not ( null steps ) )
@@ -143,6 +173,23 @@ derivation_ok trs steps = and2 ( snd ( foldr derive_ok (Pair Nothing True) steps
                                       )
 
     match a b = equalTerm (stepResult a) (stepInput b)
+    -}
+
+derivation_ok trs deriv = case deriv of
+  Nil -> False
+  Cons s _ -> case s of
+    Step t _ _ _ _ -> case derive_ok trs t deriv of
+                        Nothing -> False
+                        Just _  -> True
+
+derive_ok :: TRS -> Term -> Derivation -> Maybe Term
+derive_ok trs term deriv = case deriv of
+  Nil           -> Just term
+  Cons s deriv' -> case s of
+    Step t0 rule pos sub t1 -> case equalTerm term t0 of
+      False -> Nothing
+      True  -> case step_ok trs s of False -> Nothing
+                                     True  -> derive_ok trs t1 deriv'
 
 
 --data Looping_Derivation = Looping_Derivation Derivation Position Substitution
@@ -153,18 +200,35 @@ data Looping_Derivation = Looping_Derivation (List Step)
 looping_derivation_ok :: TRS -> Looping_Derivation -> Bool
 looping_derivation_ok trs ld = case ld of
     Looping_Derivation der pos sub ->
-        and2 (derivation_ok trs der)
-            (equalTerm (get   (stepResult (last der)) pos)
-                       (apply (stepInput  (head der)) sub))
+      case der of
+        Nil -> False
+        Cons s _ -> case s of
+          Step t0 _ _ _ _ ->
+            case derive_ok trs t0 der of
+              Nothing -> False
+              Just last -> 
+
+                fromMaybe False (
+                    bind (get last pos) (\term ->
+                      bind (apply t0 sub) (\term' ->
+                        Just (equalTerm term' term)
+                        )
+                      )
+                  )
+                  
+
+
+
+                  {-
+                  (equalTerm (get   (stepResult (last der)) pos)
+                             (apply (stepInput  (head der)) sub))
+                             -}
 
 equalRule :: Rule -> Rule -> Bool
 equalRule x y = case x of
   Rule xNames xLhs xRhs -> case y of 
     Rule yNames yLhs yRhs -> 
-      and (Cons (equalList equalName xNames yNames)
-          (Cons (equalTerm xLhs yLhs)
-          (Cons (equalTerm xRhs yRhs)
-          Nil)))
+      and2 (equalTerm xLhs yLhs) (equalTerm xRhs yRhs)
 
 equalList :: (a -> a -> Bool) -> List a -> List a -> Bool
 equalList eq xs ys = and2 (all (\n -> elem eq n ys) xs)
@@ -180,33 +244,33 @@ equalTerm x y = case x of
   V nX -> 
     case y of V nY     -> equalName nX nY
               F _ _ _  -> False
-              G _ _    -> False
               A        -> False
               B        -> False
+              C        -> False
   F a b c ->
     case y of V _      -> False
               F x y z  -> and2 (equalTerm a x) (and2 (equalTerm b y) (equalTerm c z))
-              G _ _    -> False
               A        -> False
               B        -> False
-  G a b ->
-    case y of V _      -> False
-              F _ _ _  -> False
-              G x y    -> and2 (equalTerm a x) (equalTerm b y)
-              A        -> False
-              B        -> False
+              C        -> False
   A ->
     case y of V _      -> False
               F _ _ _  -> False
-              G _ _    -> False
               A        -> True
               B        -> False
+              C        -> False
   B ->
     case y of V _      -> False
               F _ _ _  -> False
-              G _ _    -> False
               A        -> False
               B        -> True
+              C        -> False
+  C ->
+    case y of V _      -> False
+              F _ _ _  -> False
+              A        -> False
+              B        -> False
+              C        -> True
 
 equalName :: Name -> Name -> Bool
 equalName x y = case x of 

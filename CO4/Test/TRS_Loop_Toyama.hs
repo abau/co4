@@ -15,7 +15,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/TRS_Loop.standalone.hs" )
+$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]
@@ -26,7 +26,7 @@ uName = constructors [ M.Just [], M.Just [] ]
 
 uTerm 0 = constructors [ M.Just [ uName ]
                        , M.Nothing
-                       , M.Nothing
+                       , M.Just []
                        , M.Just []
                        , M.Just []
                        ]
@@ -34,7 +34,7 @@ uTerm 0 = constructors [ M.Just [ uName ]
 uTerm depth = constructors 
   [ M.Just [ uName ]
   , M.Just [ uTerm (depth - 1), uTerm (depth - 1), uTerm (depth - 1) ]
-  , M.Just [ uTerm (depth - 1), uTerm (depth - 1) ]
+  , M.Just []
   , M.Just []
   , M.Just []
   ]
@@ -53,7 +53,8 @@ uStep termDepth numSubst = constructors [ M.Just [ uTerm termDepth
                                                  ]
                                         ]
 
-uPosition l               = uList l uBool
+uPos = constructors [ M.Just [], M.Just [], M.Just [] ]
+uPosition l               = uList l uPos
 uSubstitution l termDepth = uList l (uPair uName (uTerm termDepth))
 
 uDerivation numSteps termDepth numSubst = uList numSteps (uStep termDepth numSubst)
@@ -65,4 +66,4 @@ uLoopingDerivation numSteps numSubst termDepth =
                         ]
                ]
 
-result = solveAndTestBoolean (uLoopingDerivation 3 2 3) encMain main
+result = solveAndTestBoolean (uLoopingDerivation 3 2 2) encMain main
