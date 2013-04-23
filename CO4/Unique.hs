@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving  #-}
 module CO4.Unique
   ( MonadUnique(..), UniqueT, Unique, runUnique, runUniqueT, mapUnique
-  , newName, newNamelike)
+  , newName, newNamelike, originalName)
 where
 
 import Control.Applicative (Applicative)
@@ -48,12 +48,12 @@ newName = newNamelike
 
 -- |@newNamelike n@ returns an unique namelike with prefix @n@
 newNamelike :: (MonadUnique m, Namelike n, Namelike o) => n -> m o
-newNamelike prefix = newString (fromName $ nameOriginal prefix) >>= return . readName
+newNamelike prefix = newString (fromName $ originalName prefix) >>= return . readName
 
 -- |Gets the original name, i.e. the common prefix of an unique name
 -- TODO: what about variable names that contain separator
-nameOriginal :: Namelike n => n -> n
-nameOriginal = mapName $ takeWhile (/= separator)
+originalName :: Namelike n => n -> n
+originalName = mapName $ takeWhile (/= separator)
 
 instance (MonadUnique m) => MonadUnique (ReaderT r m) where
   newString = lift . newString 

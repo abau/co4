@@ -49,8 +49,8 @@ newInstance :: MonadUnique u => Expression -> [Expression] -> Int
                              -> Instantiator u Expression
 newInstance f args numParameters = do
   name <- case f of
-            EVar n -> newName $ fromName n ++ "Saturated"
-            ECon n -> newName $ fromName n ++ "Saturated"
+            EVar n -> newName $ fromName (originalName n) ++ "Saturated"
+            ECon n -> newName $ fromName (originalName n) ++ "Saturated"
             _      -> newName "saturated"
 
   availableParams <- forM [1 .. length args]                 $ const $ newName "sat"
