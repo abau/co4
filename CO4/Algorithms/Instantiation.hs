@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.Instantiation
   (instantiation)
 where
@@ -7,15 +8,14 @@ import           Control.Monad.Reader
 import           Control.Monad.State hiding (State)
 import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
-import           Data.Maybe (fromJust,fromMaybe,mapMaybe)
+import           Data.Maybe (fromMaybe,mapMaybe)
 import           CO4.Language
-import           CO4.Util (nTyped,programDeclarations,programFromDeclarations,mainName)
-import           CO4.Unique (MonadUnique,newName)
+import           CO4.Util (programDeclarations,programFromDeclarations,mainName)
+import           CO4.Unique (MonadUnique,newName,originalName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
 import           CO4.Algorithms.Free (free)
-import           CO4.Algorithms.Util 
-  (eraseTypedNames,eraseTLamTApp,collapseApplications,collapseAbstractions)
+import           CO4.Algorithms.Util (eraseTypedNames,collapseApplications,collapseAbstractions)
 import           CO4.TypesUtil
 import           CO4.Names
 
@@ -27,7 +27,7 @@ data Env = Env { -- |Bindings of higher order expressions
                , depth           :: Int
                }
 
-type CacheKey   = (Name,[Expression],[Type])
+type CacheKey   = (Name,[Expression])
 type CacheValue = Name 
 type Cache      = M.Map CacheKey CacheValue
 
@@ -50,78 +50,45 @@ writeCacheItem key value =
 hoBinding :: Monad u => Name -> Instantiator u (Maybe Expression)
 hoBinding name = asks hoBindings >>= return . M.lookup name 
 
-unsafeHoBinding :: Monad u => Name -> Instantiator u Expression
-unsafeHoBinding name = hoBinding name >>= return . fromJust 
-
-newTypedInstanceName :: (MonadUnique u, Namelike n) => n -> Scheme -> u Name
-newTypedInstanceName originalName scheme = do
-  untyped <- newName $ fromName originalName ++ "Instance"
-  return $ nTyped untyped scheme
-
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
 
   instantiateVar (EVar name) = liftM (fromMaybe $ EVar name) $ hoBinding name
-
-  -- Instantiate polymorphic constants
-  instantiateTApp (ETApp (EVar f) typeApps) = do
-    ETLam typeParams e <- unsafeHoBinding f
-    cache <- gets cache
-    case M.lookup (f, [], typeApps) cache of
-      Nothing -> 
-        let instanceRHS    = HM.substitutes (zip typeParams typeApps) e
-            instanceScheme = HM.instantiateSchemeApp (schemeOfName f) typeApps
-        in do
-          instanceName <- newTypedInstanceName f instanceScheme
-
-          writeCacheItem (f, [], typeApps) instanceName 
-
-          instantiateExpInModifiedEnv f [] instanceRHS
-            >>= writeInstance . Binding instanceName 
-
-          return $ EVar instanceName
-      Just instance_ -> return $ EVar instance_
               
-  -- Instantiate polymorphic and/or higher order functions
-  instantiateApp (EApp (ETApp (EVar f) typeApps) args) = do
-    
-    ETLam typeParams (ELam params e) <- unsafeHoBinding f
-    args'                            <- mapM instantiateExpression args
+  instantiateApp (EApp (EVar f) args) = 
+    hoBinding f >>= \case 
+      Nothing -> return (EApp $ EVar f) `ap` instantiate args
 
-    let substitution       = zip typeParams typeApps
-        monomorphicScheme  = HM.instantiateSchemeApp (schemeOfName f) typeApps
-        params'            = HM.substitutes substitution params
-        (  foParameters     
-         , foArguments      
-         , hoParameters     
-         , hoArguments  )  = splitByOrder $ zip params' args'
+      Just (ELam params e) -> do
+        args' <- mapM instantiateExpression args
 
-    freeInHoArguments  <- liftM (nub . concat) $ mapM freeNames hoArguments
-        
-    let instanceParameters = foParameters ++ freeInHoArguments 
-        instanceArguments  = foArguments  ++ map EVar freeInHoArguments
-        
-        instanceScheme =
-          let argTypes    = map (fromSType . schemeOfName) instanceParameters
-              resultType_ = resultType $ fromSType monomorphicScheme
-          in 
-            HM.generalizeAll $ functionType argTypes resultType_
+        let (  foParameters     
+             , foArguments      
+             , hoParameters     
+             , hoArguments  )  = splitByOrder $ zip params args'
 
-    cache <- gets cache
-    case M.lookup (f, hoArguments, typeApps) cache of
-      Nothing -> do
-        instanceName <- newTypedInstanceName f instanceScheme 
+        freeInHoArguments  <- liftM (nub . concat) $ mapM freeNames hoArguments
+            
+        let instanceParameters = foParameters ++ freeInHoArguments 
+            instanceArguments  = foArguments  ++ map EVar freeInHoArguments
 
-        writeCacheItem (f, hoArguments, typeApps) instanceName
+        cache <- gets cache
+        case M.lookup (f, hoArguments) cache of
+          Nothing -> do
+            instanceName <- newName $ fromName (originalName f) ++ "Instance"
 
-        let newBindings = zip hoParameters hoArguments
-            instanceRHS = ELam instanceParameters $ HM.substitutes substitution e
+            writeCacheItem (f, hoArguments) instanceName
 
-        instantiateExpInModifiedEnv f newBindings instanceRHS 
-          >>= writeInstance . Binding instanceName 
+            let newBindings = zip hoParameters hoArguments
+                instanceRHS = ELam instanceParameters e
 
-        return $ EApp (EVar instanceName) instanceArguments
+            instantiateExpInModifiedEnv f newBindings instanceRHS 
+              >>= writeInstance . Binding instanceName 
 
-      Just instance_ -> return $ EApp (EVar instance_) instanceArguments   
+            return $ EApp (EVar instanceName) instanceArguments
+
+          Just instance_ -> return $ EApp (EVar instance_) instanceArguments   
+
+      Just e -> instantiateApp $ EApp e args
 
   instantiateApp (EApp f args) = return EApp `ap` instantiate f `ap` instantiate args
   
@@ -137,21 +104,18 @@ splitByOrder =
 
 isInstantiable :: Declaration -> Bool
 isInstantiable declaration = case declaration of
-  DBind (Binding n _) -> (isHigherOrder n) || (isPolymorphic n)
+  DBind (Binding n _) -> isHigherOrder n
   _                   -> False
 
-  where isPolymorphic (NTyped _ (SForall {})) = True
-        isPolymorphic (NTyped _ (SType _))    = False
-
-        isHigherOrder (NTyped _ scheme) = 
+  where isHigherOrder (NTyped _ scheme) = 
           let paramTypes = argumentTypes $ typeOfScheme scheme
           in
             any isFunType paramTypes
 
+-- |Program must not contain local abstractions
 instantiation :: MonadUnique u => Int -> Program -> u Program
 instantiation maxDepth program = do
-  typedProgram <- HM.schemesConfig (HM.HMConfig HM.IntroduceVarTLamTApp True) 
-                                   HM.emptyContext program
+  typedProgram <- HM.schemes program
 
   let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram
 
@@ -161,8 +125,7 @@ instantiation maxDepth program = do
 
   (p',state) <- runStateT (runReaderT (runInstantiator $ instantiate rest) initEnv) 
                           initState
-  return $ eraseTLamTApp
-         $ eraseTypedNames
+  return $ eraseTypedNames
          $ collapseApplications 
          $ collapseAbstractions
          $ programFromDeclarations (mainName program) 
@@ -183,7 +146,8 @@ instantiateExpInModifiedEnv :: (MonadUnique u, Namelike n)
                               -> Instantiator u Expression
 instantiateExpInModifiedEnv fName newBindings =
   let modifyEnv env = 
-        if depth env == 0 then error $ "Instantiation: reached maximum depth while instantiating '" ++ fromName fName ++ "'"
+        if depth env == 0 
+        then error $ "Algorithms.Instantiation: reached maximum depth while instantiating '" ++ fromName fName ++ "'"
         else env { depth = depth env - 1
                  , hoBindings = M.union (M.fromList newBindings) (hoBindings env) }
   in
