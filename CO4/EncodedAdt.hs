@@ -3,8 +3,8 @@
 
 module CO4.EncodedAdt
   ( EncodedAdt (..), UnknownConstructor (..), IntermediateAdt (..)
-  , isUnknown, isDefined, isUndefined, undefined, caseOf, encodedConstructor
-  , constructorArgument, toIntermediateAdt
+  , isUnknown, isDefined, isUndefined, undefined, constantConstructorIndex
+  , caseOf, encodedConstructor, constructorArgument, toIntermediateAdt
   )
 where
 
@@ -13,20 +13,17 @@ import qualified Prelude as P
 import           Control.Monad (liftM,forM,zipWithM)
 import qualified Control.Exception as Exception 
 import           Data.List (transpose)
-import           Data.Maybe (catMaybes,fromMaybe)
+import           Data.Maybe (catMaybes,fromMaybe,fromJust)
 import           Data.Tree
 import           Satchmo.Core.MonadSAT (MonadSAT)
-import           Satchmo.Core.Primitive (Primitive,constant,and,implies,select)
+import           Satchmo.Core.Primitive 
+  (Primitive,constant,and,implies,select,evaluateConstant,isConstant)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Util (replaceAt,equal,for,toBinary,binaries,bitWidth,fromBinary)
 
-data EncodedAdt p = KConstructor { constructorIndex :: Int
-                                 , numConstructors  :: Int
-                                 , arguments        :: [EncodedAdt p]
-                                 }
-                  | UAdt         { flags        :: [p]
-                                 , constructors :: [UnknownConstructor p]
-                                 }
+data EncodedAdt p = UAdt { flags        :: [p]
+                         , constructors :: [UnknownConstructor p]
+                         }
                   | Undefined
                   deriving (Eq,Ord)
 
@@ -39,9 +36,6 @@ instance Show flag => Show (EncodedAdt flag) where
 
 toTree :: Show p => EncodedAdt p -> Tree String
 toTree adt = case adt of
-  KConstructor {} -> Node (unwords ["constructor", show $ constructorIndex adt
-                                   ,"of", show $ numConstructors adt ])
-                        $ map toTree $ arguments adt
   Undefined       -> Node "undefined" []
   UAdt fs conss   -> Node ("flags: " ++ show fs) $ zipWith consToTree [0..] conss
   where
@@ -64,24 +58,28 @@ isBottom = \case UBottom -> True
 undefined :: EncodedAdt p
 undefined = Undefined
 
+constantConstructorIndex :: (Primitive p) => EncodedAdt p -> Maybe Int
+constantConstructorIndex (UAdt flags _) =
+  if all isConstant flags 
+  then Just $ fromBinary $ map (fromJust . evaluateConstant) flags
+  else Nothing
+
 caseOf :: (MonadSAT m, Primitive p) => EncodedAdt p -> [EncodedAdt p] -> m (EncodedAdt p)
-caseOf adt branches = case adt of
-  KConstructor {} -> return $ branches !! (constructorIndex adt)
-  Undefined       -> return Undefined
-  UAdt {}         ->
-    if all isUndefined branches
-    then return Undefined
-    else do
-      flags'        <- caseOfBits (flags adt) $ mapUnknownBranches flags
-      constructors' <- caseOfConstructors adt $ mapUnknownBranches constructors
-      return $ UAdt flags' constructors'
+caseOf adt branches = case constantConstructorIndex adt of
+  Just i  -> return $ branches !! i
+  Nothing -> case adt of
+    Undefined       -> return Undefined
+    UAdt {}         ->
+      if all isUndefined branches
+      then return Undefined
+      else do
+        flags'        <- caseOfBits (flags adt) $ mapUnknownBranches flags
+        constructors' <- caseOfConstructors adt $ mapUnknownBranches constructors
+        return $ UAdt flags' constructors'
   where
-    mapUnknownBranches f = for unknownBranches $ \case 
+    mapUnknownBranches f = for branches $ \case 
                                   Undefined -> Nothing
                                   branch    -> Just $ f branch
-    unknownBranches = for branches $ \case
-      KConstructor i n args -> toUnknown i n args
-      u                     -> u
 
 caseOfConstructors :: (MonadSAT m, Primitive p) => EncodedAdt p 
                                                 -> [Maybe [UnknownConstructor p]] 
@@ -123,20 +121,13 @@ caseOfBits flags bitss = Exception.assert (P.not $ null definedBitss ) $
 
     mkBits premises bitsT = zipWithM implies premises bitsT >>= and
 
-toUnknown :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
-toUnknown i numCons args = Exception.assert (i < numCons) $ 
-  if containsUndefinedArgs
-  then Undefined
-  else UAdt flags' constructors'
-  where
-    flags'                = if numCons > 1 then map constant i' else []
-    constructors'         = replaceAt i (UConstructor args) 
-                          $ replicate numCons UBottom
-    i'                    = toBinary (bitWidth numCons) i 
-    containsUndefinedArgs = any (P.not . isDefined) args
-
 encodedConstructor :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
-encodedConstructor i n = Exception.assert (i < n) $ KConstructor i n
+encodedConstructor i n args = Exception.assert (i < n) 
+                            $ UAdt flags constructors
+  where
+    flags        = map constant $ toBinary (bitWidth n) i
+    constructors = replaceAt i (UConstructor args) 
+                 $ replicate n UBottom
 
 constructorArgument :: Int -> Int -> EncodedAdt p -> EncodedAdt p
 constructorArgument i j = maybe Undefined getArg . constructorArguments j
@@ -145,8 +136,6 @@ constructorArgument i j = maybe Undefined getArg . constructorArguments j
 
 constructorArguments :: Int -> EncodedAdt p -> Maybe [EncodedAdt p]
 constructorArguments j = \case
-  KConstructor j' _ args | j == j' -> Just args 
-  KConstructor {}                  -> Nothing
   Undefined                        -> Nothing
   UAdt _ conss                     -> Exception.assert (j < length conss) $
     case conss !! j of
@@ -159,9 +148,8 @@ data IntermediateAdt p = IntermediateConstructorIndex Int [EncodedAdt p]
 toIntermediateAdt :: (MonadSAT m, Primitive p, Decode m p Bool) 
                   => EncodedAdt p -> m (IntermediateAdt p)
 toIntermediateAdt adt = case adt of
-  KConstructor i _ as   -> return $ IntermediateConstructorIndex i as
-  Undefined             -> return IntermediateUndefined 
-  UAdt flags _          -> 
+  Undefined    -> return IntermediateUndefined 
+  UAdt flags _ -> 
     if null flags 
     then return $ intermediate 0
     else decode flags >>= return . intermediate . fromBinary

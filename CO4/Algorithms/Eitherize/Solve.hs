@@ -13,7 +13,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert)
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
-import           CO4.EncodedAdt (EncodedAdt (..))
+import           CO4.EncodedAdt (EncodedAdt,flags,constantConstructorIndex)
 import           CO4.Allocator (Allocator)
 import           CO4.Cache (Cache,runCache)
 import           CO4.Encodeable (Encodeable (..))
@@ -110,16 +110,17 @@ solve allocator constraint =
     u <- encode allocator
     result <- runCache $ simpleProfiling (constraint u)
 
-    case result of
-      KConstructor 0 2 [] -> do 
+    case constantConstructorIndex result of
+      Just 0 -> do 
         Backend.note "Known result: unsatisfiable"
         return Nothing
 
-      KConstructor 1 2 [] -> do 
+      Just 1 -> do 
         Backend.note "Known result: valid"
         return Nothing
 
-      UAdt [flag] _ -> do
+      Nothing -> do
+        let flag = head $ flags result
         Backend.note $ "Assertion: " ++ (show flag)
         assert [ flag ]
         return $ Just $ decode u 

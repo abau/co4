@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Allocator 
   ( Allocator (..), AllocateConstructor (..)
-  , known, CO4.Allocator.constructors, bottom, allocates
+  , known, CO4.Allocator.constructors, bottom --, allocates
   )
 where
 
@@ -11,7 +11,8 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive (Primitive,primitive,antiSelect,assert)
 import qualified Satchmo.Core.Boolean
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.EncodedAdt (EncodedAdt (..), UnknownConstructor (..),isDefined)
+import           CO4.EncodedAdt (EncodedAdt (..), UnknownConstructor (..))
+import qualified CO4.EncodedAdt as E
 import           CO4.Util (bitWidth,binaries,toBinary)
 
 data Allocator = Known { constructorIndex :: Int
@@ -38,10 +39,11 @@ bottom = AllocateBottom
 
 instance Encodeable Allocator where
   encode = \case
-    Known i n as -> liftM (KConstructor i n) $ mapM encode as
+    Known i n as -> liftM (E.encodedConstructor i n) $ mapM encode as
+
     Unknown [allocCons] -> encodeConstructor allocCons >>= \case
       UBottom           -> return Undefined
-      UConstructor args -> return $ KConstructor 0 1 args
+      UConstructor args -> return $ E.encodedConstructor 0 1 args
 
     Unknown allocConss -> do
       flags <- sequence $ replicate (bitWidth $ length allocConss) primitive
@@ -51,20 +53,22 @@ instance Encodeable Allocator where
       excludeInvalidConstructorPatterns uAdt
       return uAdt
     where
+
+      encodeConstructor :: (MonadSAT m,Primitive p) => AllocateConstructor
+                                                    -> m (UnknownConstructor p)
       encodeConstructor AllocateBottom             = return UBottom
       encodeConstructor (AllocateConstructor args) = do
         args' <- mapM encode args
-        if any (not . isDefined) args'
+        if any (not . E.isDefined) args'
           then return   UBottom
           else return $ UConstructor args'
 
   encodeConstant = \case
-    Known i n as -> KConstructor i n $ map encodeConstant as
+    Known i n as -> E.encodedConstructor i n $ map encodeConstant as
 
 excludeBottom :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeBottom = go 
   where
-    go (KConstructor _ _ args) = forM_ args go
     go (UAdt flags conss)      = forM_ (zip [0..] conss) $ uncurry 
                                                          $ goConstructor flags 
     goConstructor _ _     (UConstructor args) = forM_ args go 
@@ -76,7 +80,6 @@ excludeBottom = go
 excludeInvalidConstructorPatterns :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeInvalidConstructorPatterns = go
   where
-    go (KConstructor _ _ args) = forM_ args go
     go (UAdt flags conss)      = do
       forM_ nonConstructorPatterns $ excludePattern flags 
       forM_ conss goConstructor 
@@ -91,6 +94,7 @@ excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern flags pattern = Exception.assert (length flags == length pattern)
                              $ assert $ zipWith antiSelect pattern flags 
 
+{-
 allocates :: Monad m => Allocator -> m (EncodedAdt Satchmo.Core.Boolean.Boolean)
                      -> m ( Maybe ([(Int,Int)],String) )
 allocates _allocator _adt = _adt >>= return . go [] _allocator
@@ -152,3 +156,4 @@ allocates _allocator _adt = _adt >>= return . go [] _allocator
               ) Nothing $ zip3 [0..] as as'
       (AllocateConstructor as, UConstructor as') | length as /= length as' ->
         Just (path, "Allocator.AllocateConstructor.|arguments| /= EncodedAdt.UConstructor.|arguments|")
+        -}
