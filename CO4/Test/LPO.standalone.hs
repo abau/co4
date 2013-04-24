@@ -6,8 +6,8 @@ data Bool     = False | True
 
 data List a   = Nil | Cons a (List a)
 
-data Symbol   = E | F | G | H
-data Variable = W | X | Y | Z
+data Symbol   = E | F | I
+data Variable = X | Y | Z
 
 data Term = Var Variable
           | Term Symbol (List Term)
@@ -26,9 +26,20 @@ main prec = all (\rule -> case rule of
                 trs
 
 trs = Cons (Pair (Term F (Cons (Var X) (Cons (Term E Nil) Nil)))
-                 (Var X)
-           )
-           Nil
+                 (Var X))
+     (Cons (Pair (Term I (Cons (Term E Nil) Nil))
+                 (Term E Nil))
+
+     (Cons (Pair (Term I (Cons (Term F (Cons (Var X) (Cons (Var Y) Nil))) Nil))
+                 (Term F (Cons (Term I (Cons (Var Y) Nil)) 
+                         (Cons (Term I (Cons (Var X) Nil)) Nil))))
+
+     (Cons (Pair (Term F (Cons (Term F (Cons (Var X) (Cons (Var Y) Nil)))
+                         (Cons (Var Z) Nil)))
+                 (Term F (Cons (Var X)
+                         (Cons (Term F (Cons (Var Y) (Cons (Var Z) Nil))) Nil))))
+
+      Nil)))
 
 lpo :: (Symbol -> Symbol -> Order) -> Term -> Term -> Order
 lpo ord s t = case t of
@@ -90,37 +101,23 @@ equalSymbol :: Symbol -> Symbol -> Bool
 equalSymbol a b = case a of
   E -> case b of E -> True
                  F -> False
-                 G -> False
-                 H -> False
+                 I -> False
   F -> case b of E -> False
                  F -> True
-                 G -> False
-                 H -> False
-  G -> case b of E -> False
+                 I -> False
+  I -> case b of E -> False
                  F -> False
-                 G -> True
-                 H -> False
-  H -> case b of E -> False
-                 F -> False
-                 G -> False
-                 H -> True
+                 I -> True
 
 equalVariable :: Variable -> Variable -> Bool
 equalVariable a b = case a of
-  W -> case b of W -> True
-                 X -> False
+  X -> case b of X -> True
                  Y -> False
                  Z -> False
-  X -> case b of W -> False
-                 X -> True
-                 Y -> False
-                 Z -> False
-  Y -> case b of W -> False
-                 X -> False
+  Y -> case b of X -> False
                  Y -> True
                  Z -> False
-  Z -> case b of W -> False
-                 X -> False
+  Z -> case b of X -> False
                  Y -> False
                  Z -> True
 

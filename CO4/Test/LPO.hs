@@ -15,9 +15,11 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose, DumpAll "/tmp/lpo"] $ compileFile "CO4/Test/LPO.standalone.hs" )
+$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/LPO.standalone.hs" )
 
+uSymbol = constructors [ M.Just [], M.Just [], M.Just [] ]
 
-uSymbol = constructors [ M.Just [], M.Just [], M.Just [], M.Just [] ]
+uList 0 _  = constructors [ M.Just [] , M.Nothing ]
+uList i a  = constructors [ M.Just [] , M.Just [a, uList (i-1) a ] ]
 
-result = solveAndTestBoolean (uList 4 uSymbol) encMain main
+result = solveAndTestBoolean (uList 3 uSymbol) encMain main
