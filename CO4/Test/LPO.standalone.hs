@@ -6,7 +6,7 @@ data Bool     = False | True
 
 data List a   = Nil | Cons a (List a)
 
-data Symbol   = E | F | I
+data Symbol   = E | F | I | J
 data Variable = X | Y | Z
 
 data Term = Var Variable
@@ -20,26 +20,10 @@ type Precedence = List Symbol
 
 type TRS = List (Pair Term Term)
 
-main prec = all (\rule -> case rule of
+main trs prec = all (\rule -> case rule of
                     Pair lhs rhs -> equalOrder (lpo (ord prec) lhs rhs) GR
                 )
                 trs
-
-trs = Cons (Pair (Term F (Cons (Var X) (Cons (Term E Nil) Nil)))
-                 (Var X))
-     (Cons (Pair (Term I (Cons (Term E Nil) Nil))
-                 (Term E Nil))
-
-     (Cons (Pair (Term I (Cons (Term F (Cons (Var X) (Cons (Var Y) Nil))) Nil))
-                 (Term F (Cons (Term I (Cons (Var Y) Nil)) 
-                         (Cons (Term I (Cons (Var X) Nil)) Nil))))
-
-     (Cons (Pair (Term F (Cons (Term F (Cons (Var X) (Cons (Var Y) Nil)))
-                         (Cons (Var Z) Nil)))
-                 (Term F (Cons (Var X)
-                         (Cons (Term F (Cons (Var Y) (Cons (Var Z) Nil))) Nil))))
-
-      Nil)))
 
 lpo :: (Symbol -> Symbol -> Order) -> Term -> Term -> Order
 lpo ord s t = case t of
@@ -102,12 +86,19 @@ equalSymbol a b = case a of
   E -> case b of E -> True
                  F -> False
                  I -> False
+                 J -> False
   F -> case b of E -> False
                  F -> True
                  I -> False
+                 J -> False
   I -> case b of E -> False
                  F -> False
                  I -> True
+                 J -> False
+  J -> case b of E -> False
+                 F -> False
+                 I -> False
+                 J -> True
 
 equalVariable :: Variable -> Variable -> Bool
 equalVariable a b = case a of
