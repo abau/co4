@@ -32,7 +32,6 @@ instance Free Expression where
         freeInBs   = concatMap (free . boundExpression) bs
     in
       (nub $ free e ++ freeInBs) \\ boundNames
-  free EUndefined             = []
 
 instance Free Match where
   free (Match pat exp) = free exp \\ (boundInPattern pat)

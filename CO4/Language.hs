@@ -55,7 +55,6 @@ data Expression = EVar  Name
                 | ETLam [UntypedName] Expression
                 | ECase Expression [Match]
                 | ELet  [Binding] Expression
-                | EUndefined
                 deriving (Show,Eq,Ord,Data,Typeable)
 
 data Constructor = CCon { cConName          :: UntypedName 

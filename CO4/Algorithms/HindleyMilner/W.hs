@@ -187,9 +187,6 @@ w context exp = case exp of
 
     return $ (subst ++ subst', expType, ELet bindings' localExp')
 
-  EUndefined -> do type_   <- newType
-                   return ([], type_, EUndefined)
-
   where 
     lookupName name = 
       case (lookup name context, name) of

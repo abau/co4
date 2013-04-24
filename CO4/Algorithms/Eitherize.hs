@@ -26,7 +26,7 @@ import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
-  (undefined,isUndefined,encodedConstructor,caseOf,constructorArgument)
+  (isUndefined,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Cache (withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
@@ -122,8 +122,6 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     where 
       instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
-
-  instantiateUndefined = return $ returnE $ TH.VarE 'undefined
 
   instantiateCase (ECase e ms) = do
     eScheme <- schemeOfExp e

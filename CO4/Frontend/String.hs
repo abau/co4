@@ -67,7 +67,7 @@ pBinding = do
 
 pExpression :: Parser Expression
 pExpression = (try pEApp) <|> pELam <|> pEVar <|> pECon <|> pECase <|> pELet 
-              <|> pEUndefined <|> parens pExpression <?> "expression"
+              <|> parens pExpression <?> "expression"
 
 pEVar, pECon , pEApp :: Parser Expression
 pEVar = EVar <$> pVarName
@@ -104,8 +104,6 @@ pELet = do
   binding <- braces $ sepBySemicolon pBinding 
   reserved "in"
   ELet binding <$> pExpression
-
-pEUndefined = reserved "_|_" >> return EUndefined
 
 pPattern :: Parser Pattern
 pPattern = pPVar <|> try pPCon <|> pNonArgPCon <|> parens pPattern 

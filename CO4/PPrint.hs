@@ -46,7 +46,6 @@ instance PPrint Expression where
     where isSimple (EVar {})  = True
           isSimple (ECon {})  = True
           isSimple (ETApp {}) = True
-          isSimple EUndefined = True
           isSimple _          = False
 
   pprint (ETApp f subst) = parens $ (pprint f) <+> 
@@ -67,8 +66,6 @@ instance PPrint Expression where
     vcat $ [ text "let {" ]
         ++ (map (nest 2) $ punctuate (text " ;") $ map pprint bs)
         ++ [ text "}", text "in", nest 2 $ pprint e ]
-
-  pprint EUndefined = text "_|_"
 
 instance PPrint Type where
   pprint (TVar name)   = pprint name

@@ -54,9 +54,6 @@ class Monad m => MonadCollector m where
   collectLet :: Expression -> m ()
   collectLet (ELet b e) = collect b >> collect e
 
-  collectUndefined :: m ()
-  collectUndefined = return ()
-
   collectExpression :: Expression -> m ()
   collectExpression exp = case exp of
     EVar {}    -> collectVar exp
@@ -67,7 +64,6 @@ class Monad m => MonadCollector m where
     ETLam {}   -> collectTLam exp
     ECase {}   -> collectCase exp
     ELet {}    -> collectLet exp
-    EUndefined -> collectUndefined 
 
   collectConstructor :: Constructor -> m ()
   collectConstructor (CCon name types) = collect name >> collect types

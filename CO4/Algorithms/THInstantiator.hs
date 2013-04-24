@@ -113,9 +113,6 @@ class Monad m => MonadTHInstantiator m where
     bs' <- return concat `ap` instantiate bs
     return (TH.LetE bs') `ap` instantiate exp
 
-  instantiateUndefined :: m TH.Exp
-  instantiateUndefined = return $ TH.VarE 'undefined
-  
   instantiateExpression :: Expression -> m TH.Exp
   instantiateExpression exp = case exp of
     EVar {}    -> instantiateVar exp
@@ -124,7 +121,6 @@ class Monad m => MonadTHInstantiator m where
     ELam {}    -> instantiateLam exp
     ECase {}   -> instantiateCase exp
     ELet {}    -> instantiateLet exp
-    EUndefined -> instantiateUndefined 
     _          -> error $ "THInstantiator.instantiateExpression: can not instantiate '" ++ show exp ++ "'"
 
   instantiateConstructor :: Constructor -> m TH.Con
