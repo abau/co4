@@ -26,7 +26,7 @@ import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
-  (isUndefined,encodedConstructor,caseOf,constructorArgument)
+  (isBottom,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Cache (withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
@@ -142,7 +142,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
                                                         ])
                                           (appsE $ TH.VarE 'caseOf) ms'
 
-                  return $ TH.DoE [ binding, TH.NoBindS $ checkUndefined e'Name 
+                  return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
                                                         $ caseOfE ]
     where 
       -- |If the matched constructor has no arguments, just instantiate expression of match
@@ -167,8 +167,8 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
       instantiateMatchToExp e'Name (_, Match (PVar v) match) = 
         liftM (letE' [(v, varE e'Name)]) $ instantiate match
 
-      checkUndefined e'Name = 
-          TH.CondE (TH.AppE (TH.VarE 'isUndefined) (varE e'Name))
+      checkBottom e'Name = 
+          TH.CondE (TH.AppE (TH.VarE 'isBottom) (varE e'Name))
                    (TH.AppE (TH.VarE 'return) (varE e'Name))
 
   instantiateLet (ELet bindings exp) = do

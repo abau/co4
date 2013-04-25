@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Allocator 
-  ( Allocator (..), AllocateConstructor (..)
+  ( Allocator, AllocateConstructor 
   , known, CO4.Allocator.constructors, bottom --, allocates
   )
 where
@@ -11,13 +11,13 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive (Primitive,primitive,antiSelect,assert)
 import qualified Satchmo.Core.Boolean
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.EncodedAdt (EncodedAdt (..), UnknownConstructor (..))
+import           CO4.EncodedAdt (EncodedAdt (..), EncodedConstructor)
 import qualified CO4.EncodedAdt as E
 import           CO4.Util (bitWidth,binaries,toBinary)
 
-data Allocator = Known { constructorIndex :: Int
-                       , numConstructors  :: Int
-                       , arguments        :: [Allocator]
+data Allocator = Known { _constructorIndex :: Int
+                       , _numConstructors  :: Int
+                       , _arguments        :: [Allocator]
                        }
                | Unknown [AllocateConstructor]
 
@@ -41,27 +41,24 @@ instance Encodeable Allocator where
   encode = \case
     Known i n as -> liftM (E.encodedConstructor i n) $ mapM encode as
 
-    Unknown [allocCons] -> encodeConstructor allocCons >>= \case
-      UBottom           -> return Undefined
-      UConstructor args -> return $ E.encodedConstructor 0 1 args
+    Unknown [allocCons] -> do
+      cons <- encodeConstructor allocCons 
+      if E.isBottomConstructor cons
+        then error $ "Allocator.encode: single constructor ADT must not have bottom constructor"
+        else return $ E.encodedConstructor 0 1 cons
 
     Unknown allocConss -> do
       flags <- sequence $ replicate (bitWidth $ length allocConss) primitive
       cons  <- mapM encodeConstructor allocConss
-      let uAdt = UAdt flags cons
-      excludeBottom uAdt
-      excludeInvalidConstructorPatterns uAdt
-      return uAdt
+      let adt = EncodedAdt flags cons
+      excludeBottom adt
+      excludeInvalidConstructorPatterns adt
+      return adt
     where
-
       encodeConstructor :: (MonadSAT m,Primitive p) => AllocateConstructor
-                                                    -> m (UnknownConstructor p)
-      encodeConstructor AllocateBottom             = return UBottom
-      encodeConstructor (AllocateConstructor args) = do
-        args' <- mapM encode args
-        if any (not . E.isDefined) args'
-          then return   UBottom
-          else return $ UConstructor args'
+                                                    -> m (EncodedConstructor p)
+      encodeConstructor AllocateBottom             = return E.bottomConstructor
+      encodeConstructor (AllocateConstructor args) = mapM encode args
 
   encodeConstant = \case
     Known i n as -> E.encodedConstructor i n $ map encodeConstant as
@@ -69,26 +66,28 @@ instance Encodeable Allocator where
 excludeBottom :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeBottom = go 
   where
-    go (UAdt flags conss)      = forM_ (zip [0..] conss) $ uncurry 
-                                                         $ goConstructor flags 
-    goConstructor _ _     (UConstructor args) = forM_ args go 
-    goConstructor flags i  UBottom            = 
+    go (EncodedAdt flags conss) = forM_ (zip [0..] conss) $ uncurry 
+                                                          $ goConstructor flags 
+
+    goConstructor flags i cons | E.isBottomConstructor cons = 
       let pattern = toBinary (length flags) i
       in
         excludePattern flags pattern
 
+    goConstructor _ _ args = forM_ args go 
+
 excludeInvalidConstructorPatterns :: (MonadSAT m, Primitive p) => EncodedAdt p -> m ()
 excludeInvalidConstructorPatterns = go
   where
-    go (UAdt flags conss)      = do
+    go (EncodedAdt flags conss) = do
       forM_ nonConstructorPatterns $ excludePattern flags 
       forM_ conss goConstructor 
 
       where
         nonConstructorPatterns = drop (length conss) $ binaries $ length flags 
 
-    goConstructor (UConstructor args) = forM_ args go
-    goConstructor  UBottom            = return ()
+    goConstructor cons | E.isBottomConstructor cons = return ()
+    goConstructor args = forM_ args go
 
 excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern flags pattern = Exception.assert (length flags == length pattern)

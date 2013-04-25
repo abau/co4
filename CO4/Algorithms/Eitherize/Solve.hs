@@ -8,12 +8,14 @@ module CO4.Algorithms.Eitherize.Solve
 where
 
 import           System.IO (hFlush,stdout)
+import           Data.Maybe (fromJust)
 import qualified Satchmo.Core.SAT.Minisat as Backend 
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert)
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Formula (Formula)
-import           CO4.EncodedAdt (EncodedAdt,flags,constantConstructorIndex)
+import           CO4.EncodedAdt (EncodedAdt)
+import qualified CO4.EncodedAdt as E
 import           CO4.Allocator (Allocator)
 import           CO4.Cache (Cache,runCache)
 import           CO4.Encodeable (Encodeable (..))
@@ -110,21 +112,26 @@ solve allocator constraint =
     u <- encode allocator
     result <- runCache $ simpleProfiling (constraint u)
 
-    case constantConstructorIndex result of
-      Just 0 -> do 
-        Backend.note "Known result: unsatisfiable"
+    if E.isBottom result
+      then do 
+        Backend.note "Error: (bottom) constraint system did not evaluate to a Boolean"
         return Nothing
+      else
+        case E.constantConstructorIndex result of
+          Just 0 -> do 
+            Backend.note "Known result: unsatisfiable"
+            return Nothing
 
-      Just 1 -> do 
-        Backend.note "Known result: valid"
-        return Nothing
+          Just 1 -> do 
+            Backend.note "Known result: valid"
+            return Nothing
 
-      Nothing -> do
-        let flag = head $ flags result
-        Backend.note $ "Assertion: " ++ (show flag)
-        assert [ flag ]
-        return $ Just $ decode u 
+          Nothing -> do
+            let flag = head $ fromJust $ E.flags result
+            Backend.note $ "Assertion: " ++ (show flag)
+            assert [ flag ]
+            return $ Just $ decode u 
 
-      _ -> do 
-        Backend.note "Error: constraint system did not evaluate to a Boolean"
-        return Nothing
+          _ -> do 
+            Backend.note "Error: constraint system did not evaluate to a Boolean"
+            return Nothing
