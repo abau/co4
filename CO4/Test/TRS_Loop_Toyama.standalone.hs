@@ -2,7 +2,6 @@
 module TRS_Loop where
 
 import qualified Prelude
-import           Prelude (undefined)
 
 main :: Looping_Derivation -> Bool
 main ld = looping_derivation_ok toyama ld
@@ -314,15 +313,3 @@ null :: List a -> Bool
 null xs = case xs of
     Nil -> True
     Cons x xs -> False
-
-head :: List a -> a
-head xs = case xs of
-    Nil -> undefined
-    Cons x xs -> x
-
-last :: List a -> a
-last xs = case xs of
-    Nil -> undefined
-    Cons x xs -> case xs of
-        Nil -> x
-        Cons x ys -> last xs
