@@ -81,10 +81,14 @@ decodeCons i (CCon consName params) = do
   let decodeBind (param,name) =   TH.BindS (varP name)
                                 $ TH.AppE (TH.VarE 'decode) $ varE param
 
-      matchPattern = TH.ConP 'IntermediateConstructorIndex
-                             [ TH.LitP  $ TH.IntegerL $ fromIntegral i
-                             , TH.ListP $ map varP paramNames
-                             ]
+      matchPattern = 
+        let paramPattern = foldr (\x y -> TH.ConP '(:) [x,y]) TH.WildP 
+                         $ map varP paramNames
+        in
+          TH.ConP 'IntermediateConstructorIndex
+                               [ TH.LitP  $ TH.IntegerL $ fromIntegral i
+                               , paramPattern
+                               ]
       applyCons = foldl TH.AppE (conE consName) $ map varE decodedNames
       matchExp  = TH.DoE $ map decodeBind (zip paramNames decodedNames)
                       ++ [ TH.NoBindS $ TH.AppE (TH.VarE 'return) applyCons ]

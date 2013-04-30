@@ -2,6 +2,7 @@
 module CO4.Util
 where
 
+import           Control.Exception (assert)
 import           Data.List (partition,find)
 import           Data.Maybe (mapMaybe)
 import           CO4.Language
@@ -188,10 +189,11 @@ expressionToPattern exp = case exp of
   ECon n           -> PCon n []
   EApp (ECon n) es -> PCon n $ map expressionToPattern es
 
--- |@toBinary n i@ converts @i@ to its binary representation with at least @n@ bits.
+-- |@toBinary n i@ converts @i@ to its binary representation using @n@ bits.
 -- Least significant bit is result's head.
 toBinary :: Int -> Int -> [Bool]
-toBinary n i = result ++ replicate (n - length result) False 
+toBinary n i = assert (length result <= n) 
+             $ result ++ replicate (n - length result) False 
   where 
     result = go i
     go 0   = [False]
@@ -205,6 +207,7 @@ toBinary n i = result ++ replicate (n - length result) False
 fromBinary :: [Bool] -> Int
 fromBinary = go 0
   where
+    go _ []         = error "Util.fromBinary: empty list"
     go i [True]     = 2^i 
     go _ [False]    = 0
     go i (True:xs)  = 2^i + go (i+1) xs

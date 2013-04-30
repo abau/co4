@@ -110,6 +110,7 @@ solve :: ( Primitive p, Show p
 solve allocator constraint = 
   Backend.solve' True $ do 
     u <- encode allocator
+    --Backend.note $ "Encoded unknown:\n" ++ show u
     result <- runCache $ simpleProfiling (constraint u)
 
     if E.isBottom result
