@@ -9,7 +9,6 @@ module CO4
   ) 
 where
 
-import           CO4.Frontend.String ()
 import           CO4.Frontend.TH ()
 import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Compilation

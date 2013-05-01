@@ -163,7 +163,7 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
           matchFromConstructor c = 
             case find byMatch matches of
               Nothing -> case defaultMatch of
-                            Nothing -> error "Algorithms.Eitherize.matchFromConstructor: no match"
+                            Nothing -> error $ "Algorithms.Eitherize.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
                             Just m  -> m
               Just m  -> m
 

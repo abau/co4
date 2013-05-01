@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.26
+Version:        	0.0.27
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -54,7 +54,6 @@ Library
                     , CO4.Algorithms.HindleyMilner.W
                     , CO4.Backend.TH
                     , CO4.Frontend.HaskellSrcExts
-                    , CO4.Frontend.String
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess
@@ -66,7 +65,6 @@ Library
                     , mtl == 2.1.*
                     , syb == 0.3.*
                     , pretty == 1.1.*
-                    , parsec == 3.1.*
                     , satchmo-core == 0.5.*
                     , haskell-src-exts == 1.13.*
                     , haskell-src-meta == 0.6.*
