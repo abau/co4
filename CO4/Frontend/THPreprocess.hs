@@ -22,7 +22,6 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>=          everywhereM (mkM noWildcardPattern)
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
-  >>= return . everywhere  (mkT noIfThenElse) 
   >>= return .                  deleteSignatures
   >>= return .                  deleteTypeSynonyms
 

@@ -27,11 +27,22 @@ prelude =
 
       -- Maybe ----------------------------------
 
-      data Maybe a = Nothing | Just a
+      data Maybe a = Nothing | Just a deriving Show
 
       fromMaybe a' m = case m of
         Nothing -> a'
         Just a  -> a
+
+      -- Either ---------------------------------
+
+      data Either a b = Left a | Right b deriving Show
+
+      -- Pair -----------------------------------
+
+      data Pair a b = Pair a b deriving Show
+
+      fst (Pair a _) = a
+      snd (Pair _ b) = b
 
       -- Lists ----------------------------------
 
