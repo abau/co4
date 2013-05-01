@@ -45,6 +45,10 @@ prelude =
 
       data Bool = False | True deriving Show
 
+      not x = case x of
+        False -> True
+        True  -> False
+
       or2 x y = case x of
         False -> y
         True  -> True
