@@ -40,7 +40,9 @@ data Pattern = PVar Name
              | PCon Name [Pattern]
              deriving (Show,Eq,Ord,Data,Typeable)
 
-data Match = Match Pattern Expression
+data Match = Match { matchPattern    :: Pattern 
+                   , matchExpression :: Expression
+                   }
              deriving (Show,Eq,Ord,Data,Typeable)
 
 data Binding = Binding { boundName       :: Name 

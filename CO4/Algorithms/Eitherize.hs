@@ -10,7 +10,7 @@ import           Prelude hiding (undefined)
 import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.Writer
-import           Data.List (isPrefixOf)
+import           Data.List (find)
 import           Data.Char (toUpper)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
@@ -20,8 +20,6 @@ import           CO4.Names
 import           CO4.Algorithms.THInstantiator
 import           CO4.Algorithms.Collector
 import           CO4.Unique
-import           CO4.Backend (displayExpression)
-import           CO4.Backend.TH ()
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
@@ -77,6 +75,7 @@ type ToplevelName = Name
 data ExpInstantiatorData = ExpInstantiatorData 
   { toplevelNames :: [ToplevelName]
   , profiling     :: Bool
+  , adts          :: [Declaration]
   }
 
 newtype ExpInstantiator u a = ExpInstantiator 
@@ -101,22 +100,18 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     case f of
       ECon cName -> instantiateApplication (encodedConsName cName) args'
       EVar fName -> do
-        --app <- instantiateApplication (encodedName fName) args'
-
         bindAndApplyArgs (\args'' -> appsE (TH.VarE 'withCache) 
                                            [ stringE $ encodedName fName 
                                            , TH.ListE args''
                                            , appsE (varE $ encodedName fName) args''
                                            ]) args'
-
     where 
       instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
-
 
   instantiateCase (ECase e ms) = do
     e'Name <- newName "bindCase"
     e'     <- instantiate e
-    ms'    <- mapM (instantiateMatchToExp e'Name) $ zip [0..] ms
+    ms'    <- instantiateMatches e'Name ms
 
     let binding = bindS' e'Name e'
 
@@ -131,27 +126,55 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
               return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
                                                     $ caseOfE ]
     where 
-      -- |If the matched constructor has no arguments, just instantiate expression of match
-      instantiateMatchToExp _ (_, Match (PCon _ []) match) = instantiate match
+      -- Instantiate matches
+      instantiateMatches e'Name matches =
+        getAdt >>= \case 
+          Nothing  -> error "Algorithms.Eitherize.instantiateMatches: no ADT found"
+          Just adt -> zipWithM instantiateMatch [0..] $ dAdtConstructors adt
+        
+        where
+          -- Default match
+          defaultMatch = case last matches of m@(Match (PVar _) _) -> Just m
+                                              _                    -> Nothing
 
-      -- |Otherwise, bind the constructor's arguments to new names
-      instantiateMatchToExp e'Name (j, Match (PCon _ patVars) match) = do
-        bindings' <- mapM mkBinding $ zip [0..] patVarNames
-        match'    <- instantiate match 
-        return $ letE' bindings' match'
-        where 
-          mkBinding (ith,var) = do 
-            var' <- instantiateName var 
-            return (var', eConstructorArg ith)
+          -- Instantiate match of @j@-th constructor, namely @CCon c _@
+          instantiateMatch j (CCon c _) = case matchFromConstructor c of
+            Match (PVar v) exp -> do
+              v' <- instantiateName v
+              liftM (letE' [(v', varE e'Name)]) $ instantiate exp
 
-          eConstructorArg i   = appsE (TH.VarE 'constructorArgument) 
-                                      [ intE i, intE j, varE e'Name ]
+            Match (PCon _ []) exp -> instantiate exp
 
-          patVarNames         = map (\(PVar n) -> nUntyped n) patVars
+            Match (PCon _ ps) exp -> do
+              bindings' <- zipWithM mkBinding [0..] psNames
+              exp'      <- instantiate exp
+              return $ letE' bindings' exp'
+              where 
+                mkBinding i var = do 
+                  var' <- instantiateName var 
+                  return (var', eConstructorArg i)
 
-      -- |Instantiate default match (pattern is a variable)
-      instantiateMatchToExp e'Name (_, Match (PVar v) match) = 
-        liftM (letE' [(v, varE e'Name)]) $ instantiate match
+                eConstructorArg i = appsE (TH.VarE 'constructorArgument) 
+                                          [ intE i, intE j, varE e'Name ]
+
+                psNames = map (\(PVar p) -> nUntyped p) ps
+            
+          -- Finds the corresponding match for constructor @c@
+          matchFromConstructor c = 
+            case find byMatch matches of
+              Nothing -> case defaultMatch of
+                            Nothing -> error "Algorithms.Eitherize.matchFromConstructor: no match"
+                            Just m  -> m
+              Just m  -> m
+
+            where byMatch (Match (PVar _  ) _) = False
+                  byMatch (Match (PCon p _) _) = untypedName p == c
+
+          -- Finds the corresponding ADT for the matches
+          getAdt = asks (find (any isConstructor . dAdtConstructors) . adts)
+            where 
+              PCon p _ = matchPattern $ head $ matches
+              isConstructor (CCon c _) = untypedName p == c
 
       checkBottom e'Name = 
           TH.CondE (TH.AppE (TH.VarE 'isBottom) (varE e'Name))
@@ -189,7 +212,7 @@ eitherize profiling program = do
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
   values' <- liftM concat $ runReaderT 
                 (runExpInstantiator $ instantiate $ map DBind values)
-                (ExpInstantiatorData toplevelNames profiling)
+                (ExpInstantiatorData toplevelNames profiling adts)
                          
   return $ decls ++ values'
 
