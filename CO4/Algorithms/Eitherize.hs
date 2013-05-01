@@ -22,7 +22,6 @@ import           CO4.Algorithms.Collector
 import           CO4.Unique
 import           CO4.Backend (displayExpression)
 import           CO4.Backend.TH ()
-import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
@@ -30,13 +29,6 @@ import           CO4.EncodedAdt
 import           CO4.Cache (withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
-
-noEitherize :: Namelike a => a -> Bool
-noEitherize a = "Param" `isPrefixOf` (fromName a)
-
-noEitherizeScheme :: Scheme -> Bool
-noEitherizeScheme (SType (TCon n [])) = noEitherize n
-noEitherizeScheme _                   = False
 
 encodedConsName :: Namelike a => a -> a
 encodedConsName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons") 
@@ -52,8 +44,6 @@ newtype AdtInstantiator u a = AdtInstantiator
   deriving (Monad, MonadWriter [TH.Dec], MonadUnique)
 
 instance MonadUnique u => MonadCollector (AdtInstantiator u) where
-
-  collectAdt (DAdt name [] _) | noEitherize name = return ()
 
   collectAdt adt = do
     forM_ (zip [0..] $ dAdtConstructors adt) $ \constructor -> do
@@ -124,26 +114,22 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
 
   instantiateCase (ECase e ms) = do
-    eScheme <- schemeOfExp e
-    if noEitherizeScheme eScheme
-      then return (TH.CaseE (displayExpression e)) `ap` instantiate ms
-      else do
-        e'Name <- newName "bindCase"
-        e'     <- instantiate e
-        ms'    <- mapM (instantiateMatchToExp e'Name) $ zip [0..] ms
+    e'Name <- newName "bindCase"
+    e'     <- instantiate e
+    ms'    <- mapM (instantiateMatchToExp e'Name) $ zip [0..] ms
 
-        let binding = bindS' e'Name e'
+    let binding = bindS' e'Name e'
 
-        if lengthOne ms'
-          then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
+    if lengthOne ms'
+      then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
 
-          else do caseOfE <- bindAndApply (\ms'Names -> [ varE e'Name
-                                                        , TH.ListE $ map varE ms'Names
-                                                        ])
-                                          (appsE $ TH.VarE 'caseOf) ms'
+      else do caseOfE <- bindAndApply (\ms'Names -> [ varE e'Name
+                                                    , TH.ListE $ map varE ms'Names
+                                                    ])
+                                      (appsE $ TH.VarE 'caseOf) ms'
 
-                  return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
-                                                        $ caseOfE ]
+              return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
+                                                    $ caseOfE ]
     where 
       -- |If the matched constructor has no arguments, just instantiate expression of match
       instantiateMatchToExp _ (_, Match (PCon _ []) match) = instantiate match
@@ -197,16 +183,15 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 -- @prof@ enables profiling.
 eitherize :: MonadUnique u => Bool -> Program -> u [TH.Dec]
 eitherize profiling program = do
-  typedProgram <- schemes program
-  let (adts,values) = splitDeclarations typedProgram 
-      toplevelNames = map boundName $ programToplevelBindings typedProgram
+  let (adts,values) = splitDeclarations program 
+      toplevelNames = map boundName $ programToplevelBindings program
 
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
   values' <- liftM concat $ runReaderT 
                 (runExpInstantiator $ instantiate $ map DBind values)
                 (ExpInstantiatorData toplevelNames profiling)
                          
-  return $ decls ++ (deleteSignatures values')
+  return $ decls ++ values'
 
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
