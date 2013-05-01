@@ -3,7 +3,7 @@ module CO4.Prelude
   (prelude, parsePrelude)
 where
 
-import           Prelude ((>>=),(.),return,Show,undefined)
+import           Prelude ((>>=),(.),return,Show)
 import qualified Prelude as P
 import           Control.Monad.IO.Class (MonadIO)
 import qualified Language.Haskell.TH as TH
@@ -25,6 +25,14 @@ prelude =
 
       const x _ = x
 
+      -- Maybe ----------------------------------
+
+      data Maybe a = Nothing | Just a
+
+      fromMaybe a' m = case m of
+        Nothing -> a'
+        Just a  -> a
+
       -- Lists ----------------------------------
 
       data List a = Nil | Cons a (List a) deriving Show
@@ -38,8 +46,10 @@ prelude =
         Cons y ys -> cons y (fold cons nil ys)
 
       head xs = case xs of 
-        Nil      -> undefined
-        Cons x _ -> x
+        Nil      -> Nothing
+        Cons x _ -> Just x
+
+      append xs ys = fold Cons ys xs
 
       -- Booleans -------------------------------
 
@@ -86,5 +96,5 @@ prelude =
 
       -- Various --------------------------------
 
-      length = fold (const USucc) UZero 
+      length = fold (\_ u -> USucc u) UZero 
   |]

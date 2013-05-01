@@ -19,9 +19,10 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noParensExpression) 
   >>= return . everywhere  (mkT noInfixPattern) 
   >>= return . everywhere  (mkT noParensPattern) 
+  >>=          everywhereM (mkM noWildcardPattern)
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
-  >>=          everywhereM (mkM noWildcardPattern)
+  >>= return . everywhere  (mkT noIfThenElse) 
   >>= return .                  deleteSignatures
   >>= return .                  deleteTypeSynonyms
 
@@ -127,6 +128,12 @@ noComplexPatternsInLambdaParameters exp = case exp of
     return $ LamE ps' e'
   _ -> return exp
 
+-- |Removes wildcard patterns by introducting new pattern variables
+noWildcardPattern :: MonadUnique u => Pat -> u Pat
+noWildcardPattern pat = case pat of
+  WildP -> liftM VarP $ newTHName "wildcard"
+  _     -> return pat
+
 noComplexPatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
 noComplexPatterns [VarP p] exp = return ([VarP p],exp)
 noComplexPatterns [p]      exp = do
@@ -136,12 +143,6 @@ noComplexPatterns (p:ps)   exp = do
   (ps',e') <- noComplexPatterns ps  exp
   (p',e'') <- noComplexPatterns [p] e'
   return (p' ++ ps', e'')
-
--- |Removes wildcard patterns by introducting new pattern variables
-noWildcardPattern :: MonadUnique u => Pat -> u Pat
-noWildcardPattern pat = case pat of
-  WildP -> liftM VarP $ newTHName "wildcard"
-  _     -> return pat
 
 newTHName :: MonadUnique u => String -> u Name
 newTHName name = liftM mkName $ newString name
