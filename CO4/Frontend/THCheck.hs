@@ -5,11 +5,12 @@ where
 
 import           Language.Haskell.TH 
 import           Data.Generics (GenericQ,everything,mkQ)
-import           Data.List (partition)
+import           Data.List (partition,nub)
 import           Debug.Trace (trace)
 
 data Message = Error String
              | Warning String
+             deriving (Eq)
 
 instance Show Message where
   show (Error msg)   = "Frontend.THCheck (Error): "   ++ msg
@@ -20,8 +21,8 @@ type Check   = [Message]
 check :: GenericQ Bool
 check a = case partition isError (checks a) of
   ([],[]) -> True
-  ([],ws) -> trace (unlines $ map show ws) $ True
-  (es,ws) -> error $ unlines $ map show $ ws ++ es
+  ([],ws) -> trace (unlines $ map show $ nub ws) $ True
+  (es,ws) -> error $ unlines $ map show $ nub $ ws ++ es
 
 checks :: GenericQ Check
 checks a = concat  [ and' noGuardedBody a
@@ -29,6 +30,7 @@ checks a = concat  [ and' noGuardedBody a
                    , and' validDeclaration a
                    , and' unresolvedInfixExp a
                    , and' unresolvedInfixPat a
+                   , and' noOverlappingDefaultMatches  a
                    ]
 
 validDeclaration :: Dec -> Check
@@ -59,6 +61,18 @@ unresolvedInfixPat :: Pat -> Check
 unresolvedInfixPat p = case p of 
   UInfixP {} -> [Warning $ "Unresolved infix pattern '" ++ excerpt p ++ "'"]
   _          -> []
+
+noOverlappingDefaultMatches :: Exp -> Check
+noOverlappingDefaultMatches exp = case exp of
+  CaseE _ ms -> if ( length (filter isDefaultMatch ms) > 1  )
+                || ( any isDefaultMatch $ tail $ reverse ms )
+                then [Error $ "Overlapping default matches in '" ++ excerpt exp ++ "'"]
+                else []
+  _ -> []
+  where
+    isDefaultMatch (Match (VarP  _) _ _) = True
+    isDefaultMatch (Match WildP     _ _) = True
+    isDefaultMatch _                     = False
 
 and' f = everything (++) (mkQ [] f)
   
