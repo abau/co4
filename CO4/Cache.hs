@@ -18,12 +18,24 @@ class Monad m => MonadCache p m where
 
 type CacheMap p = M.Map (String,[EncodedAdt p]) (EncodedAdt p)
 
-newtype Cache p m a = Cache { fromCache :: StateT (CacheMap p) m a }
-  deriving (Monad, MonadState (CacheMap p), MonadTrans, MonadIO)
+data CacheState p = CacheState { cacheMap  :: CacheMap p
+                               , numHits   :: Int
+                               , numMisses :: Int
+                               }
+
+newtype Cache p m a = Cache { fromCache :: StateT (CacheState p) m a }
+  deriving (Monad, MonadState (CacheState p), MonadTrans, MonadIO)
 
 instance (Monad m, Ord p) => MonadCache p (Cache p m) where
-  retrieve fun args        = gets   $ M.lookup (fun,args)
-  cache    fun args result = modify $ M.insert (fun,args) result
+  retrieve fun args = gets ( M.lookup (fun,args) . cacheMap ) >>= \case
+      Nothing -> addMiss >> return Nothing
+      Just c  -> addHit  >> return ( Just c )
+    where 
+      addHit  = modify $ \s -> s { numHits   = succ $ numHits   s }
+      addMiss = modify $ \s -> s { numMisses = succ $ numMisses s }
+
+  cache    fun args result = 
+    modify $ \s -> s { cacheMap = M.insert (fun,args) result $ cacheMap s }
 
 instance (MonadSAT m) => MonadSAT (Cache p m) where
   fresh        = lift fresh
@@ -32,8 +44,18 @@ instance (MonadSAT m) => MonadSAT (Cache p m) where
   numVariables = lift numVariables
   numClauses   = lift numClauses
 
-runCache :: (Monad m) => Cache p m a -> m a
-runCache c = evalStateT (fromCache c) M.empty
+runCache :: (MonadIO m) => Cache p m a -> m a
+runCache c = do
+  (result,cacheState) <- runStateT (fromCache c) $ CacheState M.empty 0 0
+
+  let h = numHits   cacheState
+      m = numMisses cacheState
+
+  liftIO $ putStrLn $ 
+    concat [ "Cache hits: "  , show h, " (", show $ (h*100) `div` (h+m), "%), "
+           ,       "misses: ", show m, " (", show $ (m*100) `div` (h+m), "%)"
+           ]
+  return result
 
 withCache :: (MonadCache p m) => String -> [EncodedAdt p] -> m (EncodedAdt p)
                               -> m (EncodedAdt p)
@@ -44,21 +66,3 @@ withCache name args f =
       result <- f
       cache name args result
       return result
-
-{-
-newtype NoCache m a = NoCache { fromNoCache :: m a }
-  deriving (Monad)
-
-instance (Monad m) => MonadCache p (NoCache m) where
-  retrieve _ _ = return Nothing
-  cache _ _ _  = return ()
-
-instance (MonadSAT m) => MonadSAT (NoCache m) where
-  fresh = NoCache fresh
-  emit  = NoCache . emit
-  note  = NoCache . note
-
-noCache :: NoCache m a -> m a
-noCache = fromNoCache
--}
-
