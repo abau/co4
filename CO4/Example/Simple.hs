@@ -4,11 +4,11 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
-module CO4.Test.Simple
+module CO4.Example.Simple
 where
 
 import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
-import           Data.Maybe
+import qualified Data.Maybe as M
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -24,12 +24,10 @@ $( [d| data Bool = False | True
         True  -> y
 
        main p x = and p (not x)
-       --main x = (not x)
 
-   |] >>= runIO . configurable [Verbose, DumpAfter "satchmoUnqualified" ""] . compile 
+   |] >>= runIO . configurable [] . compile 
   )
 
-allocator = constructors [ Just [] , Just [] ]
+allocator = constructors [ M.Just [] , M.Just [] ]
 
 result = solveAndTestBooleanP True allocator encMain main 
---result = solveAndTestBoolean allocator encMain main 

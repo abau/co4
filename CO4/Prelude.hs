@@ -85,7 +85,7 @@ prelude =
 
       -- Unary numbers --------------------------
 
-      data Unary = UZero | USucc Unary
+      data Unary = UZero | USucc Unary deriving Show
 
       uZero  = UZero
       uOne   = USucc uZero
@@ -105,7 +105,12 @@ prelude =
         USucc x' -> case y of UZero    -> False
                               USucc y' -> eqUnary x' y'
 
+      add x y = case x of
+        UZero    -> y
+        USucc x' -> USucc (add x' y)
+
       -- Various --------------------------------
 
       length = fold (\_ u -> USucc u) UZero 
+      sum    = fold add UZero
   |]

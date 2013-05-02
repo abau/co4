@@ -17,4 +17,4 @@ Cabal during the next step.
 
 ## Running
 
-See examples in `CO4/Test/`: start with `CO4/Test/Simple.hs`.
+See examples in [CO4/Example] (https://github.com/apunktbau/co4/tree/master/CO4/Example).
