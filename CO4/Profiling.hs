@@ -54,8 +54,8 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
     return result
 
 instance MonadCache p m => MonadCache p (SimpleProfiling m) where
-  retrieve s   = lift . retrieve s
-  cache    s a = lift . cache s a
+  retrieve = lift . retrieve
+  cache k  = lift . cache k
 
 simpleProfiling :: (MonadIO m, MonadSAT m) => SimpleProfiling m a -> m a
 simpleProfiling p = do 

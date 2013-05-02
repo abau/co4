@@ -24,7 +24,7 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
   (isBottom,encodedConstructor,caseOf,constructorArgument)
-import           CO4.Cache (withCache)
+import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
 
@@ -100,11 +100,11 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     case f of
       ECon cName -> instantiateApplication (encodedConsName cName) args'
       EVar fName -> do
-        bindAndApplyArgs (\args'' -> appsE (TH.VarE 'withCache) 
-                                           [ stringE $ encodedName fName 
-                                           , TH.ListE args''
-                                           , appsE (varE $ encodedName fName) args''
-                                           ]) args'
+        bindAndApplyArgs (\args'' -> 
+          appsE (TH.VarE 'withCache) 
+          [ appsE (TH.ConE 'CacheCall) [stringE $ encodedName fName, TH.ListE args'']
+          , appsE (varE $ encodedName fName) args''
+          ]) args'
     where 
       instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
 
@@ -118,10 +118,14 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     if lengthOne ms'
       then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
 
-      else do caseOfE <- bindAndApply (\ms'Names -> [ varE e'Name
-                                                    , TH.ListE $ map varE ms'Names
-                                                    ])
-                                      (appsE $ TH.VarE 'caseOf) ms'
+      else do caseOfE <- bindAndApply 
+                (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
+                --(appsE $ TH.VarE 'caseOf) ms'
+                (\exps -> appsE (TH.VarE 'withCache)
+                            [ appsE (TH.ConE 'CacheCase) exps
+                            , appsE (TH.VarE 'caseOf) exps 
+                            ]
+                ) ms'
 
               return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
                                                     $ caseOfE ]
