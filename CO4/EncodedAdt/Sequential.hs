@@ -129,7 +129,7 @@ encodedConstructor i n args = Exception.assert (i < n)
                             $ EncodedAdt flags constructors
   where
     flags        = case n of 1 -> []
-                             _ -> map constant $ toBinary (bitWidth n) i
+                             _ -> map constant $ toBinary (Just $ bitWidth n) i
     constructors = replaceAt i args
                  $ replicate n bottomConstructor
 

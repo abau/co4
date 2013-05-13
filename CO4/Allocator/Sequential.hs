@@ -69,7 +69,7 @@ excludeBottom = go
                                                           $ goConstructor flags 
 
     goConstructor flags i cons | E.isBottomConstructor cons = 
-      let pattern = toBinary (length flags) i
+      let pattern = toBinary (Just $ length flags) i
       in
         excludePattern flags pattern
 

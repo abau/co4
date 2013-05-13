@@ -127,7 +127,7 @@ excludeBottomAndInvalidConstructorPatterns = go [] []
       where
         invalidConstructorPatterns = drop (length conss) $ binaries $ length fs
 
-        constructorPattern = toBinary (length fs)
+        constructorPattern = toBinary $ Just $ length fs
 
 excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern [] [] = return ()

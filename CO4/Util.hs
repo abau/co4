@@ -191,9 +191,11 @@ expressionToPattern exp = case exp of
 
 -- |@toBinary n i@ converts @i@ to its binary representation using @n@ bits.
 -- Least significant bit is result's head.
-toBinary :: Int -> Int -> [Bool]
-toBinary n i = assert (length result <= n) 
-             $ result ++ replicate (n - length result) False 
+toBinary :: Maybe Int -> Int -> [Bool]
+toBinary numBits i = case numBits of
+  Nothing -> result
+  Just n  -> assert (length result <= n) 
+           $ result ++ replicate (n - length result) False 
   where 
     result = go i
     go 0   = [False]
