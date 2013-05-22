@@ -4,11 +4,14 @@ module CO4.Frontend.THPreprocess
 where
 
 import           Control.Monad (liftM)
-import           Data.Generics (GenericM,GenericT,everywhere,everywhereM,mkM,mkT)
+import           Control.Exception (assert)
+import qualified Data.Map as M
+import           Data.Generics (GenericM,GenericT,everywhere,everywhere',everywhereM
+                               ,mkM,mkT)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
 import           CO4.THUtil (deleteSignatures,deleteTypeSynonyms)
-  
+
 -- |Performs preprocessing on TH's AST 
 preprocess :: MonadUnique u => GenericM u
 preprocess a = everywhereM (mkM noMultipleClauses) a
@@ -23,6 +26,7 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
   >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
   >>= return .                  deleteSignatures
+  >>= return . everywhere  (mkT expandTypeSynonyms)
   >>= return .                  deleteTypeSynonyms
 
 -- |Erases instance derivings from data declarations and newtype declarations
@@ -142,6 +146,30 @@ noComplexPatterns (p:ps)   exp = do
   (ps',e') <- noComplexPatterns ps  exp
   (p',e'') <- noComplexPatterns [p] e'
   return (p' ++ ps', e'')
+
+expandTypeSynonyms :: [Dec] -> [Dec]
+expandTypeSynonyms decs = everywhere' (mkT expand) decs
+  where
+    synonyms = M.fromList $ concatMap synonym decs
+
+    synonym (TySynD name vars t) = [(name,(vars,t))]
+    synonym _                    = []
+
+    expand t | M.null synonyms = t
+    expand t                   = case collectAppT t of
+      (ConT con):args -> case M.lookup con synonyms of
+        Nothing        -> foldl1 AppT $ (ConT con) : (map expand args)
+        Just (vars,t') -> assert (length vars == length args) $
+                          expand $ foldl apply t' $ zip vars args
+      _ -> t
+
+    collectAppT (AppT a b) = (collectAppT a) ++ [b]
+    collectAppT t          = [t]
+
+    apply t (PlainTV v,t') = everywhere (mkT applyInType) t
+      where
+        applyInType (VarT v') | v == v' = t'
+        applyInType x                   = x
 
 newTHName :: MonadUnique u => String -> u Name
 newTHName name = liftM mkName $ newString name

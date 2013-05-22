@@ -38,7 +38,7 @@ validDeclaration dec = case dec of
   FunD {}   -> []
   ValD {}   -> []
   DataD {}  -> []
-  TySynD {} -> [Warning "Type synonyms will be ignored"]
+  TySynD {} -> []
   SigD {}   -> [Warning "Type signatures will be ignored"]
   _         -> [Error "Only function declarations, value declarations and data declarations are allowed"]
 
