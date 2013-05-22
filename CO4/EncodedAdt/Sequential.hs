@@ -143,13 +143,14 @@ data IntermediateAdt p = IntermediateConstructorIndex Int [EncodedAdt p]
                        | IntermediateUndefined
 
 toIntermediateAdt :: (MonadSAT m, Primitive p, Decode m p Bool) 
-                  => EncodedAdt p -> m (IntermediateAdt p)
-toIntermediateAdt adt | isBottom adt       = return IntermediateUndefined 
-toIntermediateAdt adt@(EncodedAdt flags _) =
-  if null flags 
-  then return $ intermediate 0
-  else decode flags >>= return . intermediate . fromBinary
-  where
-    intermediate i = case constructor i adt of
-      Nothing -> IntermediateUndefined
-      Just as -> IntermediateConstructorIndex i as
+                  => EncodedAdt p -> Int -> m (IntermediateAdt p)
+toIntermediateAdt adt _ | isBottom adt       = return IntermediateUndefined 
+toIntermediateAdt adt@(EncodedAdt flags _) n =
+  Exception.assert (length flags == bitWidth n) $
+    if null flags 
+    then return $ intermediate 0
+    else decode flags >>= return . intermediate . fromBinary
+    where
+      intermediate i = case constructor i adt of
+        Nothing -> IntermediateUndefined
+        Just as -> IntermediateConstructorIndex i as

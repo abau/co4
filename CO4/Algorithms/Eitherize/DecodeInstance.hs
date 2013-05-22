@@ -18,8 +18,9 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 -- 
 -- > instance Decode SAT EncodedAdt <Type> where
 -- >    decode p = do
--- >      i <- toIntermediateAdt p
+-- >      i <- toIntermediateAdt p <#constructors of Type>
 -- >      case i of
+-- >        IntermediateUndefined                 -> error "..."
 -- >        IntermediateConstructorIndex 0 <args> -> do
 -- >          p0 <- decode arg0
 -- >          p1 <- decode arg1
@@ -27,6 +28,7 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 -- >          return (<Cons0> p0 p1 ...)
 -- >        IntermediateConstructorIndex 1 <args> -> 
 -- >        ...
+-- >        IntermediateConstructorIndex d _      -> error "..."
 -- 
 decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
 decodeInstance (DAdt name vars conss) = do
@@ -57,12 +59,17 @@ decodeInstance (DAdt name vars conss) = do
                               ]
 
       instanceExp matches = 
-        TH.DoE [ TH.BindS (varP intermediateName) 
-                  (TH.AppE (TH.VarE 'toIntermediateAdt) $ varE paramName)
+        TH.DoE [ TH.BindS (varP intermediateName) $
+                  appsE (TH.VarE 'toIntermediateAdt) [ varE paramName
+                                                     , intE $ length conss
+                                                     ]
                , TH.NoBindS $ TH.CaseE (varE intermediateName) matches
                ]
-  matches <- forM (zip [0..] conss) $ uncurry decodeCons
-  return $ instanceHead [ instanceDec $ matchUndefined name : matches ]
+  matchUndef <- return $ matchUndefined name
+  matches    <- forM (zip [0..] conss) $ uncurry decodeCons
+  matchDef   <- matchDefault name
+
+  return $ instanceHead [ instanceDec $ concat [ [matchUndef], matches, [matchDef] ] ]
 
 matchUndefined :: UntypedName -> TH.Match
 matchUndefined adtName = 
@@ -72,6 +79,24 @@ matchUndefined adtName =
                                           $ "Can not decode 'undefined' to data of type '" ++ fromName adtName ++ "'"
                                  )
            ) []
+
+matchDefault :: MonadUnique u => UntypedName -> u TH.Match
+matchDefault adtName = do
+  indexName <- newName "x"
+  return $
+    TH.Match (TH.ConP 'IntermediateConstructorIndex [varP indexName, TH.WildP])
+             (TH.NormalB $ TH.AppE 
+                (TH.VarE 'error)
+                (TH.AppE 
+                   (TH.VarE 'concat)
+                   (TH.ListE 
+                     [ TH.LitE $ TH.StringL $ "Can not decode constructor #" 
+                     , TH.AppE (TH.VarE 'show) (varE indexName)
+                     , TH.LitE $ TH.StringL $ " of type '" ++ fromName adtName ++ "'"
+                     ]
+                   )
+                )
+             ) []
   
 decodeCons :: MonadUnique u => Int -> Constructor -> u TH.Match
 decodeCons i (CCon consName params) = do

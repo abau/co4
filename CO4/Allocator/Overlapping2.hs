@@ -1,10 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
-module CO4.Allocator.Overlapping
-  ( )
+module CO4.Allocator.Overlapping2
+  ()
 where
 
 import qualified Control.Exception as Exception
-import           Control.Monad (forM_,zipWithM_)
+import           Control.Monad (liftM,forM_,zipWithM_)
+import           Data.Maybe (isNothing,catMaybes)
 import           Data.List ((\\),transpose)
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive (Primitive,primitive,constant,antiSelect,assert)
@@ -12,16 +13,17 @@ import           CO4.Allocator.Common (Allocator (..),AllocateConstructor (..))
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt.Overlapping (EncodedAdt (..))
 import qualified CO4.EncodedAdt.Overlapping as E
+import qualified CO4.EncodedAdt.Overlapping2 as E2
 import           CO4.Util (for,bitWidth,binaries,toBinary)
 
 instance Encodeable Allocator where
   encode alloc = do
     result <- encodeOverlapping [alloc]
     excludeBottomAndInvalidConstructorPatterns result alloc
-    return result
+    return $ E2.EncodedAdt (Just alloc) result
 
-  encodeConstant = \case
-    Known i n as -> E.encodedConstructor i n $ map encodeConstant as
+  encodeConstant alloc = E2.EncodedAdt (Just alloc) $ go alloc
+    where go (Known i n as) = E.encodedConstructor i n $ map go as
 
 encodeOverlapping :: (MonadSAT m, Primitive p) => [Allocator] -> m (EncodedAdt p)
 encodeOverlapping []     = error "Allocator.Overlapping.encodeOverlapping: no allocators"
@@ -96,7 +98,7 @@ excludeBottomAndInvalidConstructorPatterns = go [] []
               [] -> []
               _  -> toBinary (Just $ length thisFlags) i
 
-    go _ _ _ _ = error $ "Allocator.Overlapping.excludeBottomAndInvalidConstructorPatterns: bottom"
+    go flags pattern _ _ = error $ "Allocator.Overlapping.excludeBottomAndInvalidConstructorPatterns: bottom"
 
 excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern []    []      = return ()

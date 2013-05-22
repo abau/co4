@@ -1,8 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Allocator.Combine
-  ( Allocator, AllocateConstructor 
-  , known, constructors, bottom --, allocates
-  )
+  ()
 where
 
 import qualified Control.Exception as Exception
@@ -10,34 +8,11 @@ import           Control.Monad (forM_)
 import           Data.List (transpose)
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive (Primitive,primitive,antiSelect,assert)
+import           CO4.Allocator.Common (Allocator (..),AllocateConstructor (..))
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt.Sequential (EncodedAdt (..), EncodedConstructor)
 import qualified CO4.EncodedAdt.Sequential as E
 import           CO4.Util (for,bitWidth,binaries,toBinary)
-
-data Allocator = Known { _constructorIndex :: Int
-                       , _numConstructors  :: Int
-                       , _arguments        :: [Allocator]
-                       }
-               | Unknown [AllocateConstructor]
-               deriving Show
-
-data AllocateConstructor = AllocateConstructor [Allocator]
-                         | AllocateBottom
-                         deriving Show
-
-known :: Int -> Int -> [Allocator] -> Allocator
-known = Known
-
-constructors :: [Maybe [Allocator]] -> Allocator
-constructors allocs = Exception.assert (not $ null allocs) 
-                    $ Unknown $ map toConstructor allocs
-  where
-    toConstructor Nothing     = AllocateBottom
-    toConstructor (Just args) = AllocateConstructor args
-
-bottom :: AllocateConstructor
-bottom = AllocateBottom
 
 instance Encodeable Allocator where
   encode allocator = do

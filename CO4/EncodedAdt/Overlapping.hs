@@ -14,15 +14,15 @@ import qualified Prelude as P
 import           Control.Monad (forM,zipWithM)
 import qualified Control.Exception as Exception 
 import           Data.List (transpose)
-import           Data.Maybe (catMaybes,fromMaybe,fromJust)
+import           Data.Maybe (catMaybes,fromJust)
 import           Data.Tree
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive 
   (Primitive,constant,and,implies,select,evaluateConstant,isConstant)
 import           Satchmo.Core.Decode (Decode,decode)
-import           CO4.Util (equal,for,toBinary,binaries,bitWidth,fromBinary)
+import           CO4.Util (for,toBinary,binaries,bitWidth,fromBinary)
 
-data EncodedAdt p = EncodedAdt [p]   [ EncodedAdt p ] 
+data EncodedAdt p = EncodedAdt [p] [ EncodedAdt p ] 
                   | Bottom
                     deriving (Eq,Ord)
 
@@ -57,13 +57,20 @@ constantConstructorIndex (EncodedAdt flags _) =
 
 caseOf :: (MonadSAT m, Primitive p) => EncodedAdt p -> [EncodedAdt p] 
                                     -> m (EncodedAdt p)
-caseOf adt branches | isBottom adt || (all isBottom branches) = return bottom
-caseOf adt branches = case constantConstructorIndex adt of
-  Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
-  Nothing -> do
-    flags'     <- caseOfBits (fromJust $ flags adt) $ map flags     branches
-    arguments' <- caseOfArguments adt               $ map arguments branches
-    return $ EncodedAdt flags' arguments'
+caseOf adt branches | isBottom adt || (all isBottom branches) 
+                    = return bottom
+caseOf adt branches | length (fromJust $ flags adt) < bitWidth (length branches) 
+                    = return bottom --error "EncodedAdt.Overlapping.caseOf: missing flags"
+caseOf adt branches =
+  case constantConstructorIndex adt of
+    Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
+    Nothing -> do 
+      flags'     <- caseOfBits relevantFlags $ map flags     branches
+      arguments' <- caseOfArguments adt'     $ map arguments branches
+      return $ EncodedAdt flags' arguments'
+  where
+    relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
+    adt'          = EncodedAdt relevantFlags $ fromJust $ arguments adt
 
 caseOfArguments :: (MonadSAT m, Primitive p) => EncodedAdt p 
                                                 -> [Maybe [EncodedAdt p] ]
@@ -78,20 +85,24 @@ caseOfArguments adt branchArguments =
     maxArgs = maximum $ map length $ catMaybes branchArguments
 
 caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
-caseOfBits flags branchBits = Exception.assert (P.not $ null nonBottomBits) $
-                              Exception.assert (equal length nonBottomBits) $ do
-  premises <- mkPremises
-  forM (transpose branchBits') $ mkBits premises
-  where
-    nonBottomBits = catMaybes branchBits
-    bitWidth      = length $ head nonBottomBits
-    branchBits'   = map (fromMaybe $ replicate bitWidth $ constant False) branchBits
-    mkPremises    = mapM mkPremise patterns 
-      where 
-        patterns          = binaries $ length flags 
-        mkPremise pattern = and $ zipWith select pattern flags
+caseOfBits flags branchBits = 
+    Exception.assert (P.not $ null nonBottomBits) 
+  $ Exception.assert (length flags == bitWidth (length branchBits)) 
+  $ do
+    premises <- mkPremises
+    forM (transpose branchBits') $ mkBits premises
+    where
+      nonBottomBits  = catMaybes branchBits
+      branchBitWidth = maximum $ map length nonBottomBits 
+      branchBits'    = for branchBits $ \case
+        Nothing -> replicate branchBitWidth $ constant False
+        Just bs -> bs ++ replicate (branchBitWidth - (length bs)) (constant False)
+      mkPremises     = mapM mkPremise patterns 
+        where 
+          patterns          = binaries $ length flags 
+          mkPremise pattern = and $ zipWith select pattern flags
 
-    mkBits premises bitsT = zipWithM implies premises bitsT >>= and
+      mkBits premises bitsT = zipWithM implies premises bitsT >>= and
 
 encodedConstructor :: Primitive p => Int -> Int -> [EncodedAdt p] -> EncodedAdt p
 encodedConstructor i n = Exception.assert (i < n) 
@@ -104,21 +115,23 @@ constructorArgument :: Primitive p => Int -> Int -> EncodedAdt p -> EncodedAdt p
 constructorArgument _ _ adt | isBottom adt  = bottom
 constructorArgument i j adt@(EncodedAdt _ args) = 
   case constantConstructorIndex adt of
-    Nothing           -> {-Exception.assert (i < length args) $ args !! i -}
+    Nothing           -> -- Exception.assert (i < length args) $ args !! i
                          if i < length args then args !! i
                                             else Bottom
     Just j' | j == j' -> Exception.assert (i < length args) $ args !! i
-    Just j'           -> Bottom
+    Just _            -> Bottom
 
 data IntermediateAdt p = IntermediateConstructorIndex Int [EncodedAdt p]
                        | IntermediateUndefined
 
 toIntermediateAdt :: (MonadSAT m, Primitive p, Decode m p Bool) 
-                  => EncodedAdt p -> m (IntermediateAdt p)
-toIntermediateAdt adt | isBottom adt      = return IntermediateUndefined 
-toIntermediateAdt (EncodedAdt flags args) = 
-  if null flags 
-  then return $ intermediate 0
-  else decode flags >>= return . intermediate . fromBinary
-  where
-    intermediate i = IntermediateConstructorIndex i args 
+                  => EncodedAdt p -> Int -> m (IntermediateAdt p)
+toIntermediateAdt adt _ | isBottom adt      = return IntermediateUndefined 
+toIntermediateAdt (EncodedAdt flags args) n = 
+  Exception.assert (length flags >= bitWidth n) $
+    if null relevantFlags 
+    then return $ intermediate 0
+    else decode relevantFlags >>= return . intermediate . fromBinary
+    where
+      relevantFlags  = take (bitWidth n) flags
+      intermediate i = IntermediateConstructorIndex i args 
