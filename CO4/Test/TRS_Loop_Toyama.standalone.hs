@@ -1,13 +1,9 @@
-
 module TRS_Loop where
 
 import qualified Prelude
 
 main :: Looping_Derivation -> Bool
 main ld = looping_derivation_ok toyama ld
-
---main :: Derivation -> Bool
---main d = derivation_ok toyama d
 
 -- http://termcomp.uibk.ac.at/termcomp/tpdb/tpviewer.seam?tpId=54227&cid=3363
 data Term = V Name | F Term Term Term | A | B | C
@@ -52,8 +48,7 @@ type Substitution = List (Pair Name Term)
 domain :: Substitution -> List Name
 domain = map fst
 
---data Step = Step Term Rule Position Substitution Term
-data Step = Step Term Rule (List Pos) (List (Pair Name Term)) Term
+data Step = Step Term Rule Position Substitution Term
 
 stepInput :: Step -> Term
 stepInput step = case step of Step t _ _ _ _ -> t
@@ -66,9 +61,6 @@ bind mA f = case mA of
   Nothing -> Nothing
   Just a  -> f a
 
--- substitution auf term anwenden.
--- dabei soll JEDE variable im term auch
--- ersetzt werden 
 apply :: Term -> Substitution -> Maybe Term
 apply term subs = case term of
   V v -> applyVar subs v
@@ -146,33 +138,7 @@ step_ok trs s = case s of
           )
       )
 
-
-
-{-
-         and ( -- Cons (equalList equalName (domain sub) vars)
-             (Cons (equalTerm (get t0 pos) (apply lhs sub))
-             (Cons (equalTerm (put t0 pos  (apply rhs sub)) t1)
-             Nil))))
-             -}
-
 type Derivation = List Step
-
-{-
-derivation_ok :: TRS -> Derivation -> Bool
-derivation_ok trs steps = and2 ( snd ( foldr derive_ok (Pair Nothing True) steps ) )
-                               ( not ( null steps ) )
-  where 
-    derive_ok step state = case state of
-      Pair previous isOk ->
-        case previous of 
-          Nothing -> Pair (Just step)       (step_ok trs step)
-          Just p  -> Pair (Just step) (and (Cons (step_ok trs step)
-                                           (Cons (match p step)
-                                           (Cons isOk Nil)))
-                                      )
-
-    match a b = equalTerm (stepResult a) (stepInput b)
-    -}
 
 derivation_ok trs deriv = case deriv of
   Nil -> False
@@ -191,10 +157,7 @@ derive_ok trs term deriv = case deriv of
                                      True  -> derive_ok trs t1 deriv'
 
 
---data Looping_Derivation = Looping_Derivation Derivation Position Substitution
-data Looping_Derivation = Looping_Derivation (List Step) 
-                                             (List Pos) 
-                                             (List (Pair Name Term))
+data Looping_Derivation = Looping_Derivation Derivation Position Substitution
 
 looping_derivation_ok :: TRS -> Looping_Derivation -> Bool
 looping_derivation_ok trs ld = case ld of
@@ -215,14 +178,6 @@ looping_derivation_ok trs ld = case ld of
                       )
                   )
                   
-
-
-
-                  {-
-                  (equalTerm (get   (stepResult (last der)) pos)
-                             (apply (stepInput  (head der)) sub))
-                             -}
-
 equalRule :: Rule -> Rule -> Bool
 equalRule x y = case x of
   Rule xNames xLhs xRhs -> case y of 
