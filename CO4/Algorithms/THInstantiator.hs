@@ -101,8 +101,10 @@ class Monad m => MonadTHInstantiator m where
     return (foldl TH.AppE) `ap` instantiate f `ap` instantiate args
 
   instantiateLam :: Expression -> m TH.Exp
-  instantiateLam (ELam ns e) =
-    return TH.LamE `ap` instantiate (map PVar ns) `ap` instantiate e
+  instantiateLam (ELam ns e) = do
+    ns' <- mapM instantiate ns
+    e'  <- instantiate e
+    return $ TH.LamE (map TH.VarP ns') e'
 
   instantiateCase :: Expression -> m TH.Exp
   instantiateCase (ECase e ms) = 
