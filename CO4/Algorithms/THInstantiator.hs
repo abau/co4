@@ -2,11 +2,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 module CO4.Algorithms.THInstantiator
-  (MonadTHInstantiator(..), THInstantiable(..))
+  (MonadTHInstantiator(..), THInstantiable(..), toTH)
 where
 
 import           Control.Monad (ap)
-import           Control.Monad.Identity (Identity)
+import           Control.Monad.Identity (Identity,runIdentity)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Names (funName)
@@ -159,6 +159,9 @@ instance MonadTHInstantiator Identity
 
 class THInstantiable a b where
   instantiate :: MonadTHInstantiator m => a -> m b
+
+toTH :: (THInstantiable a b) => a -> b
+toTH = runIdentity . instantiate
 
 instance THInstantiable Name TH.Name where
   instantiate = instantiateName
