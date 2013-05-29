@@ -1,6 +1,6 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# language LambdaCase #-}
-
+{-# LANGUAGE LambdaCase #-}
 module CO4.Compilation
   (compileFile, compile, stageNames)
 where
@@ -11,7 +11,7 @@ import           Language.Haskell.TH.Syntax (Quasi)
 import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
-import           CO4.THUtil (unqualifiedNames,deriveShows)
+import           CO4.THUtil (unqualifiedNames,derive)
 import           CO4.Util (addDeclarations)
 import           CO4.Frontend
 import           CO4.Frontend.HaskellSrcExts ()
@@ -92,10 +92,10 @@ compile a = do
                   >>= lift . (dumpAfterStage' stageInstantiation)
 
     result <- lift (is NoSatchmo) >>= \case
-                True  -> return $ displayProgram parsedProgram
-                False -> do satchmoP <- compileToSatchmo uniqueProgram
-                            return $ deriveShows (displayProgram parsedProgram)
-                                  ++ satchmoP
+      True  -> return $ displayProgram parsedProgram
+      False -> do satchmoP <- compileToSatchmo uniqueProgram
+                  return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
+                        ++ satchmoP
 
     lift $ C.logWhenVerbose "Compilation successful"
     return result

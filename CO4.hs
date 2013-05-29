@@ -5,6 +5,7 @@ module CO4
   , module CO4.Algorithms.Eitherize.Solve
   , module CO4.Allocator
   , module CO4.Encodeable
+  , module CO4.EncEq
   , encodedConstructor
   ) 
 where
@@ -18,3 +19,4 @@ import           CO4.Algorithms.Eitherize.Solve
 import           CO4.Allocator
 import           CO4.Encodeable
 import           CO4.EncodedAdt (encodedConstructor)
+import           CO4.EncEq

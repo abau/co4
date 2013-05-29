@@ -5,7 +5,7 @@ module CO4.EncodedAdt.Overlapping
   ( EncodedAdt (..), IntermediateAdt (..)
   , bottom, isBottom, flags
   , constantConstructorIndex, caseOf, encodedConstructor, constructorArgument
-  , toIntermediateAdt
+  , toIntermediateAdt, equalFlags
   )
 where
 
@@ -18,7 +18,7 @@ import           Data.Maybe (catMaybes,fromJust)
 import           Data.Tree
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive 
-  (Primitive,constant,and,implies,select,evaluateConstant,isConstant)
+  (Primitive,constant,and,implies,select,evaluateConstant,isConstant,equals)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Util (for,toBinary,binaries,bitWidth,fromBinary)
 
@@ -135,3 +135,13 @@ toIntermediateAdt (EncodedAdt flags args) n =
     where
       relevantFlags  = take (bitWidth n) flags
       intermediate i = IntermediateConstructorIndex i args 
+
+equalFlags :: (MonadSAT m, Primitive p) => Int -> EncodedAdt p -> EncodedAdt p -> m p
+equalFlags n a b = case (flags a, flags b) of
+  (Nothing,_) -> return $ constant False -- todo: really?
+  (_,Nothing) -> return $ constant False -- todo: really?
+
+  (Just f1, Just f2) -> Exception.assert (b >= length f1 && b >= length f2) $ do
+    zipWithM (\x y -> equals [x,y]) (take b f1) (take b f2) >>= and
+    where 
+      b = bitWidth n

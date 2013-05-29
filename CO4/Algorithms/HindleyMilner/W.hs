@@ -20,6 +20,7 @@ import           CO4.PPrint
 import           CO4.Algorithms.Instantiator hiding (instantiate)
 import           CO4.Algorithms.Util (introduceTypedNames,eraseTypedNames)
 import           CO4.Algorithms.TopologicalSort (bindingGroups)
+import           CO4.Prelude (preludeContext)
 
 -- |Options whether and how to introduce type applications and type abstractions
 data IntroduceTLamTApp = IntroduceAllTLamTApp  -- ^For all polymorphic expressions
@@ -56,15 +57,13 @@ runHm = flip runReaderT
 -- and type applications
 schemeOfExp :: MonadUnique u => Expression -> u Scheme
 schemeOfExp exp = do
-  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w context exp
-  let t' = generalize (substitutes subst context) t
+  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w preludeContext exp
+  let t' = generalize (substitutes subst preludeContext) t
   return t'
-
-  where context = emptyContext
 
 -- |Annotates the scheme to all named expressions/declarations 
 schemes :: MonadUnique u => Program -> u Program
-schemes = schemesConfig (HMConfig DontIntroduceTLamTApp True) emptyContext
+schemes = schemesConfig (HMConfig DontIntroduceTLamTApp True) preludeContext
 
 -- |@withSchemes f p@ applies @f@ to @p'@, where @p'@ equals @p@ after type inference.
 -- Returns the result of @f p'@ with erased type information.

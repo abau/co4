@@ -1,17 +1,20 @@
 {-# LANGUAGE TemplateHaskell #-}
 module CO4.Prelude
-  (prelude, parsePrelude)
+  (prelude, parsePrelude, preludeContext, preludeToplevel)
 where
 
-import           Prelude ((>>=),(.),return,Show)
+import           Prelude ((>>=),(.),($),return,Show)
 import qualified Prelude as P
 import           Control.Monad.IO.Class (MonadIO)
 import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Quasi)
-import           CO4.Language (Declaration)
+import           CO4.Language 
 import           CO4.Unique (MonadUnique)
 import           CO4.Frontend.TH (parseTHDeclaration)
 import           CO4.Frontend.THPreprocess (preprocess,eraseDerivings)
+import           CO4.Algorithms.HindleyMilner.Util 
+  (Context (..),binds,emptyContext,toList)
+import           CO4.TypesUtil (functionType)
 
 parsePrelude :: (Quasi m, MonadIO m, MonadUnique m) => m [Declaration]
 parsePrelude = TH.runQ prelude 
@@ -114,3 +117,13 @@ prelude =
       length = fold (\_ u -> USucc u) UZero 
       sum    = fold add UZero
   |]
+
+preludeContext :: Context
+preludeContext = binds 
+  [("==", SForall x $ SType $ functionType [TVar x,TVar x] (TCon bool []))
+  ] emptyContext
+  where x    = UntypedName "x"
+        bool = UntypedName "Bool"
+
+preludeToplevel :: [UntypedName]
+preludeToplevel = P.map P.fst $ toList preludeContext

@@ -6,12 +6,9 @@ module CO4.Algorithms.Eitherize
   (eitherize)
 where
 
-import           Prelude hiding (undefined)
-import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Data.List (find)
-import           Data.Char (toUpper)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util
@@ -20,22 +17,17 @@ import           CO4.Names
 import           CO4.Algorithms.THInstantiator
 import           CO4.Algorithms.Collector
 import           CO4.Unique
+import           CO4.Algorithms.Eitherize.Names
 import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
+import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (isBottom,encodedConstructor,caseOf,constructorArgument)
+import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
-
-encodedConsName :: Namelike a => a -> a
-encodedConsName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons") 
-
-encodedName :: Namelike a => a -> a
-encodedName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns)) 
-
-allocatorName :: Namelike a => a -> a
-allocatorName = mapName (\(n:ns) -> "alloc" ++ (toUpper n : ns)) 
+import           CO4.EncEq (encEq)
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -48,12 +40,11 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
       mkAllocator constructor
       mkEncodedConstructor constructor
 
-    mkEncodeableInstance
-    mkDecodeInstance
+    decodeInstance adt     >>= tellOne
+    encodeableInstance adt >>= tellOne
+    encEqInstance adt      >>= tellOne
 
     where 
-      mkDecodeInstance     = decodeInstance adt >>= tellOne
-      mkEncodeableInstance = encodeableInstance adt >>= tellOne
       mkAllocator          = withConstructor allocatorName   id      'known
       mkEncodedConstructor = withConstructor encodedConsName returnE 'encodedConstructor
 
@@ -86,7 +77,7 @@ isToplevelName :: Monad u => ToplevelName -> ExpInstantiator u Bool
 isToplevelName name = asks $ elem name . toplevelNames
 
 instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
-  
+
   instantiateName = return . convertName . encodedName
 
   instantiateVar (EVar n) = isToplevelName n >>= \case
@@ -98,15 +89,26 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
   instantiateApp (EApp f args) = do
     args'    <- instantiate args
     case f of
-      ECon cName -> instantiateApplication (encodedConsName cName) args'
-      EVar fName -> do
+      ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
+      EVar fName -> case convertName fName of
+        "==" -> instantiateEq args'
+        _    -> instantiateCachedApp fName args'
+
+    where 
+      instantiateCachedApp fName args' = 
         bindAndApplyArgs (\args'' -> 
           appsE (TH.VarE 'withCache) 
           [ appsE (TH.ConE 'CacheCall) [stringE $ encodedName fName, TH.ListE args'']
           , appsE (varE $ encodedName fName) args''
           ]) args'
-    where 
-      instantiateApplication f' = bindAndApplyArgs (appsE $ varE f') 
+
+      instantiateEq args' = do
+        scheme <- liftM toTH $ schemeOfExp $ head args
+        bindAndApplyArgs (\args'' -> 
+          appsE (TH.VarE 'withCache) 
+          [ appsE (TH.ConE 'CacheCall) [stringE "encEq", TH.ListE args'']
+          , appsE (TH.VarE 'encEq) $ typedUndefined scheme : args''
+          ]) args'
 
   instantiateCase (ECase e ms) = do
     e'Name <- newName "bindCase"
@@ -120,7 +122,6 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
       else do caseOfE <- bindAndApply 
                 (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
-                --(appsE $ TH.VarE 'caseOf) ms'
                 (\exps -> appsE (TH.VarE 'withCache)
                             [ appsE (TH.ConE 'CacheCase) exps
                             , appsE (TH.VarE 'caseOf) exps 
@@ -210,7 +211,9 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 -- @prof@ enables profiling.
 eitherize :: MonadUnique u => Bool -> Program -> u [TH.Dec]
 eitherize profiling program = do
-  let (adts,values) = splitDeclarations program 
+  typedProgram <- schemes program
+
+  let (adts,values) = splitDeclarations typedProgram 
       toplevelNames = map boundName $ programToplevelBindings program
 
   decls   <- execWriterT $ runAdtInstantiator $ collect     adts
@@ -218,7 +221,7 @@ eitherize profiling program = do
                 (runExpInstantiator $ instantiate $ map DBind values)
                 (ExpInstantiatorData toplevelNames profiling adts)
                          
-  return $ decls ++ values'
+  return $ {-deleteSignatures $-} decls ++ values'
 
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 

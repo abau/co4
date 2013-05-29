@@ -2,10 +2,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module CO4.Test.LPO where
 
-import qualified Prelude ; import Prelude (($), (-), (*))
+import qualified Prelude 
+import Prelude (($), (-), (*),(==))
 
 import qualified Data.Maybe as M
 
@@ -15,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/LPO.standalone.hs" )
+$( runIO $ configurable [DumpAfter "satchmoUnqualified" "/tmp/lpo"] $ compileFile "CO4/Test/LPO.standalone.hs" )
 
 uSymbol = constructors [ M.Just [], M.Just [], M.Just [], M.Just [] ]
 

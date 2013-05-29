@@ -109,10 +109,10 @@ unqualifiedNames = everywhere $ mkT unqualifiedName
   where
     unqualifiedName = TH.mkName . TH.nameBase
 
-deriveShows :: GenericT
-deriveShows = everywhere $ mkT deriveShow
+derive :: TH.Name -> GenericT
+derive n = everywhere $ mkT go
   where
-    deriveShow (TH.DataD ctxt name tvars cons names)
-      | not (''Show `elem` names) = TH.DataD ctxt name tvars cons $ names ++ [''Show]
+    go (TH.DataD ctxt name tvars cons names)
+      | not (n `elem` names) = TH.DataD ctxt name tvars cons $ names ++ [n]
 
-    deriveShow decl = decl
+    go decl = decl
