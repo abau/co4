@@ -32,7 +32,7 @@ solveAndTestBoolean
   => Allocator                                      
   -> ConstraintSystem Boolean
   -> (a -> b)                            
-  -> IO ()
+  -> IO (Maybe a)
 solveAndTestBoolean = solveAndTest
 
 -- | Equals 'solveAndTestP'. Uses 'Boolean's for encoding.
@@ -42,7 +42,7 @@ solveAndTestBooleanP
   -> Allocator                                      
   -> ParamConstraintSystem Boolean
   -> (k -> a -> b)                            
-  -> IO ()
+  -> IO (Maybe a)
 solveAndTestBooleanP = solveAndTestP
 
 -- | Equals 'solveAndTest'. Uses 'Formula's for encoding.
@@ -51,7 +51,7 @@ solveAndTestFormula
   => Allocator                                      
   -> ConstraintSystem Formula
   -> (a -> b)                            
-  -> IO ()
+  -> IO (Maybe a)
 solveAndTestFormula = solveAndTest
 
 -- | Equals 'solveAndTestP'. Uses 'Formula's for encoding.
@@ -61,7 +61,7 @@ solveAndTestFormulaP
   -> Allocator                                      
   -> ParamConstraintSystem Formula
   -> (k -> a -> b)                            
-  -> IO ()
+  -> IO (Maybe a)
 solveAndTestFormulaP = solveAndTestP
 
 -- |Solves an encoded constraint system and tests the found solution
@@ -72,15 +72,17 @@ solveAndTest :: ( Primitive p, Show p
       => Allocator                                      -- ^Allocator
       -> ConstraintSystem p                             -- ^Encoded constraint system
       -> (a -> b)                                       -- ^Original constraint system
-      -> IO ()
+      -> IO (Maybe a)
 solveAndTest allocator constraint test = do
   solution <- solve allocator constraint
   case solution of
-    Nothing ->    putStrLn "No solution found"
+    Nothing -> do putStrLn "No solution found"
+                  return Nothing
     Just s  -> do putStrLn $ "Solution: " ++ (show s)
                   putStr "Test: "
                   hFlush stdout 
                   putStrLn $ show $ test s
+                  return $ Just s
 
 -- |Solves an encoded parametrized constraint system and tests the found solution
 -- against the original constraint system
@@ -91,15 +93,17 @@ solveAndTestP :: ( Encodeable k, Primitive p, Show p
       -> Allocator                                      -- ^Allocator
       -> ParamConstraintSystem p                        -- ^Encoded constraint system
       -> (k -> a -> b)                                  -- ^Original constraint system
-      -> IO ()
+      -> IO (Maybe a)
 solveAndTestP k allocator constraint test = do
   solution <- solve allocator $ constraint $ encodeConstant k
   case solution of
-    Nothing ->    putStrLn "No solution found"
+    Nothing -> do putStrLn "No solution found"
+                  return Nothing
     Just s  -> do putStrLn $ "Solution: " ++ (show s)
                   putStr "Test: "
                   hFlush stdout 
                   putStrLn $ show $ test k s
+                  return $ Just s
 
 -- |Solves an encoded constraint system
 solve :: ( Primitive p, Show p
