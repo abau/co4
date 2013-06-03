@@ -134,8 +134,12 @@ equalOrder a b = case a of
                    NGE -> True
 
 equalList :: (a -> a -> Bool) -> List a -> List a -> Bool
-equalList eq xs ys = and2 (all (\n -> elem eq n ys) xs)
-                          (all (\n -> elem eq n xs) ys)
+equalList eq xs ys = case xs of
+  Nil -> case ys of Nil -> True
+                    _   -> False
+  Cons x' xs' -> 
+    case ys of Nil         -> False
+               Cons y' ys' -> and2 (eq x' y') (equalList eq xs' ys')
     
 elem :: (a -> a -> Bool) -> a -> List a -> Bool
 elem eq x xs = case xs of
@@ -152,7 +156,7 @@ and :: List Bool -> Bool
 and xs = foldr and2 True xs
 
 or :: List Bool -> Bool
-or xs = foldr or2 True xs
+or xs = foldr or2 False xs
 
 foldr :: (a -> b -> b) -> b -> List a -> b
 foldr f z xs = case xs of
