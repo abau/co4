@@ -122,6 +122,7 @@ parseTHType type_ = case type_ of
     parse type_ = case type_ of
       TH.VarT v   -> TVar $ untypedName $ fromTHName v
       TH.ConT c   -> TCon (untypedName $ fromTHName c) []
+      TH.ListT    -> TCon listName []
       TH.AppT a b -> case gatherApplication a b of
         (TH.ArrowT, args) -> 
           foldr1 (\arg result -> TCon funName [arg,result]) 
@@ -149,4 +150,4 @@ fromTHName = name . TH.nameBase
 
 notSupported :: (TH.Ppr a, Show a) => String -> a -> b
 notSupported funName a = 
-  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported"]
+  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported: ", show a]

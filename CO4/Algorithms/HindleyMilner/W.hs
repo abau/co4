@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.W
   ( HMConfig (..), IntroduceTLamTApp (..) 
   , schemeOfExp, schemesConfig, schemes, withSchemes)
@@ -20,7 +21,8 @@ import           CO4.PPrint
 import           CO4.Algorithms.Instantiator hiding (instantiate)
 import           CO4.Algorithms.Util (introduceTypedNames,eraseTypedNames)
 import           CO4.Algorithms.TopologicalSort (bindingGroups)
-import           CO4.Prelude (preludeContext)
+import           CO4.Prelude (unparsedPreludeContext)
+import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
 
 -- |Options whether and how to introduce type applications and type abstractions
 data IntroduceTLamTApp = IntroduceAllTLamTApp  -- ^For all polymorphic expressions
@@ -53,21 +55,31 @@ introduceConTLamTApp = do
 runHm :: MonadUnique u => HMConfig -> HM u a -> u a
 runHm = flip runReaderT
 
+initialContext :: MonadConfig m => m Context
+initialContext = do
+  is ImportPrelude >>= \case
+    False -> return emptyContext
+    True  -> return unparsedPreludeContext
+
 -- |Infers the scheme of an expression without introducing type abstractions
 -- and type applications
-schemeOfExp :: MonadUnique u => Expression -> u Scheme
+schemeOfExp :: (MonadUnique u,MonadConfig u) => Expression -> u Scheme
 schemeOfExp exp = do
-  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w preludeContext exp
-  let t' = generalize (substitutes subst preludeContext) t
+  context     <- initialContext
+  (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w context exp
+  let t' = generalize (substitutes subst context) t
   return t'
 
 -- |Annotates the scheme to all named expressions/declarations 
-schemes :: MonadUnique u => Program -> u Program
-schemes = schemesConfig (HMConfig DontIntroduceTLamTApp True) preludeContext
+schemes :: (MonadUnique u,MonadConfig u) => Program -> u Program
+schemes program = do
+  context <- initialContext 
+  schemesConfig (HMConfig DontIntroduceTLamTApp True) context program
 
 -- |@withSchemes f p@ applies @f@ to @p'@, where @p'@ equals @p@ after type inference.
 -- Returns the result of @f p'@ with erased type information.
-withSchemes :: MonadUnique u => (Program -> u Program) -> Program -> u Program
+withSchemes :: (MonadConfig u,MonadUnique u) => (Program -> u Program) 
+                                             -> Program -> u Program
 withSchemes f program = schemes program >>= f >>= return . eraseTypedNames
 
 schemesConfig :: MonadUnique u => HMConfig -> Context -> Program -> u Program

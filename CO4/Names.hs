@@ -2,7 +2,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 -- |Namelike definitions
 module CO4.Names 
-  (Namelike (..), funName, convertName)
+  (Namelike (..), convertName, funName, listName, consName, eqName)
 where
 
 import           CO4.Language (Name(..),UntypedName(..))
@@ -41,8 +41,17 @@ instance Namelike TH.Name where
   readName = TH.mkName
   fromName = show
 
+convertName :: (Namelike n,Namelike m) => n -> m
+convertName = readName . fromName
+
 funName :: Namelike n => n
 funName = readName "->"
 
-convertName :: (Namelike n,Namelike m) => n -> m
-convertName = readName . fromName
+listName :: Namelike n => n
+listName = readName "[]"
+
+consName :: Namelike n => n
+consName = readName ":"
+
+eqName :: Namelike n => n
+eqName = readName "=="

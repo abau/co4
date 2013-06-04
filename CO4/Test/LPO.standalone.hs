@@ -1,7 +1,6 @@
 module LPO where
 
 import qualified Prelude
-import Prelude ((==))
 
 data Bool     = False | True
 
@@ -22,13 +21,13 @@ type Precedence = List Symbol
 type TRS = List (Pair Term Term)
 
 main trs prec = all (\rule -> case rule of
-                    Pair lhs rhs -> (lpo (ord prec) lhs rhs) == GR
+                    Pair lhs rhs -> equalOrder (lpo (ord prec) lhs rhs) GR
                 )
                 trs
 
 lpo :: (Symbol -> Symbol -> Order) -> Term -> Term -> Order
 lpo ord s t = case t of
-  Var x     -> case s == t of 
+  Var x     -> case equalTerm s t of 
                   False -> case occurs x s of
                               False -> NGE
                               True  -> GR
@@ -37,19 +36,19 @@ lpo ord s t = case t of
   Term g ts  -> case s of
     Var _     -> NGE
     Term f ss -> 
-      case all (\si -> (lpo ord si t) == NGE) ss of
+      case all (\si -> equalOrder (lpo ord si t) NGE) ss of
         False -> GR
         True  -> case ord f g of
-                    GR  -> case all (\ti -> (lpo ord s ti) == GR) ts of
+                    GR  -> case all (\ti -> equalOrder (lpo ord s ti) GR) ts of
                              False -> NGE
                              True  -> GR
-                    EQ  -> case all (\ti -> (lpo ord s ti) == GR) ts of
+                    EQ  -> case all (\ti -> equalOrder (lpo ord s ti) GR) ts of
                              False -> NGE
                              True  -> lex (lpo ord) ss ts
                     NGE -> NGE
 
 ord :: Precedence -> Symbol -> Symbol -> Order
-ord prec a b = case a == b of
+ord prec a b = case equalSymbol a b of
   False -> case greater prec a b of
               False -> NGE
               True  -> GR
@@ -58,15 +57,15 @@ ord prec a b = case a == b of
 greater :: Precedence -> Symbol -> Symbol -> Bool
 greater prec a b = case prec of
   Nil          -> False
-  Cons p prec' -> case p == a of 
-    False -> case p == b of
+  Cons p prec' -> case equalSymbol p a of 
+    False -> case equalSymbol p b of
       False -> greater prec' a b
       True  -> False
     True  -> True
 
 occurs :: Variable -> Term -> Bool
 occurs v term = case term of
-  Var v'    -> v == v'
+  Var v'    -> equalVariable v v'
   Term _ ts -> any (occurs v) ts
 
 lex :: (a -> b -> Order) -> List a -> List b -> Order
@@ -135,12 +134,8 @@ equalOrder a b = case a of
                    NGE -> True
 
 equalList :: (a -> a -> Bool) -> List a -> List a -> Bool
-equalList eq xs ys = case xs of
-  Nil -> case ys of Nil -> True
-                    _   -> False
-  Cons x' xs' -> 
-    case ys of Nil         -> False
-               Cons y' ys' -> and2 (eq x' y') (equalList eq xs' ys')
+equalList eq xs ys = and2 (all (\n -> elem eq n ys) xs)
+                          (all (\n -> elem eq n xs) ys)
     
 elem :: (a -> a -> Bool) -> a -> List a -> Bool
 elem eq x xs = case xs of
@@ -157,7 +152,7 @@ and :: List Bool -> Bool
 and xs = foldr and2 True xs
 
 or :: List Bool -> Bool
-or xs = foldr or2 False xs
+or xs = foldr or2 True xs
 
 foldr :: (a -> b -> b) -> b -> List a -> b
 foldr f z xs = case xs of

@@ -5,7 +5,9 @@ module CO4.Config
 where
 
 import Control.Applicative (Applicative)
+import Control.Monad.State
 import Control.Monad.Reader
+import Control.Monad.Writer
 import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
@@ -29,57 +31,37 @@ data Config  = Verbose
 
 type Configs      = [Config]
 
-class (Monad m) => MonadConfigurable m where
+class (Monad m) => MonadConfig m where
   configs :: m Configs
 
 newtype ConfigurableT m a = ConfigurableT { run :: ReaderT Configs m a }
   deriving (Monad, Functor, Applicative, MonadReader Configs, MonadTrans)
 
-instance (Monad m) => MonadConfigurable (ConfigurableT m) where
-  configs = ask
-
-instance (MonadConfigurable m) => MonadConfigurable (UniqueT m) where
-  configs = lift configs
-
-instance (MonadIO m) => MonadIO (ConfigurableT m) where
-  liftIO = lift . liftIO
-
-instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
-  qNewName            = lift . qNewName
-  qReport a b         = lift $ qReport a b
-  qRecover a b        =        qRecover a b
-  qLookupName a b     = lift $ qLookupName a b
-  qReify              = lift . qReify
-  qReifyInstances a b = lift $ qReifyInstances a b
-  qLocation           = lift   qLocation
-  qRunIO              = lift . qRunIO
-  qAddDependentFile   = lift . qAddDependentFile
-
 configurable :: Configs -> ConfigurableT m a -> m a
 configurable configs c = runReaderT (run c) configs
 
-logWhenVerbose :: (MonadConfigurable m,MonadIO m) => String -> m ()
+logWhenVerbose :: (MonadConfig m,MonadIO m) => String -> m ()
 logWhenVerbose = when' Verbose . liftIO . putStrLn 
 
-dumpAfterStage :: (MonadConfigurable m,MonadIO m) => String -> String -> m ()
+dumpAfterStage :: (MonadConfig m,MonadIO m) => String -> String -> m ()
 dumpAfterStage stage content = do
   stageDump <- fromConfigs $ isStageDump stage
   case stageDump of
     Just filePath -> dump stage content filePath 
     Nothing       -> return ()
 
-is :: (MonadConfigurable m,Monad m) => Config -> m Bool
+is :: (MonadConfig m,Monad m) => Config -> m Bool
 is c = liftM (elem c) configs
 
-when' :: (MonadConfigurable m) => Config -> m () -> m ()
+when' :: (MonadConfig m) => Config -> m () -> m ()
 when' c doThis = is c >>= \case True  -> doThis 
                                 False -> return ()
 
-whenNot' :: (MonadConfigurable m) => Config -> m () -> m ()
+whenNot' :: (MonadConfig m) => Config -> m () -> m ()
 whenNot' c doThis = is c >>= \case False -> doThis 
                                    True  -> return ()
 
-fromConfigs :: MonadConfigurable m => (Configs -> a) -> m a
+fromConfigs :: MonadConfig m => (Configs -> a) -> m a
 fromConfigs f = configs >>= return . f
 
 dump :: MonadIO m => String -> String -> FilePath -> m ()
@@ -125,3 +107,33 @@ undefinedSize cs = case cs of
   (UndefinedSize s):_ -> Just s
   []                  -> Nothing
   _                   -> undefinedSize $ tail cs
+
+instance (Monad m) => MonadConfig (ConfigurableT m) where
+  configs = ask
+
+instance (MonadConfig m) => MonadConfig (UniqueT m) where
+  configs = lift configs
+
+instance (MonadConfig m) => MonadConfig (StateT a m) where
+  configs = lift configs
+
+instance (MonadConfig m) => MonadConfig (ReaderT a m) where
+  configs = lift configs
+
+instance (MonadConfig m,Monoid a) => MonadConfig (WriterT a m) where
+  configs = lift configs
+
+instance (MonadIO m) => MonadIO (ConfigurableT m) where
+  liftIO = lift . liftIO
+
+instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
+  qNewName            = lift . qNewName
+  qReport a b         = lift $ qReport a b
+  qRecover a b        =        qRecover a b
+  qLookupName a b     = lift $ qLookupName a b
+  qReify              = lift . qReify
+  qReifyInstances a b = lift $ qReifyInstances a b
+  qLocation           = lift   qLocation
+  qRunIO              = lift . qRunIO
+  qAddDependentFile   = lift . qAddDependentFile
+

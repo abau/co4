@@ -28,12 +28,14 @@ import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator (known)
 import           CO4.Profiling (traced)
 import           CO4.EncEq (encEq)
+import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
+import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
-  deriving (Monad, MonadWriter [TH.Dec], MonadUnique)
+  deriving (Monad, MonadConfig, MonadWriter [TH.Dec], MonadUnique)
 
-instance MonadUnique u => MonadCollector (AdtInstantiator u) where
+instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) where
 
   collectAdt adt = do
     forM_ (zip [0..] $ dAdtConstructors adt) $ \constructor -> do
@@ -42,7 +44,10 @@ instance MonadUnique u => MonadCollector (AdtInstantiator u) where
 
     decodeInstance adt     >>= tellOne
     encodeableInstance adt >>= tellOne
-    encEqInstance adt      >>= tellOne
+
+    is ImportPrelude >>= \case
+      True  -> encEqInstance adt >>= tellOne
+      False -> return ()
 
     where 
       mkAllocator          = withConstructor allocatorName   id      'known
@@ -71,12 +76,12 @@ data ExpInstantiatorData = ExpInstantiatorData
 
 newtype ExpInstantiator u a = ExpInstantiator 
   { runExpInstantiator :: ReaderT ExpInstantiatorData u a } 
-  deriving (Monad, MonadUnique, MonadReader ExpInstantiatorData)
+  deriving (Monad, MonadUnique, MonadConfig, MonadReader ExpInstantiatorData)
 
 isToplevelName :: Monad u => ToplevelName -> ExpInstantiator u Bool
 isToplevelName name = asks $ elem name . toplevelNames
 
-instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
+instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u) where
 
   instantiateName = return . convertName . encodedName
 
@@ -90,10 +95,9 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
     args'    <- instantiate args
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
-      EVar fName -> case convertName fName of
-        "==" -> instantiateEq args'
-        _    -> instantiateCachedApp fName args'
-
+      EVar fName -> if fromName fName == eqName
+                    then instantiateEq args'
+                    else instantiateCachedApp fName args'
     where 
       instantiateCachedApp fName args' = 
         bindAndApplyArgs (\args'' -> 
@@ -209,16 +213,22 @@ instance MonadUnique u => MonadTHInstantiator (ExpInstantiator u) where
 
 -- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
 -- @prof@ enables profiling.
-eitherize :: MonadUnique u => Bool -> Program -> u [TH.Dec]
+eitherize :: (MonadUnique u,MonadConfig u) => Bool -> Program -> u [TH.Dec]
 eitherize profiling program = do
   typedProgram <- schemes program
+  withPrelude  <- is ImportPrelude
 
-  let (adts,values) = splitDeclarations typedProgram 
-      toplevelNames = map boundName $ programToplevelBindings program
+  let (pAdts,pFuns)  = splitDeclarations typedProgram 
+      adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
+                                      else pAdts
+      pToplevelNames = map boundName $ programToplevelBindings program
+      toplevelNames  = if withPrelude 
+                       then pToplevelNames ++ unparsedFunctionNames
+                       else pToplevelNames
 
-  decls   <- execWriterT $ runAdtInstantiator $ collect     adts
+  decls   <- execWriterT $ runAdtInstantiator $ collect adts
   values' <- liftM concat $ runReaderT 
-                (runExpInstantiator $ instantiate $ map DBind values)
+                (runExpInstantiator $ instantiate $ map DBind pFuns)
                 (ExpInstantiatorData toplevelNames profiling adts)
                          
   return $ {-deleteSignatures $-} decls ++ values'
