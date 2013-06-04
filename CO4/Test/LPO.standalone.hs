@@ -82,6 +82,66 @@ lex ord xs ys = case xs of
       EQ  -> lex ord xs' ys'
       NGE -> NGE
 
+equalSymbol :: Symbol -> Symbol -> Bool
+equalSymbol a b = case a of
+  E -> case b of E -> True
+                 F -> False
+                 I -> False
+                 J -> False
+  F -> case b of E -> False
+                 F -> True
+                 I -> False
+                 J -> False
+  I -> case b of E -> False
+                 F -> False
+                 I -> True
+                 J -> False
+  J -> case b of E -> False
+                 F -> False
+                 I -> False
+                 J -> True
+
+equalVariable :: Variable -> Variable -> Bool
+equalVariable a b = case a of
+  X -> case b of X -> True
+                 Y -> False
+                 Z -> False
+  Y -> case b of X -> False
+                 Y -> True
+                 Z -> False
+  Z -> case b of X -> False
+                 Y -> False
+                 Z -> True
+
+equalTerm :: Term -> Term -> Bool
+equalTerm s t = case s of
+  Var x -> case t of Var y    -> equalVariable x y
+                     Term _ _ -> False
+  Term x xs -> 
+    case t of Var _     -> False
+              Term y ys -> and2 (equalSymbol x y)
+                                (equalList equalTerm xs ys)
+
+equalOrder :: Order -> Order -> Bool
+equalOrder a b = case a of
+  GR  -> case b of GR  -> True
+                   EQ  -> False
+                   NGE -> False
+  EQ  -> case b of GR  -> False
+                   EQ  -> True
+                   NGE -> False
+  NGE -> case b of GR  -> False
+                   EQ  -> False
+                   NGE -> True
+
+equalList :: (a -> a -> Bool) -> List a -> List a -> Bool
+equalList eq xs ys = case xs of
+  Nil -> case ys of Nil -> True
+                    _   -> False
+  Cons x' xs' -> 
+    case ys of Nil         -> False
+               Cons y' ys' -> and2 (eq x' y') (equalList eq xs' ys')
+    
 elem :: (a -> a -> Bool) -> a -> List a -> Bool
 elem eq x xs = case xs of
   Nil       -> False
@@ -97,7 +157,7 @@ and :: List Bool -> Bool
 and xs = foldr and2 True xs
 
 or :: List Bool -> Bool
-or xs = foldr or2 True xs
+or xs = foldr or2 False xs
 
 foldr :: (a -> b -> b) -> b -> List a -> b
 foldr f z xs = case xs of

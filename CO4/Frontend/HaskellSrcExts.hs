@@ -13,7 +13,7 @@ import           CO4.Frontend.TH ()
 instance ProgramFrontend HE.Module where
   parseProgram (HE.Module _ _ [] Nothing _ imports decs) =
     if null imports then p
-    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be ignored" p
+    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be deleted" p
     where 
       p = parseProgram $ HM.toDecs decs
 
@@ -21,7 +21,7 @@ instance ProgramFrontend HE.Module where
 
   parsePreprocessedProgram (HE.Module _ _ [] Nothing _ imports decs) =
     if null imports then p
-    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be ignored" p
+    else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be deleted" p
     where 
       p = parsePreprocessedProgram $ HM.toDecs decs
 
