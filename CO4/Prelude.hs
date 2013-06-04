@@ -1,129 +1,77 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
 module CO4.Prelude
-  (prelude, parsePrelude, preludeContext, preludeToplevel)
+  ( parsePrelude, preludeAdtDeclarations, unparsedFunctionNames, unparsedPreludeContext
+  , uBool, uList
+  )
 where
 
-import           Prelude ((>>=),(.),($),return,Show)
-import qualified Prelude as P
-import           Control.Monad.IO.Class (MonadIO)
-import qualified Language.Haskell.TH as TH
-import           Language.Haskell.TH.Syntax (Quasi)
+import qualified Language.Haskell.Exts as HE
+import           Language.Haskell.Exts.QQ (dec)
 import           CO4.Language 
-import           CO4.Unique (MonadUnique)
-import           CO4.Frontend.TH (parseTHDeclaration)
-import           CO4.Frontend.THPreprocess (preprocess,eraseDerivings)
-import           CO4.Algorithms.HindleyMilner.Util 
-  (Context (..),binds,emptyContext,toList)
+import           CO4.Algorithms.HindleyMilner.Util (Context (..),binds,emptyContext)
 import           CO4.TypesUtil (functionType)
+import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
+import           CO4.Unique (MonadUnique)
+import           CO4.Names (Namelike,listName,consName,eqName)
+import           CO4.Allocator.Common (constructors)
 
-parsePrelude :: (Quasi m, MonadIO m, MonadUnique m) => m [Declaration]
-parsePrelude = TH.runQ prelude 
-           >>= preprocess . eraseDerivings
-           >>= return . P.map parseTHDeclaration 
+-- |Parses prelude's function definitions
+parsePrelude :: MonadUnique u => u [Declaration]
+parsePrelude = do
+  Program _ decs <- parsePreprocessedProgram $ HE.Module 
+                      (HE.SrcLoc "CO4Prelude" 0 0) (HE.ModuleName "CO4Prelude")
+                      [] Nothing Nothing [] (main : preludeFunctionDeclarations)
+  return decs
+  where
+    -- because parsePreprocessedProgram needs a main function:
+    main = [dec| main = undefined |] 
 
-prelude :: TH.Q [TH.Dec]
-prelude = 
-  [d| 
-      -- Functional -----------------------------
+-- The prelude may only contain definitions that are present in the Haskell prelude.
+-- These declarations are parsed by CO4.
+preludeFunctionDeclarations :: [HE.Decl]
+preludeFunctionDeclarations = [
+    [dec| map f xs = case xs of { [] -> [] ; (y:ys) -> (f y) : (map f ys) } |]
+  , [dec| foldr n c xs = case xs of { [] -> c ; (y:ys) -> n y (foldr n c ys) } |]
+  , [dec| foldl n c xs = case xs of { [] -> c ; (y:ys) -> foldl n (n c y) ys } |]
 
-      const x _ = x
+  , [dec| not x  = case x of { False -> True ; True -> False } |]
+  , [dec| a && b = case a of { False -> False ; True -> b } |]
+  , [dec| a || b = case a of { False -> not b ; True -> True } |]
+  , [dec| and xs = foldl (&&) True xs |]
+  , [dec| or  xs = foldl (&&) True xs |]
+  ]
 
-      -- Maybe ----------------------------------
+-- These declarations are not parsed by CO4.
+preludeAdtDeclarations :: [Declaration]
+preludeAdtDeclarations = [
+    DAdt (UntypedName "Bool") [] [ CCon (UntypedName "False") []
+                                 , CCon (UntypedName "True")  []
+                                 ]
+  , DAdt listName [a] 
+      [ CCon listName []
+      , CCon consName [ TVar a , TCon listName [TVar a] ]
+      ]
+  ]
+  where
+    a = UntypedName "a"
 
-      data Maybe a = Nothing | Just a deriving Show
+unparsedFunctionNames :: Namelike n => [n]
+unparsedFunctionNames = [eqName]
 
-      fromMaybe a' m = case m of
-        Nothing -> a'
-        Just a  -> a
-
-      -- Either ---------------------------------
-
-      data Either a b = Left a | Right b deriving Show
-
-      -- Pair -----------------------------------
-
-      data Pair a b = Pair a b deriving Show
-
-      fst (Pair a _) = a
-      snd (Pair _ b) = b
-
-      -- Lists ----------------------------------
-
-      data List a = Nil | Cons a (List a) deriving Show
-
-      map f xs = case xs of
-        Nil       -> Nil
-        Cons y ys -> Cons (f y) (map f ys)
-
-      fold cons nil xs = case xs of
-        Nil       -> nil
-        Cons y ys -> cons y (fold cons nil ys)
-
-      head xs = case xs of 
-        Nil      -> Nothing
-        Cons x _ -> Just x
-
-      append xs ys = fold Cons ys xs
-
-      -- Booleans -------------------------------
-
-      data Bool = False | True deriving Show
-
-      not x = case x of
-        False -> True
-        True  -> False
-
-      or2 x y = case x of
-        False -> y
-        True  -> True
-
-      and2 x y = case x of
-        False -> False
-        True  -> y
-
-      and         = fold and2 True
-      or          = fold or2  False
-      forall xs f = and ( map f xs )
-      exists xs f = or  ( map f xs )
-
-      -- Unary numbers --------------------------
-
-      data Unary = UZero | USucc Unary deriving Show
-
-      uZero  = UZero
-      uOne   = USucc uZero
-      uTwo   = USucc uOne
-      uThree = USucc uTwo
-      uFour  = USucc uThree
-      uFive  = USucc uFour
-      uSix   = USucc uFive
-      uSeven = USucc uSix
-      uEight = USucc uSeven
-      uNine  = USucc uEight
-      uTen   = USucc uNine
-
-      eqUnary x y = case x of
-        UZero    -> case y of UZero    -> True
-                              _        -> False
-        USucc x' -> case y of UZero    -> False
-                              USucc y' -> eqUnary x' y'
-
-      add x y = case x of
-        UZero    -> y
-        USucc x' -> USucc (add x' y)
-
-      -- Various --------------------------------
-
-      length = fold (\_ u -> USucc u) UZero 
-      sum    = fold add UZero
-  |]
-
-preludeContext :: Context
-preludeContext = binds 
-  [("==", SForall x $ SType $ functionType [TVar x,TVar x] (TCon bool []))
+unparsedPreludeContext :: Context
+unparsedPreludeContext = binds 
+  [ (eqName   , SForall a $ SType $ functionType [TVar a,TVar a] (TCon bool []))
+  , ("False"  ,             SType $ TCon bool [])
+  , ("True"   ,             SType $ TCon bool [])
+  , (listName , SForall a $ SType listType)
+  , (consName , SForall a $ SType $ functionType [TVar a,listType] listType)
   ] emptyContext
-  where x    = UntypedName "x"
-        bool = UntypedName "Bool"
+  where a        = UntypedName "a"
+        bool     = UntypedName "Bool"
+        listType = TCon listName [TVar a]
 
-preludeToplevel :: [UntypedName]
-preludeToplevel = P.map P.fst $ toList preludeContext
+-- * Allocators
+
+uBool     = constructors [ Just [], Just [] ]
+uList 0 _ = constructors [ Just [], Nothing ]
+uList i a = constructors [ Just [], Just [ a, uList (i-1) a ] ]

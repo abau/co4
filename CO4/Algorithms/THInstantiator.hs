@@ -9,7 +9,7 @@ import           Control.Monad (ap)
 import           Control.Monad.Identity (Identity,runIdentity)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
-import           CO4.Names (funName)
+import           CO4.Names (funName,listName)
 import           CO4.THUtil (toTHName)
 
 class Monad m => MonadTHInstantiator m where
@@ -31,6 +31,10 @@ class Monad m => MonadTHInstantiator m where
       a' <- instantiate a
       b' <- instantiate b
       return $ TH.AppT (TH.AppT TH.ArrowT a') b'
+
+    TCon c [a] | c == listName -> do
+      a' <- instantiate a
+      return $ TH.AppT TH.ListT a'
 
     TCon c as -> do
       c'  <- instantiate c

@@ -10,11 +10,12 @@ import           CO4.TypesUtil (argumentTypes,typeOfScheme)
 import           CO4.Algorithms.Util (sanitize,eraseTypedNames)
 import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
+import           CO4.Config (MonadConfig)
 
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
-  deriving (Monad, MonadUnique)
+  deriving (Monad, MonadUnique, MonadConfig)
 
-instance MonadUnique u => MonadInstantiator (Instantiator u) where
+instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
   
   instantiateLam (ELam ns e) = do
     e'     <- instantiate e
@@ -34,7 +35,7 @@ instance MonadUnique u => MonadInstantiator (Instantiator u) where
 
 -- |@etaExpandExpression e n@ eta-expands @e@ by counting the parameters of its type. 
 -- @n@ is the number of already assigned parameters.
-etaExpandExpression :: MonadUnique u => Expression -> Int -> u [Name]
+etaExpandExpression :: (MonadUnique u,MonadConfig u) => Expression -> Int -> u [Name]
 etaExpandExpression exp numAssignedParameters = do
   scheme <- schemeOfExp exp
 
@@ -46,7 +47,7 @@ etaExpandExpression exp numAssignedParameters = do
 
 -- |Eta-expands bound expressions (@n = e => n = \x -> e x@) and 
 -- lamda expressions (@\x -> e x => \x y -> e x y@).
-etaExpansion :: (MonadUnique u) => Program -> u Program
+etaExpansion :: (MonadUnique u,MonadConfig u) => Program -> u Program
 etaExpansion program =
       schemes program 
   >>= runInstantiator . instantiate . sanitize

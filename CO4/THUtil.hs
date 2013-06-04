@@ -48,7 +48,9 @@ varT :: Namelike n => n -> TH.Type
 varT = TH.VarT . toTHName
 
 conT :: Namelike n => n -> TH.Type
-conT = TH.ConT . toTHName
+conT name = if fromName name == listName
+            then TH.ListT
+            else TH.ConT $ toTHName name
 
 appsT :: TH.Type -> [TH.Type] -> TH.Type
 appsT = foldl TH.AppT 

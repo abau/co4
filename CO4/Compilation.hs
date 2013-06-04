@@ -17,7 +17,7 @@ import           CO4.Frontend
 import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
-import           CO4.Config (MonadConfigurable,Config(..),is)
+import           CO4.Config (MonadConfig,Config(..),is)
 import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
@@ -49,7 +49,7 @@ stageNames                  = [ stageParsed
                               , stageSatchmoUnqualified
                               ]
 
-compileFile :: (MonadConfigurable m, MonadIO m, Quasi m) => FilePath -> m [TH.Dec]
+compileFile :: (MonadConfig m, MonadIO m, Quasi m) => FilePath -> m [TH.Dec]
 compileFile filePath = 
   liftIO (HE.parseFile filePath) >>= \case
     HE.ParseOk _module     -> compile _module
@@ -57,7 +57,7 @@ compileFile filePath =
                                 [ "Compilation.compileFile: can not compile `"
                                 , filePath, "` (", msg, " at ", show loc, ")" ]
 
-compile :: (ProgramFrontend a, MonadConfigurable m, MonadIO m, Quasi m) 
+compile :: (ProgramFrontend a, MonadConfig m, MonadIO m, Quasi m) 
         => a -> m [TH.Dec]
 compile a = do
   instantiationDepth <- C.fromConfigs C.instantiationDepth
@@ -100,13 +100,13 @@ compile a = do
     lift $ C.logWhenVerbose "Compilation successful"
     return result
 
-dumpAfterStage' :: (MonadConfigurable m, MonadIO m) 
+dumpAfterStage' :: (MonadConfig m, MonadIO m) 
                 => String -> Program -> m Program
 dumpAfterStage' stage program = do
   C.dumpAfterStage stage $ displayProgram program
   return program
 
-compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfigurable m) 
+compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
                  => Program -> m [TH.Dec]
 compileToSatchmo program = do
   thProgram <- flip eitherize program =<< is Profiling

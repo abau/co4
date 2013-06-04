@@ -2,34 +2,34 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module CO4.Example.Prelude
 where
 
-import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),(-))
-import qualified Data.Maybe as M
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
-
-$(prelude)
+import           CO4.Prelude
 
 $( [d| 
+    data Color = Red 
+               | Green 
+               | Blue
+               | Mix [Color]
 
-    main xs = and2 ( eqUnary uTen   (sum xs   ) )
-                   ( eqUnary uThree (length xs) )
+    main c = case c of
+      Blue  -> True
+      Mix m -> m == [ Green , Blue ]
+      _     -> False
 
    |] >>= runIO . configurable [ImportPrelude] . compile 
   )
 
-uUnary 0 = constructors [ M.Just [] , M.Nothing ]
-uUnary i = constructors [ M.Just [] , M.Just [ uUnary (i-1) ] ]
+color 0 = constructors [ Just [], Just [], Just [], Nothing ]
+color i = constructors [ Just [], Just [], Just [], Just [ uList 3 (color (i-1)) ] ]
 
-uList 0 _ = constructors [ M.Just [] , M.Nothing ]
-uList i a = constructors [ M.Just [] , M.Just [ a, uList (i-1) a ] ]
-
-allocator = uList 10 (uUnary 10)
+allocator = color 1
 
 result = solveAndTestBoolean allocator encMain main 

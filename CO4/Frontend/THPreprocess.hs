@@ -11,6 +11,7 @@ import           Data.Generics (GenericM,GenericT,everywhere,everywhere',everywh
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
 import           CO4.THUtil (deleteSignatures,deleteTypeSynonyms)
+import           CO4.Names (consName,listName)
 
 -- |Performs preprocessing on TH's AST 
 preprocess :: MonadUnique u => GenericM u
@@ -23,8 +24,10 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noInfixPattern) 
   >>= return . everywhere  (mkT noParensPattern) 
   >>=          everywhereM (mkM noWildcardPattern)
-  >>=          everywhereM (mkM noComplexPatternsInClauseParameters)
-  >>=          everywhereM (mkM noComplexPatternsInLambdaParameters)
+  >>=          everywhereM (mkM noNestedPatternsInClauseParameters)
+  >>=          everywhereM (mkM noNestedPatternsInLambdaParameters)
+  >>= return . everywhere  (mkT noListPattern) 
+  >>= return . everywhere  (mkT noListExpression) 
   >>= return .                  deleteSignatures
   >>= return . everywhere  (mkT expandTypeSynonyms)
   >>= return .                  deleteTypeSynonyms
@@ -117,17 +120,17 @@ noInfixPattern pat = case pat of
   UInfixP p1 n p2 -> noInfixPattern $ InfixP p1 n p2
   _               -> pat
 
--- |Transforms complex patterns in arguments of function clauses into case expression
+-- |Transforms nested patterns in arguments of function clauses into case expression
 -- over those arguments
-noComplexPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
-noComplexPatternsInClauseParameters (Clause ps (NormalB e) d) = do
-  (ps',e') <- noComplexPatterns ps e
+noNestedPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
+noNestedPatternsInClauseParameters (Clause ps (NormalB e) d) = do
+  (ps',e') <- noNestedPatterns ps e
   return $ Clause ps' (NormalB e') d
 
-noComplexPatternsInLambdaParameters :: MonadUnique u => Exp -> u Exp
-noComplexPatternsInLambdaParameters exp = case exp of
+noNestedPatternsInLambdaParameters :: MonadUnique u => Exp -> u Exp
+noNestedPatternsInLambdaParameters exp = case exp of
   LamE ps e -> do
-    (ps',e') <- noComplexPatterns ps e
+    (ps',e') <- noNestedPatterns ps e
     return $ LamE ps' e'
   _ -> return exp
 
@@ -137,15 +140,25 @@ noWildcardPattern pat = case pat of
   WildP -> liftM VarP $ newTHName "wildcard"
   _     -> return pat
 
-noComplexPatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
-noComplexPatterns [VarP p] exp = return ([VarP p],exp)
-noComplexPatterns [p]      exp = do
+noNestedPatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
+noNestedPatterns [VarP p] exp = return ([VarP p],exp)
+noNestedPatterns [p]      exp = do
   n <- newTHName "noVar"
   return ([VarP n], CaseE (VarE n) [Match p (NormalB exp) []])
-noComplexPatterns (p:ps)   exp = do
-  (ps',e') <- noComplexPatterns ps  exp
-  (p',e'') <- noComplexPatterns [p] e'
+noNestedPatterns (p:ps)   exp = do
+  (ps',e') <- noNestedPatterns ps  exp
+  (p',e'') <- noNestedPatterns [p] e'
   return (p' ++ ps', e'')
+
+noListPattern :: Pat -> Pat
+noListPattern pat = case pat of
+  ListP xs -> foldr (\x y -> ConP consName [x,y]) (ConP listName []) xs
+  _        -> pat
+
+noListExpression :: Exp -> Exp
+noListExpression exp = case exp of
+  ListE xs -> foldr (\x -> AppE $ AppE (ConE consName) x) (ConE listName) xs
+  _        -> exp
 
 expandTypeSynonyms :: [Dec] -> [Dec]
 expandTypeSynonyms decs = everywhere' (mkT expand) decs

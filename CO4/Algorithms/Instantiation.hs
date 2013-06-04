@@ -18,6 +18,7 @@ import           CO4.Algorithms.Free (free)
 import           CO4.Algorithms.Util (eraseTypedNames,collapseApplications,collapseAbstractions)
 import           CO4.TypesUtil
 import           CO4.Names
+import           CO4.Config (MonadConfig)
 
 data Env = Env { -- |Bindings of higher order expressions
                  hoBindings      :: M.Map Name Expression 
@@ -113,7 +114,7 @@ isInstantiable declaration = case declaration of
             any isFunType paramTypes
 
 -- |Program must not contain local abstractions
-instantiation :: MonadUnique u => Int -> Program -> u Program
+instantiation :: (MonadConfig u,MonadUnique u) => Int -> Program -> u Program
 instantiation maxDepth program = do
   typedProgram <- HM.schemes program
 

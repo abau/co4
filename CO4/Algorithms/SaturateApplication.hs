@@ -14,6 +14,7 @@ import           CO4.TypesUtil (argumentTypes,typeOfScheme)
 import           CO4.Algorithms.Util (sanitize,eraseTypedNames)
 import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
+import           CO4.Config (MonadConfig)
 
 type CacheKey   = (Expression,Int) -- (Applied expression, number of passed arguments)
 type CacheValue = Expression
@@ -22,9 +23,10 @@ type Cache      = M.Map CacheKey CacheValue
 newtype Instantiator u a = Instantiator { 
     runInstantiator :: StateT Cache (WriterT [Declaration] u) a 
   }
-  deriving (Monad, MonadUnique, MonadWriter [Declaration], MonadState Cache)
+  deriving ( Monad, MonadUnique, MonadConfig, MonadWriter [Declaration]
+           , MonadState Cache)
 
-instance MonadUnique u => MonadInstantiator (Instantiator u) where
+instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
   instantiateApp (EApp f args) = do
     f'    <- instantiate f
     args' <- instantiate args
@@ -66,7 +68,7 @@ newInstance f args numParameters = do
 
 -- |Saturates partial applications. Do not collapse abstractions afterwards as
 -- this would infer partial applications again.
-saturateApplication :: (MonadUnique u) => Program -> u Program
+saturateApplication :: (MonadUnique u,MonadConfig u) => Program -> u Program
 saturateApplication program = do
   typedProgram <- schemes program 
   (program',decls') <- runWriterT $ evalStateT 
