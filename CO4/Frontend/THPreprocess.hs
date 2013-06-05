@@ -24,12 +24,13 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noInfixPattern) 
   >>= return . everywhere  (mkT noParensPattern) 
   >>=          everywhereM (mkM noWildcardPattern)
-  >>=          everywhereM (mkM noNestedPatternsInClauseParameters)
-  >>=          everywhereM (mkM noNestedPatternsInLambdaParameters)
   >>= return . everywhere  (mkT noListPattern) 
   >>= return . everywhere  (mkT noListExpression) 
   >>= return . everywhere  (mkT noTuplePattern) 
   >>= return . everywhere  (mkT noTupleExpression) 
+  >>=          everywhereM (mkM noNestedPatternsInClauseParameters)
+  >>=          everywhereM (mkM noNestedPatternsInLambdaParameters)
+  >>=          everywhereM (mkM noNestedPatternsInMatch)
   >>= return .                  deleteSignatures
   >>= return . everywhere  (mkT expandTypeSynonyms)
   >>= return .                  deleteTypeSynonyms
@@ -122,35 +123,11 @@ noInfixPattern pat = case pat of
   UInfixP p1 n p2 -> noInfixPattern $ InfixP p1 n p2
   _               -> pat
 
--- |Transforms nested patterns in arguments of function clauses into case expression
--- over those arguments
-noNestedPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
-noNestedPatternsInClauseParameters (Clause ps (NormalB e) d) = do
-  (ps',e') <- noNestedPatterns ps e
-  return $ Clause ps' (NormalB e') d
-
-noNestedPatternsInLambdaParameters :: MonadUnique u => Exp -> u Exp
-noNestedPatternsInLambdaParameters exp = case exp of
-  LamE ps e -> do
-    (ps',e') <- noNestedPatterns ps e
-    return $ LamE ps' e'
-  _ -> return exp
-
 -- |Removes wildcard patterns by introducting new pattern variables
 noWildcardPattern :: MonadUnique u => Pat -> u Pat
 noWildcardPattern pat = case pat of
   WildP -> liftM VarP $ newTHName "wildcard"
   _     -> return pat
-
-noNestedPatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
-noNestedPatterns [VarP p] exp = return ([VarP p],exp)
-noNestedPatterns [p]      exp = do
-  n <- newTHName "noVar"
-  return ([VarP n], CaseE (VarE n) [Match p (NormalB exp) []])
-noNestedPatterns (p:ps)   exp = do
-  (ps',e') <- noNestedPatterns ps  exp
-  (p',e'') <- noNestedPatterns [p] e'
-  return (p' ++ ps', e'')
 
 noListPattern :: Pat -> Pat
 noListPattern pat = case pat of
@@ -171,6 +148,45 @@ noTupleExpression :: Exp -> Exp
 noTupleExpression exp = case exp of
   TupE xs -> foldl AppE (ConE $ tupleName $ length xs) xs
   _       -> exp
+
+-- |Transforms nested patterns in arguments of function clauses into case expressions
+-- over those arguments
+noNestedPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
+noNestedPatternsInClauseParameters (Clause ps (NormalB e) d) = do
+  (ps',e') <- onlyVariablePatterns ps e
+  return $ Clause ps' (NormalB e') d
+
+-- |Transforms nested patterns in arguments of lambda expressions into case expressions
+-- over those arguments
+noNestedPatternsInLambdaParameters :: MonadUnique u => Exp -> u Exp
+noNestedPatternsInLambdaParameters exp = case exp of
+  LamE ps e -> do
+    (ps',e') <- onlyVariablePatterns ps e
+    return $ LamE ps' e'
+  _ -> return exp
+
+onlyVariablePatterns :: MonadUnique u => [Pat] -> Exp -> u ([Pat],Exp)
+onlyVariablePatterns [] exp       = return ([],exp)
+onlyVariablePatterns [VarP p] exp = return ([VarP p],exp)
+onlyVariablePatterns [p]      exp = do
+  n <- newTHName "varPat"
+  return ([VarP n], CaseE (VarE n) [Match p (NormalB exp) []])
+onlyVariablePatterns (p:ps)   exp = do
+  (ps',e') <- onlyVariablePatterns ps  exp
+  (p',e'') <- onlyVariablePatterns [p] e'
+  return (p' ++ ps', e'')
+
+-- |Transforms nested patterns in matches into case expressions over those arguments
+noNestedPatternsInMatch :: MonadUnique u => Match -> u Match
+noNestedPatternsInMatch (Match pat (NormalB body) decs) = do
+  (pat',body') <- noNestedPatterns pat body
+  return $ Match pat' (NormalB body') decs
+
+  where 
+    noNestedPatterns (VarP p) exp    = return (VarP p, exp)
+    noNestedPatterns (ConP c ps) exp = do
+      (ps',exp') <- onlyVariablePatterns ps exp
+      return (ConP c ps', exp')
 
 expandTypeSynonyms :: [Dec] -> [Dec]
 expandTypeSynonyms decs = everywhere' (mkT expand) decs
