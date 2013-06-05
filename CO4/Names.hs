@@ -2,7 +2,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 -- |Namelike definitions
 module CO4.Names 
-  (Namelike (..), convertName, funName, listName, consName, eqName)
+  (Namelike (..), convertName, funName, listName, consName, eqName, tupleName)
 where
 
 import           CO4.Language (Name(..),UntypedName(..))
@@ -55,3 +55,6 @@ consName = readName ":"
 
 eqName :: Namelike n => n
 eqName = readName "=="
+
+tupleName :: Namelike n => Int -> n
+tupleName i = readName $ "(" ++ replicate (i-1) ',' ++ ")"

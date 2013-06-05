@@ -27,9 +27,9 @@ $( [d|
    |] >>= runIO . configurable [ImportPrelude] . compile 
   )
 
-color 0 = constructors [ Just [], Just [], Just [], Nothing ]
-color i = constructors [ Just [], Just [], Just [], Just [ uList 3 (color (i-1)) ] ]
+uColor 0 = constructors [ Just [], Just [], Just [], Nothing ]
+uColor i = constructors [ Just [], Just [], Just [], Just [ uList 3 (uColor (i-1)) ] ]
 
-allocator = color 1
+allocator = uColor 1
 
 result = solveAndTestBoolean allocator encMain main 

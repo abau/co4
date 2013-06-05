@@ -11,7 +11,7 @@ import           Data.Generics (GenericM,GenericT,everywhere,everywhere',everywh
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
 import           CO4.THUtil (deleteSignatures,deleteTypeSynonyms)
-import           CO4.Names (consName,listName)
+import           CO4.Names (consName,listName,tupleName)
 
 -- |Performs preprocessing on TH's AST 
 preprocess :: MonadUnique u => GenericM u
@@ -28,6 +28,8 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>=          everywhereM (mkM noNestedPatternsInLambdaParameters)
   >>= return . everywhere  (mkT noListPattern) 
   >>= return . everywhere  (mkT noListExpression) 
+  >>= return . everywhere  (mkT noTuplePattern) 
+  >>= return . everywhere  (mkT noTupleExpression) 
   >>= return .                  deleteSignatures
   >>= return . everywhere  (mkT expandTypeSynonyms)
   >>= return .                  deleteTypeSynonyms
@@ -159,6 +161,16 @@ noListExpression :: Exp -> Exp
 noListExpression exp = case exp of
   ListE xs -> foldr (\x -> AppE $ AppE (ConE consName) x) (ConE listName) xs
   _        -> exp
+
+noTuplePattern :: Pat -> Pat
+noTuplePattern pat = case pat of
+  TupP xs -> ConP (tupleName $ length xs) xs
+  _       -> pat
+
+noTupleExpression :: Exp -> Exp
+noTupleExpression exp = case exp of
+  TupE xs -> foldl AppE (ConE $ tupleName $ length xs) xs
+  _       -> exp
 
 expandTypeSynonyms :: [Dec] -> [Dec]
 expandTypeSynonyms decs = everywhere' (mkT expand) decs
