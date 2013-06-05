@@ -18,7 +18,8 @@ import           CO4.Algorithms.Free (free)
 import           CO4.Algorithms.Util (eraseTypedNames,collapseApplications,collapseAbstractions)
 import           CO4.TypesUtil
 import           CO4.Names
-import           CO4.Config (MonadConfig)
+import           CO4.Config (MonadConfig,Config(ImportPrelude),is)
+import           CO4.Prelude (unparsedFunctionNames)
 
 data Env = Env { -- |Bindings of higher order expressions
                  hoBindings      :: M.Map Name Expression 
@@ -38,7 +39,7 @@ data State = State { cache     :: Cache
 
 newtype Instantiator u a = Instantiator 
   { runInstantiator :: ReaderT Env (StateT State u) a }
-  deriving (Monad, MonadReader Env, MonadState State, MonadUnique )
+  deriving (Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
 
 writeInstance :: MonadUnique u => Binding -> Instantiator u ()
 writeInstance instance_ = 
@@ -51,7 +52,7 @@ writeCacheItem key value =
 hoBinding :: Monad u => Name -> Instantiator u (Maybe Expression)
 hoBinding name = asks hoBindings >>= return . M.lookup name 
 
-instance MonadUnique u => MonadInstantiator (Instantiator u) where
+instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
 
   instantiateVar (EVar name) = liftM (fromMaybe $ EVar name) $ hoBinding name
               
@@ -132,17 +133,21 @@ instantiation maxDepth program = do
          $ programFromDeclarations (mainName program) 
          $ p' ++ (map DBind $ instances state)
    
-freeNames :: MonadUnique u => Expression -> Instantiator u [Name]
+freeNames :: (MonadUnique u,MonadConfig u) => Expression -> Instantiator u [Name]
 freeNames exp = 
   let frees                                 = free exp
       toplevelName (DBind (Binding name _)) = Just name
       toplevelName _                        = Nothing
   in do
-    toplevelNames <- liftM (mapMaybe toplevelName) $ asks notInstantiable
-    instanceNames <- liftM (map boundName        ) $ gets instances
+    parsedToplevelNames <- liftM (mapMaybe toplevelName) $ asks notInstantiable
+    toplevelNames       <- is ImportPrelude >>= \case 
+      True  -> return $ parsedToplevelNames ++ unparsedFunctionNames
+      False -> return $ parsedToplevelNames
+
+    instanceNames <- liftM (map boundName) $ gets instances
     return $ frees \\ (toplevelNames ++ instanceNames)
 
-instantiateExpInModifiedEnv :: (MonadUnique u, Namelike n) 
+instantiateExpInModifiedEnv :: (MonadUnique u, MonadConfig u, Namelike n) 
                               => n -> [(Name,Expression)] -> Expression 
                               -> Instantiator u Expression
 instantiateExpInModifiedEnv fName newBindings =
