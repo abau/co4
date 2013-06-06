@@ -56,6 +56,7 @@ fill xs ys = case xs of
                              (us',vs') -> (u : us', False : vs')
                      v:vs -> case fill us vs of
                                (us',vs') -> (u:us', v:vs')
+
 fullAdder :: Bit -> Bit -> Bit -> (Bit,Bit)
 fullAdder a b carry =
   let xorAB = xor a b

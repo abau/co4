@@ -20,6 +20,7 @@ bitWidth  = 8
 uNat      = uList bitWidth uBool
 allocator = uTuple2 uNat uNat
 
+result :: Int -> IO (Maybe (Int,Int))
 result x = do
   solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) allocator encMain main 
   case solution of
