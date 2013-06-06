@@ -31,18 +31,22 @@ parsePrelude = do
 preludeFunctionDeclarations :: [HE.Decl]
 preludeFunctionDeclarations = [
   -- Lists
-    [dec| map f xs = case xs of { [] -> [] ; (y:ys) -> (f y) : (map f ys) } |]
-  , [dec| foldr n c xs = case xs of { [] -> c ; (y:ys) -> n y (foldr n c ys) } |]
-  , [dec| foldl n c xs = case xs of { [] -> c ; (y:ys) -> foldl n (n c y) ys } |]
+    [dec| map f xs = case xs of { [] -> [] ; y : ys -> (f y) : (map f ys) } |]
+  , [dec| foldr n c xs = case xs of { [] -> c ; y : ys -> n y (foldr n c ys) } |]
+  , [dec| foldl n c xs = case xs of { [] -> c ; y : ys -> foldl n (n c y) ys } |]
+  , [dec| a ++ b = foldr (:) b a |]
   -- Booleans
-  , [dec| not x  = case x of { False -> True ; True -> False } |]
-  , [dec| a && b = case a of { False -> False ; True -> b } |]
-  , [dec| a || b = case a of { False -> not b ; True -> True } |]
-  , [dec| and xs = foldl (&&) True xs |]
-  , [dec| or  xs = foldl (&&) True xs |]
+  , [dec| not x    = case x of { False -> True ; True -> False } |]
+  , [dec| a && b   = case a of { False -> False ; True -> b } |]
+  , [dec| a || b   = case a of { False -> b ; True -> True } |]
+  , [dec| and xs   = foldl (&&) True xs |]
+  , [dec| or  xs   = foldl (||) False xs |]
+  , [dec| all f xs = and (map f xs) |]
+  , [dec| any f xs = or  (map f xs) |]
   -- Tuples
   , [dec| fst (x,_) = x |]
   , [dec| snd (_,y) = y |]
+  , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
   ]
 
 -- These declarations are not parsed by CO4.
