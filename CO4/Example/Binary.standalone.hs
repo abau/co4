@@ -11,7 +11,7 @@ main r (a,b) = case mult a b of
                         ]
 trivial a = case a of
   []   -> True
-  (:) x xs -> all (\bit -> bit == False) xs
+  x:xs -> all (\bit -> bit == False) xs
 
 mult :: Nat -> Nat -> (Nat,Bit)
 mult a b = case a of
