@@ -20,6 +20,9 @@ import           CO4.Util (replaceAt,for)
 -- |Generates a @EncEq@ instance
 --
 -- > instance (EncEq v1,...) => EncEq (T v1 ...) where
+-- >   encEq _ x y | isBottom x && isBottom y = encTrueCons
+-- >   encEq _ x y | isBottom x = encFalseCons
+-- >   encEq _ x y | isBottom y = encFalseCons
 -- >   encEq _ x y = 
 -- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
 -- >                                       (constructorArgument 0 0 y)
@@ -49,10 +52,21 @@ encEqInstance adt@(DAdt name vars conss) =
         mkClause b       = TH.Clause [typedWildcard thType, varP x, varP y] b []
         mkBottomClause n = mkClause $ TH.GuardedB [
           ( TH.NormalG $ TH.AppE (TH.VarE 'isBottom) (varE n)
-          , TH.AppE (TH.VarE 'return) (TH.VarE 'bottom) )]
+          , TH.AppE (TH.VarE 'return) 
+                    (appsE (TH.VarE 'encodedConstructor) 
+                           [intE 0, intE 2, TH.ListE []]))]
 
+        mkBothBottomClause = mkClause $ TH.GuardedB [
+          ( TH.NormalG $ appsE (varE "&&") 
+              [ TH.AppE (TH.VarE 'isBottom) (varE x)
+              , TH.AppE (TH.VarE 'isBottom) (varE y)
+              ]
+          , TH.AppE (TH.VarE 'return) 
+                    (appsE (TH.VarE 'encodedConstructor) 
+                           [intE 1, intE 2, TH.ListE []]))]
         clauses = 
-          [ mkBottomClause x
+          [ mkBothBottomClause
+          , mkBottomClause x
           , mkBottomClause y
           , mkClause $ TH.NormalB body
           ]
