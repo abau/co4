@@ -1,6 +1,6 @@
 module WCB where
 
-data Base = A | C | G | U
+data Base = A | C | G | U -- deriving Show
 
 type Primary = [Base]
 
@@ -11,11 +11,25 @@ type Secondary = [Paren]
 type Bit = Bool
 type Nat = [Bit]
 
-data Maybe' a = Nothing' | Just' a
+nat0 = []
+nat1 = [True]
+nat2 = [False,True] -- lsb is in the head
+nat3 = [True,True]
 
-data Energy = MinusInfinity | Finite Nat --deriving Show
+data Maybe' a = Nothing' | Just' a -- deriving Show
 
+data Energy = MinusInfinity | Finite Nat -- deriving Show
+
+forbidden = MinusInfinity
+e0 = Finite nat0
+e1 = Finite nat1
+e2 = Finite nat2
+e3 = Finite nat3
+
+
+-- the main constraint
 main e p = geEnergy (maxbound p) e
+
 
 geEnergy a b = case b of
   MinusInfinity -> True
@@ -48,19 +62,19 @@ maxbound p = case p of
 group :: Primary -> Energy
 group p = case p of
   []     -> MinusInfinity
-  (x:xs) -> case last' p of
+  (x:xs) -> case last' xs of
     Nothing' -> MinusInfinity
     Just' l  -> case init' xs of
                   Nothing' -> MinusInfinity
                   Just' is -> times (cost x l) (maxbound is)
 
-init' :: [a] -> Maybe [a]
+init' :: [a] -> Maybe' [a]
 init' xs = case xs of
   []   -> Nothing'
   y:ys -> case ys of
-    [] -> Just' [y]
+    [] -> Just' []
     _  -> case init' ys of 
-            Nothing' -> Nothing'
+            Nothing' -> Just' []
             Just' ys' -> Just' (y : ys')
                 
 last' :: [a] -> Maybe' a
@@ -70,18 +84,19 @@ last' a = case a of
     [] -> Just' x
     _  -> last' xs
 
+
 cost :: Base -> Base -> Energy
 cost b1 b2 = case b1 of
-  A -> case b2 of U -> Finite [True]
-                  _ -> MinusInfinity
-  U -> case b2 of A -> Finite [True]
-                  G -> Finite [True]
-                  _ -> MinusInfinity
-  G -> case b2 of U -> Finite [True]
-                  C -> Finite [False,True]
-                  _ -> MinusInfinity
-  C -> case b2 of G -> Finite [False,True]
-                  _ -> MinusInfinity
+  A -> case b2 of U -> e1
+                  _ -> forbidden
+  U -> case b2 of A -> e1
+                  G -> e1
+                  _ -> forbidden
+  G -> case b2 of U -> e1
+                  C -> e2
+                  _ -> forbidden
+  C -> case b2 of G -> e2
+                  _ -> forbidden
 
 splittings :: Primary -> [Energy]
 splittings p = map (\(p1,p2) -> times (maxbound p1) (maxbound p2)) 

@@ -4,7 +4,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module CO4.Example.WCB
+module CO4.Test.WCB
 where
 
 import           Language.Haskell.TH (runIO)
