@@ -22,6 +22,6 @@ uBase = constructors [ Just [], Just [], Just [], Just []]
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
-allocator = kList 4 uBase
+allocator = kList 10 uBase
 
-result = solveAndTestBooleanP (Finite (toBinary Nothing 4)) allocator encMain main 
+result = solveAndTestBooleanP (Finite (toBinary Nothing 10)) allocator encMain main 

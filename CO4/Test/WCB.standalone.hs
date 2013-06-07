@@ -135,47 +135,60 @@ minNat xs ys = case ge xs ys of
               False -> xs
               True  -> ys
 
+
+fold2l_pad :: (c -> a -> b -> c) 
+     -> a 
+     -> b
+     -> c 
+     -> [a] -> [b] -> c
+fold2l_pad f x0 y0 accu xs ys = case xs of
+            [] -> case ys of
+                [] -> accu
+                y : ys' -> fold2l_pad f x0 y0 (f accu x0 y) [] ys'
+            x : xs' -> case ys of
+                [] -> fold2l_pad f x0 y0 (f accu x y0) xs' []
+                y : ys' -> fold2l_pad f x0 y0 (f accu x y) xs' ys'
+
+fold2r_pad :: (a -> b -> c -> c) 
+     -> a 
+     -> b
+     -> c 
+     -> [a] -> [b] -> c
+fold2r_pad f x0 y0 end xs ys = case xs of
+            [] -> case ys of
+                [] -> end
+                y : ys' -> f x0 y (fold2r_pad f x0 y0 end  [] ys')
+            x : xs' -> case ys of
+                []      -> f x y0 (fold2r_pad f x0 y0 end xs' [] )
+                y : ys' -> f x  y (fold2r_pad f x0 y0 end xs' ys')
+
+
 ge :: Nat -> Nat -> Bool
-ge xs ys = foldl (\f (x,y) -> (x && (not y)) || ((not (xor x y)) && f)) True 
-                  (case fill xs ys of
-                      (a',b') -> zip a' b'
-                  )
+ge xs ys = fold2l_pad ( \ f x y -> (x && (not y)) || ((not (xor2 x y)) && f))
+              False False True xs ys
 
 add' :: Nat -> Nat -> Nat
-add' a b = case add a b of
-  (r,c) -> r ++ [c]
+add' xs ys = add_with False xs ys
 
-add :: Nat -> Nat -> (Nat,Bit)
-add a b = foldl (\(result,carry) (a,b) -> 
-                    case fullAdder a b carry of
-                      (r, carry') -> (result ++ [r], carry')
-                ) ([],False) 
-                  (case fill a b of
-                      (a',b') -> zip a' b'
-                  )
+add_with c xs ys = case xs of
+    [] -> increment_with c ys
+    x : xs' -> case ys of
+        [] -> increment_with c xs
+        y : ys' -> ( xor3 c x y ) : add_with (atleast2 c x y) xs' ys'
 
-fill :: Nat -> Nat -> (Nat,Nat)
-fill xs ys = case xs of
-  []     -> case ys of []   -> ([],[])
-                       v:vs -> case fill [] vs of
-                                 (us',vs') -> (False : us', v : vs')
-  u:us -> case ys of [] -> case fill us [] of
-                             (us',vs') -> (u : us', False : vs')
-                     v:vs -> case fill us vs of
-                               (us',vs') -> (u:us', v:vs')
+increment_with c xs = case xs of
+    [] -> [c]
+    x : xs' -> (xor2 c x) : increment_with ( c && x) xs'
 
-fullAdder :: Bit -> Bit -> Bit -> (Bit,Bit)
-fullAdder a b carry =
-  let xorAB = xor a b
-  in
-    ( xor xorAB carry
-    , xor (a && b) (carry && xorAB)
-    )
+atleast2 x y z = or3 (x && y) (x && z) (y && z)
 
-halfAdder :: Bit -> Bit -> (Bit,Bit)
-halfAdder a b = (xor a b, a && b)
+or3 :: Bit -> Bit -> Bit -> Bit
+or3 x y z = x || (y || z)
+
+xor3 :: Bit -> Bit -> Bit -> Bit
+xor3 x y z = xor2 x (xor2 y z)
   
-xor :: Bit -> Bit -> Bit
-xor a b = case a of
+xor2 :: Bit -> Bit -> Bit
+xor2 a b = case a of
   False -> b
   True  -> not b
