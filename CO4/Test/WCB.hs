@@ -22,6 +22,10 @@ uBase = constructors [ Just [], Just [], Just [], Just []]
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
-allocator = kList 10 uBase
+sec = [Open,Open,Blank,Close,Open,Close ,Close,Blank ]
 
-result = solveAndTestBooleanP (Finite (toBinary Nothing 10)) allocator encMain main 
+
+-- allocator = kList size uBase
+
+result = -- solveAndTestBooleanP (Finite (toBinary Nothing size)) allocator encMain main 
+    solveAndTestBooleanP sec (kList (length sec) uBase) encMain main

@@ -18,7 +18,7 @@ nat3 = [True,True]
 
 data Maybe' a = Nothing' | Just' a -- deriving Show
 
-data Energy = MinusInfinity | Finite Nat -- deriving Show
+data Energy = MinusInfinity | Finite Nat  -- deriving Show
 
 forbidden = MinusInfinity
 e0 = Finite nat0
@@ -28,8 +28,10 @@ e3 = Finite nat3
 
 
 -- the main constraint
-main e p = geEnergy (maxbound p) e
 
+-- main e p = geEnergy (maxbound p) e
+
+main s p = geEnergy (bound p s) (maxbound p)
 
 geEnergy a b = case b of
   MinusInfinity -> True
@@ -41,7 +43,7 @@ plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (maxNat x y)
-    MinusInfinity -> e
+    MinusInfinity -> Finite x
   MinusInfinity -> f
 
 times :: Energy -> Energy -> Energy
@@ -51,19 +53,37 @@ times e f = case e of
     MinusInfinity -> MinusInfinity
   MinusInfinity -> MinusInfinity
 
+bound :: Primary -> Secondary -> Energy
+bound p s = parse [] p s
+
+parse :: [ Base ] -> Primary -> Secondary -> Energy
+parse stack p s = case s of
+    [] -> case stack of
+         [] -> e0
+         _ -> forbidden
+    y:ys -> case p of
+         [] -> forbidden
+         x:xs -> case y of
+            Blank -> parse stack xs ys
+            Open  -> parse (x:stack) xs ys
+            Close -> case stack of
+                [] -> forbidden
+                z : zs -> times (cost z x) (parse zs xs ys)
+
+
+
 maxbound :: Primary -> Energy
 maxbound p = case p of
   []     -> Finite []
   (x:xs) -> case xs of
     [] -> Finite []
-    _  -> foldr plus (group p) (splittings p)
-
+    _  -> foldr plus (group p) (splittings p)        
 
 group :: Primary -> Energy
 group p = case p of
-  []     -> MinusInfinity
+  []     -> forbidden
   (x:xs) -> case last' xs of
-    Nothing' -> MinusInfinity
+    Nothing' -> forbidden
     Just' l  -> case init' xs of
                   Nothing' -> MinusInfinity
                   Just' is -> times (cost x l) (maxbound is)
@@ -98,22 +118,52 @@ cost b1 b2 = case b1 of
   C -> case b2 of G -> e2
                   _ -> forbidden
 
+splits :: [a] -> [([a],[a])]
+
+-- splits xs = zip (inits xs) (tails xs)
+
+splits xs = ( [], xs ) : case xs of
+    [] -> []
+    x : xs' -> map ( \ (ys,zs) -> (x : ys, zs) ) (splits xs' )
+
+-- | max energy from all splits (in two non-empty parts)
 splittings :: Primary -> [Energy]
-splittings p = map (\(p1,p2) -> times (maxbound p1) (maxbound p2)) 
-                   (filter' (\(p1,p2) -> not (null' p1) && not (null' p2)) 
-                   (zip (inits' p) (tails' p)))
+splittings p = map ( \ (p1,p2) ->  times (maxbound p1) (maxbound p2)) 
+           ( filter' ( \ (p1,p2) -> case p1 of 
+               [] -> False ; _ -> case p2 of [] -> False ; _ -> True )
+            ( splits p ) )
+
+filter' :: (a -> Bool) -> [a] -> [a]
+filter' f xs = case xs of
+  []   -> []
+  y:ys -> let zs = filter' f ys
+          in  case f y of
+            False -> zs
+            True -> y : zs
+
+
+
+-- | balanced binary fold 
+foldb :: b -> (a -> b) -> (b -> b -> b) -> [a] -> b
+foldb n e z xs = case xs of
+    [] -> n
+    x : xs' -> case xs' of
+         [] -> e x
+         _  -> case distribute xs of 
+                  (ys, zs) -> z (foldb n e z ys) (foldb n e z zs)
+
+-- | create two lists of nearly equal length
+distribute :: [a] -> ( [a], [a] )
+distribute xs = case xs of
+    [] -> ( [], [] )
+    x:xs' -> case distribute xs' of (ys,zs) -> (x : zs, ys)
+
+{-
 
 null' :: [a] -> Bool
 null' xs = case xs of
   [] -> True
   _  -> False
-
-filter' :: (a -> Bool) -> [a] -> [a]
-filter' f xs = case xs of
-  []   -> []
-  y:ys -> case f y of
-            False -> filter' f ys
-            True -> y : (filter' f ys)
 
 inits' :: [a] -> [[a]]
 inits' xs = case xs of
@@ -124,6 +174,8 @@ tails' :: [a] -> [[a]]
 tails' xs = case xs of
   []     -> [[]]
   (y:ys) -> xs : tails' ys
+
+-}
   
 maxNat :: Nat -> Nat -> Nat
 maxNat xs ys = case ge xs ys of
