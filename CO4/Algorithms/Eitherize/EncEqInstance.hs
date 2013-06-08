@@ -9,7 +9,7 @@ import qualified Language.Haskell.TH as TH
 import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
-import           CO4.Names (Namelike)
+import           CO4.Names (Namelike,fromName)
 import           CO4.EncEq (EncEq (..))
 import           CO4.EncodedAdt 
 import           CO4.Algorithms.Eitherize.Names (encodedName)
@@ -17,6 +17,7 @@ import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
+import           CO4.Profiling (traced)
 
 -- |Generates a @EncEq@ instance
 --
@@ -25,7 +26,7 @@ import           CO4.Util (replaceAt,for)
 -- >   encEq _ x y | isConstantlyUndefined x && isConstantlyUndefined y = encTrueCons
 -- >   encEq _ x y | isConstantlyUndefined x = encFalseCons
 -- >   encEq _ x y | isConstantlyUndefined y = encFalseCons
--- >   encEq _ x y = 
+-- >   encEq _ x y = traced "==_T" $
 -- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
 -- >                                       (constructorArgument 0 0 y)
 -- >     eq10  <- encEq (undefined :: T10) (constructorArgument 1 0 x) 
@@ -52,7 +53,7 @@ encEqInstance adt@(DAdt name vars conss) = do
       instanceHead = TH.InstanceD predicates 
                    $ appsT (TH.ConT ''EncEq) [ appsT (conT name) $ map varT vars
                                              , varT e, varT p ]
-  body  <- encEqBody x y conss 
+  body <- encEqBody x y conss 
 
   let thType          = toTH $ typeOfAdt adt
       mkClause b      = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -74,9 +75,11 @@ encEqInstance adt@(DAdt name vars conss) = do
         [ mkBothUndefClause
         , mkUndefClause x
         , mkUndefClause y
-        , mkClause $ TH.NormalB body
+        , mkClause $ TH.NormalB $
+            appsE (TH.VarE 'traced) [ stringE $ "==_" ++ fromName name
+                                    , body
+                                    ]
         ]
-
   return $ instanceHead [funD "encEq" clauses]
 
 encEqBody :: (MonadUnique u,Namelike n) => n -> n -> [Constructor] -> u TH.Exp
