@@ -16,7 +16,7 @@ nat1 = [True]
 nat2 = [False,True] -- lsb is in the head
 nat3 = [True,True]
 
-data Energy = MinusInfinity | Finite Nat  -- deriving Show
+data Energy = MinusInfinity | Finite Nat --  deriving Show
 
 forbidden = MinusInfinity
 e0 = Finite nat0
@@ -75,7 +75,8 @@ maxbound p = case p of
   []     -> Finite []
   (x:xs) -> case xs of
     [] -> Finite []
-    _  -> foldr plus (group p) (splittings p)        
+    _  -> -- foldb forbidden ( \ x -> x ) plus ( group p : splittings p )
+          foldr plus (group p) (splittings p)
 
 group :: Primary -> Energy
 group p = case p of
@@ -179,36 +180,18 @@ minNat xs ys = case ge xs ys of
               True  -> ys
 
 
-fold2l_pad :: (c -> a -> b -> c) 
-     -> a 
-     -> b
-     -> c 
-     -> [a] -> [b] -> c
-fold2l_pad f x0 y0 accu xs ys = case xs of
-            [] -> case ys of
-                [] -> accu
-                y : ys' -> fold2l_pad f x0 y0 (f accu x0 y) [] ys'
-            x : xs' -> case ys of
-                [] -> fold2l_pad f x0 y0 (f accu x y0) xs' []
-                y : ys' -> fold2l_pad f x0 y0 (f accu x y) xs' ys'
-
-fold2r_pad :: (a -> b -> c -> c) 
-     -> a 
-     -> b
-     -> c 
-     -> [a] -> [b] -> c
-fold2r_pad f x0 y0 end xs ys = case xs of
-            [] -> case ys of
-                [] -> end
-                y : ys' -> f x0 y (fold2r_pad f x0 y0 end  [] ys')
-            x : xs' -> case ys of
-                []      -> f x y0 (fold2r_pad f x0 y0 end xs' [] )
-                y : ys' -> f x  y (fold2r_pad f x0 y0 end xs' ys')
-
-
 ge :: Nat -> Nat -> Bool
-ge xs ys = fold2l_pad ( \ f x y -> (x && (not y)) || ((not (xor2 x y)) && f))
-              False False True xs ys
+ge xs ys = ge_run True xs ys
+
+ge_run prev xs ys = case xs of
+    [] -> prev && not ( or' ys )
+    x : xs' ->  case ys of
+        [] -> prev
+        y : ys' -> ge_run ((x && not y) || (prev && (x == y))) xs' ys'
+
+or' xs = case xs of
+    [] -> False
+    x : xs' -> x || or' xs'
 
 add' :: Nat -> Nat -> Nat
 add' xs ys = add_with False xs ys
