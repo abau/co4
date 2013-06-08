@@ -70,7 +70,10 @@ parseTHConstructor con = case con of
 
 parseTHExpression :: TH.Exp -> Expression
 parseTHExpression expression = case expression of
-  TH.VarE n -> EVar $ fromTHName n
+  TH.VarE n | n == 'undefined           -> EUndefined
+  TH.VarE n | fromName n == "undefined" -> EUndefined
+  TH.VarE n                             -> EVar $ fromTHName n
+
   TH.ConE n -> ECon $ fromTHName n
 
   TH.AppE a b ->

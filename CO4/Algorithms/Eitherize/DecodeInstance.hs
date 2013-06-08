@@ -16,7 +16,8 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 
 -- |Generates a @Decode@ instance of an ADT
 -- 
--- > instance Decode SAT EncodedAdt <Type> where
+-- > instance (Primitive p,EncodedAdt e p,Decode SAT p Bool,Decode SAT (e p) v1, ...) 
+-- >  => Decode SAT (e p) (T v1 v2 ...) where
 -- >    decode p = do
 -- >      i <- toIntermediateAdt p <#constructors of Type>
 -- >      case i of
@@ -33,23 +34,21 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
 decodeInstance (DAdt name vars conss) = do
   primitiveName    <- newName "p"
+  encAdtName       <- newName "e"
   paramName        <- newName "d"
   intermediateName <- newName "i"
 
-  let encodedAdt         = TH.AppT (TH.ConT ''EncodedAdt) (varT primitiveName)
-      primitivePredicate = TH.ClassP ''Primitive [varT primitiveName]
+  let encodedAdt = TH.AppT (varT encAdtName) (varT primitiveName)
+      predicates = primitive : encAdt : decodePrimitive : decodeFreeVars
+        where
+          primitive       = TH.ClassP ''Primitive [varT primitiveName]
+          encAdt          = TH.ClassP ''EncodedAdt [varT encAdtName,varT primitiveName]
+          decodePrimitive =
+            TH.ClassP ''Decode [TH.ConT ''SAT, varT primitiveName, TH.ConT ''Bool]
+          decodeFreeVars  = 
+            map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, encodedAdt, varT v]) vars
 
-      decodePrimitivePredicate =
-        TH.ClassP ''Decode [TH.ConT ''SAT, varT primitiveName, TH.ConT ''Bool]
-  
-      decodeFreeVarPredicates = 
-        map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, encodedAdt, varT v]
-            ) vars
-
-      instancePredicates = primitivePredicate : decodePrimitivePredicate 
-                         : decodeFreeVarPredicates
-  
-      instanceHead = TH.InstanceD instancePredicates (foldl1 TH.AppT 
+      instanceHead = TH.InstanceD predicates (foldl1 TH.AppT 
                       [ TH.ConT ''Decode, TH.ConT ''SAT, encodedAdt
                       , appsT (conT name) $ map varT vars
                       ])

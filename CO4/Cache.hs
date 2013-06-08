@@ -10,32 +10,31 @@ where
 import           Control.Monad.State
 import qualified Data.Map as M
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
-import           CO4.EncodedAdt (EncodedAdt)
 
-data CacheKey p = CacheCall String [EncodedAdt p]
-                | CacheCase (EncodedAdt p) [EncodedAdt p]
+data CacheKey e = CacheCall String [e]
+                | CacheCase e [e]
                 deriving (Eq,Ord)
 
-class Monad m => MonadCache p m where
-  retrieve :: CacheKey p -> m (Maybe (EncodedAdt p))
-  cache    :: CacheKey p -> EncodedAdt p -> m ()
+class Monad m => MonadCache e m where
+  retrieve :: CacheKey e -> m (Maybe e)
+  cache    :: CacheKey e -> e -> m ()
 
-type CacheMap p = M.Map (CacheKey p) (EncodedAdt p)
+type CacheMap e = M.Map (CacheKey e) e
 
-data CacheState p = CacheState { cacheMap      :: CacheMap p
+data CacheState e = CacheState { cacheMap      :: CacheMap e
                                , numCallHits   :: Int
                                , numCallMisses :: Int
                                , numCaseHits   :: Int
                                , numCaseMisses :: Int
                                }
 
-newtype Cache p m a = Cache { fromCache :: StateT (CacheState p) m a }
-  deriving (Monad, MonadState (CacheState p), MonadTrans, MonadIO)
+newtype Cache e m a = Cache { fromCache :: StateT (CacheState e) m a }
+  deriving (Monad, MonadState (CacheState e), MonadTrans, MonadIO)
 
-instance (Monad m, Ord p) => MonadCache p (Cache p m) where
+instance (Monad m, Ord e) => MonadCache e (Cache e m) where
   retrieve key = gets ( M.lookup key . cacheMap ) >>= \case
       Nothing -> addMiss >> return Nothing
-      Just c  -> addHit  >> return ( Just c )
+      Just e  -> addHit  >> return ( Just e )
     where 
       addHit = case key of
         CacheCall {} -> modify $ \s -> s { numCallHits = succ $ numCallHits s }
@@ -46,14 +45,14 @@ instance (Monad m, Ord p) => MonadCache p (Cache p m) where
 
   cache key result = modify $ \s -> s { cacheMap = M.insert key result $ cacheMap s }
 
-instance (MonadSAT m) => MonadSAT (Cache p m) where
+instance (MonadSAT m) => MonadSAT (Cache e m) where
   fresh        = lift fresh
   emit         = lift . emit
   note         = lift . note
   numVariables = lift numVariables
   numClauses   = lift numClauses
 
-runCache :: (MonadIO m) => Cache p m a -> m a
+runCache :: (MonadIO m) => Cache e m a -> m a
 runCache c = do
   (result,cacheState) <- runStateT (fromCache c) $ CacheState M.empty 0 0 0 0
 
@@ -72,7 +71,7 @@ runCache c = do
            ]
   return result
 
-withCache :: (MonadCache p m) => CacheKey p -> m (EncodedAdt p) -> m (EncodedAdt p)
+withCache :: (MonadCache e m) => CacheKey e -> m e -> m e
 withCache key f =
   retrieve key >>= \case 
     Just hit -> return hit

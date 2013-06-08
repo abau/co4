@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.33
+Version:        	0.0.34
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -12,7 +12,6 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
-                    , CO4.Allocator
                     , CO4.Allocator.Common
                     , CO4.Allocator.Overlapping
                     , CO4.Backend

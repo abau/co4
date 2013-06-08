@@ -87,6 +87,9 @@ class Monad m => MonadInstantiator m where
     e' <- instantiate e
     return $ ELet b' e'
 
+  instantiateUndefined :: m Expression
+  instantiateUndefined = return EUndefined
+
   instantiateExpression :: Expression -> m Expression
   instantiateExpression = instantiateSubexpressions
 
@@ -132,6 +135,7 @@ instantiateSubexpressions exp = case exp of
   ETLam {}   -> instantiateTLam exp
   ECase {}   -> instantiateCase exp
   ELet {}    -> instantiateLet exp
+  EUndefined -> instantiateUndefined
 
 class Instantiable a where
   instantiate :: MonadInstantiator m => a -> m a

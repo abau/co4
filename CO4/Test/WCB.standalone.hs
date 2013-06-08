@@ -16,8 +16,6 @@ nat1 = [True]
 nat2 = [False,True] -- lsb is in the head
 nat3 = [True,True]
 
-data Maybe' a = Nothing' | Just' a -- deriving Show
-
 data Energy = MinusInfinity | Finite Nat  -- deriving Show
 
 forbidden = MinusInfinity
@@ -82,28 +80,21 @@ maxbound p = case p of
 group :: Primary -> Energy
 group p = case p of
   []     -> forbidden
-  (x:xs) -> case last' xs of
-    Nothing' -> forbidden
-    Just' l  -> case init' xs of
-                  Nothing' -> MinusInfinity
-                  Just' is -> times (cost x l) (maxbound is)
+  (x:xs) -> times (cost x (last' xs)) (maxbound (init' xs))
 
-init' :: [a] -> Maybe' [a]
+init' :: [a] -> [a]
 init' xs = case xs of
-  []   -> Nothing'
+  []   -> undefined
   y:ys -> case ys of
-    [] -> Just' []
-    _  -> case init' ys of 
-            Nothing' -> Just' []
-            Just' ys' -> Just' (y : ys')
+    [] -> []
+    _  -> y : (init' ys)
                 
-last' :: [a] -> Maybe' a
+last' :: [a] -> a
 last' a = case a of
-  []     -> Nothing'
+  []     -> undefined
   (x:xs) -> case xs of
-    [] -> Just' x
+    [] -> x
     _  -> last' xs
-
 
 cost :: Base -> Base -> Energy
 cost b1 b2 = case b1 of

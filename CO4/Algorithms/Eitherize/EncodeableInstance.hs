@@ -4,26 +4,37 @@ where
 
 import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
+import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique
 import           CO4.Language
 import           CO4.THUtil
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.Util (for)
+import           CO4.EncodedAdt (EncodedAdt)
 
 -- |Generates a @Encodeable@ instance
 --
--- > instance (Encodeable v1,...) => Encodeable (T v1 ...) where
+-- > instance (Primitive p,EncodedAdt e,Encodeable v1,...) 
+-- >  => Encodeable (T v1 ...) e p where
 -- >    encodeConstant (Cons1 a1 ...) = encodedConstructor 0 n [ encodeConstant a1 ... ] 
 -- >    encodeConstant (Cons2 a1 ...) = encodedConstructor 1 n [ encodeConstant a1 ... ] 
 encodeableInstance :: MonadUnique u => Declaration -> u TH.Dec
 encodeableInstance (DAdt name vars conss) = do
-  typeParams <- forM vars $ const $ newName "v"
+  p        <- newName "p"
+  e        <- newName "e"
+  varNames <- forM vars $ const $ newName "v"
 
-  let predicates = for typeParams $ \p -> TH.ClassP ''Encodeable [varT p]
+  let predicates = primitive : encAdt : encodeables
+        where
+          primitive   = TH.ClassP ''Primitive  [varT p]
+          encAdt      = TH.ClassP ''EncodedAdt [varT e, varT p]
+          encodeables = for varNames $ \v -> 
+                          TH.ClassP ''Encodeable [varT v, varT e, varT p]
       
-      instanceHead = TH.InstanceD predicates $ TH.AppT (TH.ConT ''Encodeable)
-                                             $ appsT (conT name)
-                                             $ map varT typeParams
+      instanceHead = TH.InstanceD predicates 
+                   $ appsT (TH.ConT ''Encodeable)
+                           [ appsT (conT name) $ map varT varNames
+                           , varT e, varT p ]
 
       clause (i,CCon conName conArgs) = do
         patternVars <- forM conArgs $ const $ newName "a"

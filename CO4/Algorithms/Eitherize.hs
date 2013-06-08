@@ -6,6 +6,7 @@ module CO4.Algorithms.Eitherize
   (eitherize)
 where
 
+import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Data.List (find)
@@ -22,10 +23,10 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (isBottom,encodedConstructor,caseOf,constructorArgument)
+  (undefined,isConstantlyUndefined,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Cache (CacheKey (..),withCache)
-import           CO4.Allocator (known)
+import           CO4.Allocator.Common (known)
 import           CO4.Profiling (traced)
 import           CO4.EncEq (encEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
@@ -132,7 +133,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                             ]
                 ) ms'
 
-              return $ TH.DoE [ binding, TH.NoBindS $ checkBottom e'Name 
+              return $ TH.DoE [ binding, TH.NoBindS $ checkUndefined e'Name 
                                                     $ caseOfE ]
     where 
       -- Instantiate matches
@@ -185,8 +186,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
               PCon p _ = matchPattern $ head $ matches
               isConstructor (CCon c _) = untypedName p == c
 
-      checkBottom e'Name = 
-          TH.CondE (TH.AppE (TH.VarE 'isBottom) (varE e'Name))
+      checkUndefined e'Name = 
+          TH.CondE (TH.AppE (TH.VarE 'isConstantlyUndefined) (varE e'Name))
                    (TH.AppE (TH.VarE 'return) (varE e'Name))
 
   instantiateLet (ELet bindings exp) = do
@@ -199,6 +200,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         name'  <- instantiateName name
         value' <- instantiate value
         return $ bindS' name' value'
+
+  instantiateUndefined = return $ TH.AppE (TH.VarE 'return) (TH.VarE 'undefined)
 
   instantiateBind (DBind (Binding name exp)) = do
     name'        <- instantiateName name

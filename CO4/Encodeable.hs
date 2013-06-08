@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 module CO4.Encodeable
   (Encodeable (..))
 where
@@ -6,8 +7,8 @@ import Satchmo.Core.MonadSAT (MonadSAT)
 import Satchmo.Core.Primitive (Primitive)
 import CO4.EncodedAdt (EncodedAdt)
 
-class Encodeable a where
-  encodeConstant :: (Primitive p) => a -> EncodedAdt p
+class (Primitive p, EncodedAdt e p) => Encodeable a e p where
+  encodeConstant :: a -> e p
 
-  encode :: (MonadSAT m, Primitive p) => a -> m (EncodedAdt p)
+  encode :: (MonadSAT m) => a -> m (e p)
   encode = return . encodeConstant

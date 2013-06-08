@@ -67,6 +67,8 @@ instance PPrint Expression where
         ++ (map (nest 2) $ punctuate (text " ;") $ map pprint bs)
         ++ [ text "}", text "in", nest 2 $ pprint e ]
 
+  pprint EUndefined = text "undefined"
+
 instance PPrint Type where
   pprint (TVar name)   = pprint name
   pprint (TCon f args) = 

@@ -6,6 +6,7 @@ where
 import           Prelude hiding (and)
 import           Control.Monad (forM,zipWithM,liftM)
 import qualified Language.Haskell.TH as TH
+import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
 import           CO4.Names (Namelike)
@@ -19,10 +20,11 @@ import           CO4.Util (replaceAt,for)
 
 -- |Generates a @EncEq@ instance
 --
--- > instance (EncEq v1,...) => EncEq (T v1 ...) where
--- >   encEq _ x y | isBottom x && isBottom y = encTrueCons
--- >   encEq _ x y | isBottom x = encFalseCons
--- >   encEq _ x y | isBottom y = encFalseCons
+-- > instance (Primitive p,EncodedAdt e p,EncEq v1 e p,...) 
+-- >  => EncEq (T v1 ...) e p where
+-- >   encEq _ x y | isConstantlyUndefined x && isConstantlyUndefined y = encTrueCons
+-- >   encEq _ x y | isConstantlyUndefined x = encFalseCons
+-- >   encEq _ x y | isConstantlyUndefined y = encFalseCons
 -- >   encEq _ x y = 
 -- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
 -- >                                       (constructorArgument 0 0 y)
@@ -38,40 +40,44 @@ import           CO4.Util (replaceAt,for)
 -- >     ...
 -- >     caseOf x [y0, y1, ...]
 encEqInstance :: MonadUnique u => Declaration -> u TH.Dec
-encEqInstance adt@(DAdt name vars conss) = 
-  let predicates = for vars $ \p -> TH.ClassP ''EncEq [varT p]
+encEqInstance adt@(DAdt name vars conss) = do
+  [x,y,p,e] <- mapM newName ["x","y","p","e"]
+
+  let predicates = primitive : encAdt : encEqs
+        where 
+          encEqs    = for vars $ \v -> TH.ClassP ''EncEq [varT v, varT e, varT p]
+          primitive = TH.ClassP ''Primitive [varT p]
+          encAdt    = TH.ClassP ''EncodedAdt [varT e, varT p]
       
-      instanceHead = TH.InstanceD predicates $ TH.AppT (TH.ConT ''EncEq)
-                                             $ appsT (conT name)
-                                             $ map varT vars
-  in do
-    [x,y] <- mapM newName ["x","y"]
-    body  <- encEqBody x y conss 
+      instanceHead = TH.InstanceD predicates 
+                   $ appsT (TH.ConT ''EncEq) [ appsT (conT name) $ map varT vars
+                                             , varT e, varT p ]
+  body  <- encEqBody x y conss 
 
-    let thType           = toTH $ typeOfAdt adt
-        mkClause b       = TH.Clause [typedWildcard thType, varP x, varP y] b []
-        mkBottomClause n = mkClause $ TH.GuardedB [
-          ( TH.NormalG $ TH.AppE (TH.VarE 'isBottom) (varE n)
-          , TH.AppE (TH.VarE 'return) 
-                    (appsE (TH.VarE 'encodedConstructor) 
-                           [intE 0, intE 2, TH.ListE []]))]
+  let thType          = toTH $ typeOfAdt adt
+      mkClause b      = TH.Clause [typedWildcard thType, varP x, varP y] b []
+      mkUndefClause n = mkClause $ TH.GuardedB [
+        ( TH.NormalG $ TH.AppE (TH.VarE 'isConstantlyUndefined) (varE n)
+        , TH.AppE (TH.VarE 'return) 
+                  (appsE (TH.VarE 'encodedConstructor) 
+                         [intE 0, intE 2, TH.ListE []]))]
 
-        mkBothBottomClause = mkClause $ TH.GuardedB [
-          ( TH.NormalG $ appsE (varE "&&") 
-              [ TH.AppE (TH.VarE 'isBottom) (varE x)
-              , TH.AppE (TH.VarE 'isBottom) (varE y)
-              ]
-          , TH.AppE (TH.VarE 'return) 
-                    (appsE (TH.VarE 'encodedConstructor) 
-                           [intE 1, intE 2, TH.ListE []]))]
-        clauses = 
-          [ mkBothBottomClause
-          , mkBottomClause x
-          , mkBottomClause y
-          , mkClause $ TH.NormalB body
-          ]
+      mkBothUndefClause = mkClause $ TH.GuardedB [
+        ( TH.NormalG $ appsE (varE "&&") 
+            [ TH.AppE (TH.VarE 'isConstantlyUndefined) (varE x)
+            , TH.AppE (TH.VarE 'isConstantlyUndefined) (varE y)
+            ]
+        , TH.AppE (TH.VarE 'return) 
+                  (appsE (TH.VarE 'encodedConstructor) 
+                         [intE 1, intE 2, TH.ListE []]))]
+      clauses = 
+        [ mkBothUndefClause
+        , mkUndefClause x
+        , mkUndefClause y
+        , mkClause $ TH.NormalB body
+        ]
 
-    return $ instanceHead [funD "encEq" clauses]
+  return $ instanceHead [funD "encEq" clauses]
 
 encEqBody :: (MonadUnique u,Namelike n) => n -> n -> [Constructor] -> u TH.Exp
 encEqBody x y conss = do

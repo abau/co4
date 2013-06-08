@@ -1,4 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module CO4.Allocator.Overlapping
   ( )
 where
@@ -10,20 +12,19 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           Satchmo.Core.Primitive (Primitive,primitive,constant,antiSelect,assert)
 import           CO4.Allocator.Common (Allocator (..),AllocateConstructor (..))
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.EncodedAdt.Overlapping (EncodedAdt (..))
-import qualified CO4.EncodedAdt.Overlapping as E
+import           CO4.EncodedAdt.Overlapping (Overlapping (..),encodedConstructor)
 import           CO4.Util (for,bitWidth,binaries,toBinary)
 
-instance Encodeable Allocator where
+instance Primitive p => Encodeable Allocator Overlapping p where
   encode alloc = do
     result <- encodeOverlapping [alloc]
     excludeBottomAndInvalidConstructorPatterns result alloc
     return result
 
   encodeConstant = \case
-    Known i n as -> E.encodedConstructor i n $ map encodeConstant as
+    Known i n as -> encodedConstructor i n $ map encodeConstant as
 
-encodeOverlapping :: (MonadSAT m, Primitive p) => [Allocator] -> m (EncodedAdt p)
+encodeOverlapping :: (MonadSAT m, Primitive p) => [Allocator] -> m (Overlapping p)
 encodeOverlapping []     = error "Allocator.Overlapping.encodeOverlapping: no allocators"
 encodeOverlapping allocs = do
   args <- case maxArgs of
@@ -39,7 +40,7 @@ encodeOverlapping allocs = do
     [Known i n _] -> return $ map constant $ toBinary (Just $ bitWidth n) i
     _             -> sequence $ replicate (bitWidth maxConstructors) primitive
 
-  return $ EncodedAdt flags args
+  return $ Overlapping (constant True) flags args
 
   where 
     maxConstructors = maximum $ for allocs $ \case 
@@ -53,14 +54,14 @@ encodeOverlapping allocs = do
         AllocateBottom           -> 0
 
 excludeBottomAndInvalidConstructorPatterns :: (MonadSAT m, Primitive p) 
-                                           => EncodedAdt p -> Allocator -> m ()
+                                           => Overlapping p -> Allocator -> m ()
 excludeBottomAndInvalidConstructorPatterns = go [] []
   where
-    go flags pattern (EncodedAdt [] args) (Known 0 1 args') =
+    go flags pattern (Overlapping _ [] args) (Known 0 1 args') =
         Exception.assert (length args >= length args') 
       $ zipWithM_ (go flags pattern) args args'
 
-    go flags pattern (EncodedAdt fs args) (Known i n args') =
+    go flags pattern (Overlapping _ fs args) (Known i n args') =
         Exception.assert (length args >= length args') 
       $ Exception.assert (bitWidth n <= length fs)
       $ 
@@ -72,7 +73,7 @@ excludeBottomAndInvalidConstructorPatterns = go [] []
                                                        (pattern ++ p)
           zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
           
-    go flags pattern (EncodedAdt fs args) (Unknown cons) =
+    go flags pattern (Overlapping _ fs args) (Unknown cons) =
         Exception.assert (length fs >= bitWidth (length cons))
       $ do
           forM_ invalidPatterns $ \p -> excludePattern (flags   ++ thisFlags)
@@ -95,8 +96,6 @@ excludeBottomAndInvalidConstructorPatterns = go [] []
             thisPattern = case thisFlags of
               [] -> []
               _  -> toBinary (Just $ length thisFlags) i
-
-    go _ _ _ _ = error $ "Allocator.Overlapping.excludeBottomAndInvalidConstructorPatterns: bottom"
 
 excludePattern :: (MonadSAT m, Primitive p) => [p] -> [Bool] -> m ()
 excludePattern []    []      = return ()
