@@ -58,10 +58,10 @@ instance Primitive p => EncodedAdt Overlapping p where
         [branchDef] <- caseOfBits relevantFlags 
                      $ map (Just . return . definedness)        branches
 
-        --def'        <- and [branchDef, definedness adt]
+        def'        <- and [branchDef, definedness adt]
         flags'      <- caseOfBits relevantFlags $ map flags     branches
         arguments'  <- caseOfArguments adt'     $ map arguments branches
-        return $ Overlapping {-def'-} (constant True) flags' arguments'
+        return $ Overlapping def' flags' arguments'
     where
       relevantFlags = take (bitWidth $ length branches) $ flags' adt
       adt'          = Overlapping (definedness adt) relevantFlags 
