@@ -15,7 +15,7 @@ import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
-$( runIO $ configurable [ImportPrelude] $ compileFile "CO4/Test/WCB.standalone.hs" )
+$( runIO $ configurable [ImportPrelude,Profiling,DumpAll "/tmp/WCB"] $ compileFile "CO4/Test/WCB.standalone.hs" )
 
 
 uBase = constructors [ Just [], Just [], Just [], Just []]
@@ -23,8 +23,10 @@ uBase = constructors [ Just [], Just [], Just [], Just []]
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
-sec = [Open,Open,Blank,Close,Open,Close ,Close,Blank ]
-
+sec = [Open,Open
+     ,Blank,Close,Open
+     ,Close ,Close,Blank 
+    ]
 
 -- allocator = kList size uBase
 
