@@ -13,6 +13,7 @@ import qualified Data.Map as M
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache (MonadCache (..))
+import           Debug.Trace (trace)
 
 class MonadSAT m => MonadProfiling m where
   traced :: String -> m a -> m a
@@ -28,11 +29,15 @@ type ProfileMap = M.Map String ProfileData
 data Profile = Profile { innerUnder      :: ProfileMap
                        , inner           :: ProfileMap
                        , currentFunction :: String
+                       , stackDepth      :: Int
                        }
 
 onInnerUnder,onInner :: (ProfileMap -> ProfileMap) -> Profile -> Profile
 onInnerUnder f p = p { innerUnder = f $ innerUnder p }
 onInner      f p = p { inner      = f $ inner      p }
+
+onStackDepth :: (Int -> Int) -> Profile -> Profile
+onStackDepth f p = p { stackDepth = f $ stackDepth p }
 
 setCurrentFunction :: String -> Profile -> Profile
 setCurrentFunction name p = p { currentFunction = name }
@@ -71,9 +76,12 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
       (\case Nothing -> Just $ ProfileData 1 0 0
              Just p  -> Just $ p { numCalls = succ $ numCalls p }) name
 
+    sd     <- gets stackDepth
+    modify $ onStackDepth succ
+
     v1     <- MonadSAT.numVariables
     c1     <- MonadSAT.numClauses
-    result <- action
+    result <- trace (replicate (2*sd) ' ' ++ "Running '" ++ name ++ "'") action
     v2     <- MonadSAT.numVariables
     c2     <- MonadSAT.numClauses
 
@@ -87,6 +95,8 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
                                   }
       ) name 
 
+    modify $ onStackDepth pred
+
     return result
 
 instance MonadCache p m => MonadCache p (SimpleProfiling m) where
@@ -96,7 +106,7 @@ instance MonadCache p m => MonadCache p (SimpleProfiling m) where
 simpleProfiling :: (MonadIO m, MonadSAT m) => SimpleProfiling m a -> m a
 simpleProfiling p = do 
   (result, profile) <- runStateT (fromSimpleProfiling p) 
-                                 (Profile M.empty M.empty "__init")
+                                 (Profile M.empty M.empty "__init" 0)
   printProfile "inner-under" innerUnder profile
   printProfile "inner"       inner      profile
   return result
