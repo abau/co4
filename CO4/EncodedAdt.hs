@@ -64,7 +64,7 @@ caseOfBits flags branchBits =
       ([f],[a,b]) -> caseOf2Bits f a b
       _ -> do 
         premises <- mkPremises
-        forM (transpose branchBits') $ mkBits premises
+        forM (transpose branchBits') $ mergeN premises
     where
       nonBottomBits  = catMaybes branchBits
       branchBitWidth = maximum $ map length nonBottomBits 
@@ -76,15 +76,19 @@ caseOfBits flags branchBits =
           patterns          = binaries $ length flags 
           mkPremise pattern = and $ zipWith select pattern flags
 
-      mkBits premises bitsT = zipWithM implies premises bitsT >>= and
+      mergeN premises bitsT = case all (\b -> b == head bitsT) bitsT of
+        True  -> return $ head bitsT 
+        False -> zipWithM implies premises bitsT >>= and
 
       caseOf2Bits f as bs = zipWithM merge2 as bs
-
-        where merge2 a b = do
-                r <- primitive
-                assert [P.not r,       f,       a]
-                assert [P.not r, P.not f,       b]
-                assert [      r, P.not f, P.not b]
-                assert [      r,       f, P.not a]
-                return r
+        where 
+          merge2 a b = case a == b of
+            True  -> return a
+            False -> do
+              r <- primitive
+              assert [P.not r,       f,       a]
+              assert [P.not r, P.not f,       b]
+              assert [      r, P.not f, P.not b]
+              assert [      r,       f, P.not a]
+              return r
 
