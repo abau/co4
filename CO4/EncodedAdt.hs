@@ -8,11 +8,12 @@ module CO4.EncodedAdt
 where
 
 import           Prelude hiding (and,undefined)
-import           Control.Exception as Exception
+import qualified Control.Exception as Exception
 import           Control.Monad (forM,zipWithM)
 import           Data.List (transpose)
 import           Data.Maybe (fromMaybe,catMaybes)
-import           Satchmo.Core.Primitive (Primitive,constant,implies,and,select)
+import           Satchmo.Core.Primitive 
+  (Primitive,constant,implies,and,select,primitive,assert)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Decode (Decode)
 import           Satchmo.Core.MonadSAT (MonadSAT)
@@ -59,9 +60,11 @@ caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonBottomBits) 
   $ Exception.assert (length flags == bitWidth (length branchBits)) 
-  $ do
-    premises <- mkPremises
-    forM (transpose branchBits') $ mkBits premises
+  $ case (flags,branchBits') of
+      ([f],[a,b]) -> caseOf2Bits f a b
+      _ -> do 
+        premises <- mkPremises
+        forM (transpose branchBits') $ mkBits premises
     where
       nonBottomBits  = catMaybes branchBits
       branchBitWidth = maximum $ map length nonBottomBits 
@@ -74,4 +77,14 @@ caseOfBits flags branchBits =
           mkPremise pattern = and $ zipWith select pattern flags
 
       mkBits premises bitsT = zipWithM implies premises bitsT >>= and
+
+      caseOf2Bits f as bs = zipWithM merge2 as bs
+
+        where merge2 a b = do
+                r <- primitive
+                assert [P.not r,       f,       a]
+                assert [P.not r, P.not f,       b]
+                assert [      r, P.not f, P.not b]
+                assert [      r,       f, P.not a]
+                return r
 

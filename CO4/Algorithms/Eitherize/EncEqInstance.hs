@@ -18,6 +18,7 @@ import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
 import           CO4.Profiling (traced)
+import           CO4.Config (MonadConfig,is,Config(Profiling))
 
 -- |Generates a @EncEq@ instance
 --
@@ -40,7 +41,7 @@ import           CO4.Profiling (traced)
 -- >     eqY1  <- caseOf y [encFalseCons, eq1, encFalseCons, ...]
 -- >     ...
 -- >     caseOf x [y0, y1, ...]
-encEqInstance :: MonadUnique u => Declaration -> u TH.Dec
+encEqInstance :: (MonadUnique u,MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
   [x,y,p,e] <- mapM newName ["x","y","p","e"]
 
@@ -53,7 +54,8 @@ encEqInstance adt@(DAdt name vars conss) = do
       instanceHead = TH.InstanceD predicates 
                    $ appsT (TH.ConT ''EncEq) [ appsT (conT name) $ map varT vars
                                              , varT e, varT p ]
-  body <- encEqBody x y conss 
+  body        <- encEqBody x y conss 
+  isProfiling <- is Profiling
 
   let thType          = toTH $ typeOfAdt adt
       mkClause b      = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -76,9 +78,9 @@ encEqInstance adt@(DAdt name vars conss) = do
         , mkUndefClause x
         , mkUndefClause y
         , mkClause $ TH.NormalB $
-            appsE (TH.VarE 'traced) [ stringE $ "==_" ++ fromName name
-                                    , body
-                                    ]
+            case isProfiling of 
+              False -> body
+              True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
         ]
   return $ instanceHead [funD "encEq" clauses]
 
