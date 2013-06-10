@@ -16,7 +16,7 @@ nat1 = [True]
 nat2 = [False,True] -- lsb is in the head
 nat3 = [True,True]
 
-data Energy = MinusInfinity | Finite Nat   deriving Show
+data Energy = MinusInfinity | Finite Nat --  deriving Show
 
 forbidden = MinusInfinity
 e0 = Finite nat0
@@ -27,12 +27,42 @@ e3 = Finite nat3
 
 -- the main constraint
 
+
 -- main e p = geEnergy (maxbound p) e
 
-main s p = geEnergy (bound p s) (maxbound_single p)
 
+-- main s p = geEnergy (bound p s) (maxbound_single p)
+main s p = case maxbound_double p of
+     ( first, second ) -> gtEnergy first second -- stability
+                       && geEnergy (bound p s) first
+
+-- | result: the maximum possible energy that can be bound here
 maxbound_single :: Primary -> Energy
 maxbound_single p = maxbound MinusInfinity (Finite []) plus times cost p
+
+-- | result (first, second) best bound energy
+maxbound_double :: Primary 
+                -> (Energy, Energy) 
+maxbound_double p = maxbound
+    ( MinusInfinity, MinusInfinity )
+    ( Finite [], MinusInfinity )
+    ( \ (f1, s1) (f2, s2) -> ( maxEnergy f1 f2
+                             , maxEnergy ( minEnergy f1 f2 )
+                                 (maxEnergy s2 s2 ) ) )
+    ( \ (f1, s1) (f2, s2) -> ( times f1 f2 , maxEnergy (times f1 s2)(times f2 s1) ) )
+    ( \ x y -> ( cost x y , MinusInfinity ) )
+    p
+
+
+maxEnergy a b = case geEnergy a b of
+    False -> b
+    True  -> a
+
+minEnergy a b = case geEnergy a b of
+    False -> a
+    True  -> b
+
+gtEnergy a b = not (geEnergy b a)
 
 geEnergy a b = case b of
   MinusInfinity -> True
