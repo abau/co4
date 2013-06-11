@@ -11,8 +11,8 @@ type Secondary = [Paren]
 type Bit = Bool
 type Nat = [Bit]
 
-nat0 = []
-nat1 = [True]
+nat0 = [False,False]
+nat1 = [True,False]
 nat2 = [False,True] -- lsb is in the head
 nat3 = [True,True]
 
