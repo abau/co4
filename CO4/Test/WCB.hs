@@ -5,8 +5,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module CO4.Test.WCB
-where
+-- module CO4.Test.WCB where
+module Main where
 
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
@@ -15,7 +15,13 @@ import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
-$( runIO $ configurable [ImportPrelude,Profiling,DumpAll "/tmp/WCB"] $ compileFile "CO4/Test/WCB.standalone.hs" )
+import System.Environment (getArgs)
+
+$( runIO $ configurable [ImportPrelude
+                        -- ,Profiling
+                        -- ,DumpAll "/tmp/WCB"
+                        ] 
+         $ compileFile "CO4/Test/WCB.standalone.hs" )
 
 
 uBase = constructors [ Just [], Just [], Just [], Just []]
@@ -23,12 +29,21 @@ uBase = constructors [ Just [], Just [], Just [], Just []]
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
-sec = [Open,Open
+inforna cs = map ( \ c -> case c of
+    '(' -> Open ; '.' -> Blank ; ')' -> Close ) cs
+
+ex1 = inforna "(((((...(((((......))))).)))))"
+
+ex0 = [Open,Open
      ,Blank,Close,Open
      ,Close ,Close,Blank 
     ]
 
 -- allocator = kList size uBase
 
-result = -- solveAndTestBooleanP (Finite (toBinary Nothing size)) allocator encMain main 
+result_for sec = 
     solveAndTestBooleanP sec (kList (length sec) uBase) encMain main
+
+mainz = do
+    [ arg1 ] <- getArgs
+    result_for $ inforna arg1

@@ -27,9 +27,42 @@ e3 = Finite nat3
 
 -- the main constraint
 
+
 -- main e p = geEnergy (maxbound p) e
 
-main s p = geEnergy (bound p s) (maxbound p)
+
+-- main s p = geEnergy (bound p s) (maxbound_single p)
+main s p = case maxbound_double p of
+     ( first, second ) -> gtEnergy first second -- stability
+                       && geEnergy (bound p s) first
+
+-- | result: the maximum possible energy that can be bound here
+maxbound_single :: Primary -> Energy
+maxbound_single p = maxbound MinusInfinity (Finite []) plus times cost p
+
+-- | result (first, second) best bound energy
+maxbound_double :: Primary 
+                -> (Energy, Energy) 
+maxbound_double p = maxbound
+    ( MinusInfinity, MinusInfinity )
+    ( Finite [], MinusInfinity )
+    ( \ (f1, s1) (f2, s2) -> ( maxEnergy f1 f2
+                             , maxEnergy ( minEnergy f1 f2 )
+                                 (maxEnergy s2 s2 ) ) )
+    ( \ (f1, s1) (f2, s2) -> ( times f1 f2 , maxEnergy (times f1 s2)(times f2 s1) ) )
+    ( \ x y -> ( cost x y , MinusInfinity ) )
+    p
+
+
+maxEnergy a b = case geEnergy a b of
+    False -> b
+    True  -> a
+
+minEnergy a b = case geEnergy a b of
+    False -> a
+    True  -> b
+
+gtEnergy a b = not (geEnergy b a)
 
 geEnergy a b = case b of
   MinusInfinity -> True
@@ -69,19 +102,28 @@ parse stack p s = case s of
                 z : zs -> times (cost z x) (parse zs xs ys)
 
 
-
-maxbound :: Primary -> Energy
-maxbound p = case p of
-  []     -> Finite []
+maxbound :: e -- ^ semi-ring zero (= forbidden energy)
+         -> e -- ^ semi-ring one (= zero enery)
+         -> ( e -> e -> e ) -- ^ semiring plus (= max)
+         -> ( e -> e -> e ) -- ^ semiring times (= plus)
+         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
+         -> Primary -> e
+maxbound zero one plus times cost p = case p of
+  []     -> one
   (x:xs) -> case xs of
-    [] -> Finite []
-    _  -> -- foldb forbidden ( \ x -> x ) plus ( group p : splittings p )
-          foldr plus (group p) (splittings p)
+    [] -> one
+    _  -> foldr plus (group zero one plus times cost p) 
+                     (splittings zero one plus times cost p)
 
-group :: Primary -> Energy
-group p = case p of
-  []     -> forbidden
-  (x:xs) -> times (cost x (last' xs)) (maxbound (init' xs))
+group :: e -- ^ semi-ring zero (= forbidden energy)
+         -> e -- ^ semi-ring one (= zero enery)
+         -> ( e -> e -> e ) -- ^ semiring plus (= max)
+         -> ( e -> e -> e ) -- ^ semiring times (= plus)
+         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
+      -> Primary -> e
+group zero one plus times cost p = case p of
+  []     -> zero
+  (x:xs) -> times (cost x (last' xs)) (maxbound zero one plus times cost (init' xs))
 
 init' :: [a] -> [a]
 init' xs = case xs of
@@ -119,8 +161,15 @@ splits xs = ( [], xs ) : case xs of
     x : xs' -> map ( \ (ys,zs) -> (x : ys, zs) ) (splits xs' )
 
 -- | max energy from all splits (in two non-empty parts)
-splittings :: Primary -> [Energy]
-splittings p = map ( \ (p1,p2) ->  times (maxbound p1) (maxbound p2)) 
+splittings :: e -- ^ semi-ring zero (= forbidden energy)
+         -> e -- ^ semi-ring one (= zero enery)
+         -> ( e -> e -> e ) -- ^ semiring plus (= max)
+         -> ( e -> e -> e ) -- ^ semiring times (= plus)
+         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
+      -> Primary -> [e]
+splittings zero one plus times cost p 
+       = map ( \ (p1,p2) ->  times (maxbound zero one plus times cost p1) 
+                                   (maxbound zero one plus times cost p2)) 
            ( filter' ( \ (p1,p2) -> case p1 of 
                [] -> False ; _ -> case p2 of [] -> False ; _ -> True )
             ( splits p ) )
@@ -150,25 +199,6 @@ distribute xs = case xs of
     [] -> ( [], [] )
     x:xs' -> case distribute xs' of (ys,zs) -> (x : zs, ys)
 
-{-
-
-null' :: [a] -> Bool
-null' xs = case xs of
-  [] -> True
-  _  -> False
-
-inits' :: [a] -> [[a]]
-inits' xs = case xs of
-  []     -> [[]]
-  (x:xs) -> [] : (map (\ys -> x:ys) (inits' xs ))
-  
-tails' :: [a] -> [[a]]
-tails' xs = case xs of
-  []     -> [[]]
-  (y:ys) -> xs : tails' ys
-
--}
-  
 maxNat :: Nat -> Nat -> Nat
 maxNat xs ys = case ge xs ys of
               False -> ys
