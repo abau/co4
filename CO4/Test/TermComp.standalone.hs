@@ -14,9 +14,8 @@ type TRS = [(Term,Term)]
 
 main trs prec = 
   (isPrec prec) 
-   &&    (all (\rule -> case rule of
-                          (lhs, rhs) -> (lpo (ord prec) lhs rhs) == Gr
-                      )
+   &&  (all (\rule -> case rule of
+         (lhs, rhs) -> (lpo (ord prec) lhs rhs) == Gr )
                       trs
        )
 
@@ -32,7 +31,8 @@ isPrec prec = case prec of
   p : ps ->  (not (elemWith eqSymbol p ps))
              &&       (isPrec ps)
 
-lpo :: (Symbol -> Symbol -> Order) -> Term -> Term -> Order
+lpo :: (Symbol -> Symbol -> Order) 
+    -> Term -> Term -> Order
 lpo ord s t = case t of
   Var x     -> case s == t of 
                   False -> case occurs x s of
