@@ -124,11 +124,12 @@ solve allocator constraint =
     --Backend.note $ "Encoded unknown:\n" ++ show u
     result <- runCache $ simpleProfiling (constraint u)
 
-    if E.isConstantlyUndefined result
-      then do 
-        Backend.note "Error: constraint system evaluates to 'undefined'"
+    case E.flags result of
+      Nothing -> do
+        Backend.note "Error: missing flags in constraint system's result (maybe 'undefined' or 'bottom')"
         return Nothing
-      else
+
+      Just flags ->
         case E.constantConstructorIndex result of
           Just 0 -> do 
             Backend.note "Known result: unsatisfiable"
@@ -139,10 +140,7 @@ solve allocator constraint =
             return Nothing
 
           Nothing -> do
-            let flag = head $ E.flags' result
-                def  = E.definedness result
-
-            formula <- and [ flag, def ]
+            formula <- and [ head flags , E.definedness result ]
             Backend.note $ "Assertion: " ++ (show formula)
             assert [ formula ]
             return $ Just $ decode u 

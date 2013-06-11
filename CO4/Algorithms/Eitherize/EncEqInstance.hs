@@ -24,9 +24,8 @@ import           CO4.Config (MonadConfig,is,Config(Profiling))
 --
 -- > instance (Primitive p,EncodedAdt e p,EncEq v1 e p,...) 
 -- >  => EncEq (T v1 ...) e p where
--- >   encEq _ x y | isConstantlyUndefined x && isConstantlyUndefined y = encTrueCons
--- >   encEq _ x y | isConstantlyUndefined x = encFalseCons
--- >   encEq _ x y | isConstantlyUndefined y = encFalseCons
+-- >   encEq _ x y | isInvalid x = encFalseCons
+-- >   encEq _ x y | isInvalid y = encFalseCons
 -- >   encEq _ x y = traced "==_T" $
 -- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
 -- >                                       (constructorArgument 0 0 y)
@@ -57,26 +56,16 @@ encEqInstance adt@(DAdt name vars conss) = do
   body        <- encEqBody x y conss 
   isProfiling <- is Profiling
 
-  let thType          = toTH $ typeOfAdt adt
-      mkClause b      = TH.Clause [typedWildcard thType, varP x, varP y] b []
-      mkUndefClause n = mkClause $ TH.GuardedB [
-        ( TH.NormalG $ TH.AppE (TH.VarE 'isConstantlyUndefined) (varE n)
+  let thType            = toTH $ typeOfAdt adt
+      mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
+      mkInvalidClause n = mkClause $ TH.GuardedB [
+        ( TH.NormalG $ TH.AppE (TH.VarE 'isInvalid) (varE n)
         , TH.AppE (TH.VarE 'return) 
                   (appsE (TH.VarE 'encodedConstructor) 
                          [intE 0, intE 2, TH.ListE []]))]
-
-      mkBothUndefClause = mkClause $ TH.GuardedB [
-        ( TH.NormalG $ appsE (varE "&&") 
-            [ TH.AppE (TH.VarE 'isConstantlyUndefined) (varE x)
-            , TH.AppE (TH.VarE 'isConstantlyUndefined) (varE y)
-            ]
-        , TH.AppE (TH.VarE 'return) 
-                  (appsE (TH.VarE 'encodedConstructor) 
-                         [intE 1, intE 2, TH.ListE []]))]
       clauses = 
-        [ mkBothUndefClause
-        , mkUndefClause x
-        , mkUndefClause y
+        [ mkInvalidClause x
+        , mkInvalidClause y
         , mkClause $ TH.NormalB $
             case isProfiling of 
               False -> body

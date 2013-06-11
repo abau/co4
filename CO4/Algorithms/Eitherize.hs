@@ -23,7 +23,7 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (undefined,isConstantlyUndefined,encodedConstructor,caseOf,constructorArgument)
+  (undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator.Common (known)
@@ -133,7 +133,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                             ]
                 ) ms'
 
-              return $ TH.DoE [ binding, TH.NoBindS $ checkUndefined e'Name 
+              return $ TH.DoE [ binding, TH.NoBindS $ checkValidity e'Name 
                                                     $ caseOfE ]
     where 
       -- Instantiate matches
@@ -186,8 +186,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
               PCon p _ = matchPattern $ head $ matches
               isConstructor (CCon c _) = untypedName p == c
 
-      checkUndefined e'Name = 
-          TH.CondE (TH.AppE (TH.VarE 'isConstantlyUndefined) (varE e'Name))
+      checkValidity e'Name = 
+          TH.CondE (TH.AppE (TH.VarE 'isInvalid) (varE e'Name))
                    (TH.AppE (TH.VarE 'return) (varE e'Name))
 
   instantiateLet (ELet bindings exp) = do

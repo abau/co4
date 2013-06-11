@@ -20,6 +20,7 @@ import           CO4.Util (for,toBinary,bitWidth,fromBinary)
 import           CO4.EncodedAdt
 
 data Overlapping p = Overlapping p [p] [ Overlapping p ] 
+                   | Bottom
                      deriving (Eq,Ord)
 
 instance (Primitive p,Show p) => Show (Overlapping p) where
@@ -29,28 +30,37 @@ instance (Primitive p,Show p) => Show (Overlapping p) where
       toTree (Overlapping def fs conss)      = 
         Node (unwords [ "definedness:", show def, "flags:", show fs]) 
              (map toTree conss)
+      toTree Bottom = Node "bottom" [] 
 
 instance Primitive p => EncodedAdt Overlapping p where
 
   undefined = Overlapping (constant False) [] []
 
-  flags' (Overlapping _ fs _) = fs
+  isBottom Bottom = True
+  isBottom _      = False
+
+  flags adt@(Overlapping _ fs _) = if isConstantlyUndefined adt
+                                   then Nothing
+                                   else Just fs
+  flags Bottom = Nothing
 
   definedness (Overlapping d _ _) = d
+  definedness Bottom              = constant True
 
-  constantConstructorIndex adt = case isUndefined adt of
-    Just True -> error "EncodedAdt.Overlapping.constantConstructorIndex: undefined"
-    _         -> case flags' adt of
-      [] -> Just 0
-      fs -> if all isConstant fs
-            then Just $ fromBinary $ map (fromJust . evaluateConstant) fs
-            else Nothing
+  constantConstructorIndex adt = case flags adt of
+    Nothing -> error "EncodedAdt.Overlapping.constantConstructorIndex: no flags"
+    Just [] -> Just 0
+    Just fs -> if all isConstant fs
+               then Just $ fromBinary $ map (fromJust . evaluateConstant) fs
+               else Nothing
 
   caseOf adt branches | isConstantlyUndefined adt 
                      || (all isConstantlyUndefined branches) 
                       = return undefined
-  caseOf adt branches | length (flags' adt) < bitWidth (length branches) 
-                      = return undefined --error "EncodedAdt.Overlapping.caseOf: missing flags"
+  caseOf adt branches | isBottom adt || (all isBottom branches)
+                      = return Bottom
+  caseOf adt branches | length (fromJust $ flags adt) < bitWidth (length branches) 
+                      = return Bottom --error "EncodedAdt.Overlapping.caseOf: missing flags"
   caseOf adt branches =
     case constantConstructorIndex adt of
       Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
@@ -63,7 +73,7 @@ instance Primitive p => EncodedAdt Overlapping p where
         arguments'  <- caseOfArguments adt'     $ map arguments branches
         return $ Overlapping def' flags' arguments'
     where
-      relevantFlags = take (bitWidth $ length branches) $ flags' adt
+      relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
       adt'          = Overlapping (definedness adt) relevantFlags 
                                   (fromJust $ arguments adt)
 
@@ -74,13 +84,14 @@ instance Primitive p => EncodedAdt Overlapping p where
                         _ -> map constant $ toBinary (Just $ bitWidth n) i
 
   constructorArgument _ _ adt | isConstantlyUndefined adt = undefined
+  constructorArgument _ _ adt | isBottom adt              = Bottom
   constructorArgument i j adt@(Overlapping _ _ args) = 
     case constantConstructorIndex adt of
       Nothing           -> -- Exception.assert (i < length args) $ args !! i
                            if i < length args then args !! i
-                                              else undefined
+                                              else Bottom
       Just j' | j == j' -> Exception.assert (i < length args) $ args !! i
-      Just _            -> undefined
+      Just _            -> Bottom
 
   toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
   toIntermediateAdt (Overlapping definedness flags args) n = 
@@ -95,8 +106,8 @@ instance Primitive p => EncodedAdt Overlapping p where
             intermediate i = IntermediateConstructorIndex i args 
 
 arguments :: Primitive p => Overlapping p -> Maybe [ Overlapping p ]
-arguments adt | isConstantlyUndefined adt = Nothing
-arguments (Overlapping _ _ cs)            = Just cs
+arguments adt | isInvalid adt  = Nothing
+arguments (Overlapping _ _ cs) = Just cs
 
 caseOfArguments :: (MonadSAT m, Primitive p) => Overlapping p 
                                              -> [Maybe [Overlapping p] ]
@@ -105,7 +116,7 @@ caseOfArguments adt branchArguments =
   forM (transpose sameSizeBranchArguments) $ caseOf adt
   where 
     sameSizeBranchArguments = for branchArguments $ \case 
-      Nothing   -> replicate maxArgs undefined
-      Just args -> args ++ replicate (maxArgs - length args) undefined
+      Nothing   -> replicate maxArgs Bottom
+      Just args -> args ++ replicate (maxArgs - length args) Bottom
 
     maxArgs = maximum $ map length $ catMaybes branchArguments

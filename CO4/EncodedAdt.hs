@@ -3,8 +3,8 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.EncodedAdt
   ( IntermediateAdt (..), EncodedAdt (..)
-  , flags, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
-  , caseOfBits)
+  , isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined, isValid
+  , isInvalid, caseOfBits)
 where
 
 import           Prelude hiding (and,undefined)
@@ -24,12 +24,11 @@ data IntermediateAdt p = IntermediateConstructorIndex Int [p]
 
 class Primitive p => EncodedAdt e p where
 
-  -- |Builds an undefined encoded ADT
   undefined :: e p
 
-  -- |Gets an ADT's flags. Is undefined if ADT is undefined.
-  -- See `flags` for safe version.
-  flags' :: e p -> [p]
+  isBottom :: e p -> Bool
+
+  flags :: e p -> Maybe [p]
 
   definedness :: e p -> p
 
@@ -44,10 +43,6 @@ class Primitive p => EncodedAdt e p where
   toIntermediateAdt :: (MonadSAT m, Decode m p Bool) 
                     => e p -> Int -> m (IntermediateAdt (e p))
 
-flags :: EncodedAdt e p => e p -> Maybe [p]
-flags adt | not (isConstantlyUndefined adt) = Just $ flags' adt
-flags _                                     = Nothing
-
 isDefined,isUndefined :: EncodedAdt e p => e p -> Maybe Bool
 isDefined   = P.evaluateConstant . definedness
 isUndefined = fmap not . isDefined
@@ -56,15 +51,23 @@ isConstantlyDefined,isConstantlyUndefined :: EncodedAdt e p => e p -> Bool
 isConstantlyDefined   = fromMaybe False . isDefined
 isConstantlyUndefined = fromMaybe False . isUndefined
 
+-- |`isValid x = not ( isConstantlyUndefined x || isBottom x )`
+isValid :: EncodedAdt e p => e p -> Bool
+isValid x = not ( isConstantlyUndefined x || isBottom x )
+
+isInvalid :: EncodedAdt e p => e p -> Bool
+isInvalid = not . isValid
+
 caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonBottomBits) 
   $ Exception.assert (length flags == bitWidth (length branchBits)) 
   $ case (flags,branchBits') of
       ([f],[a,b]) -> caseOf2Bits f a b
-      _ -> do 
-        premises <- mkPremises
-        forM (transpose branchBits') $ mergeN premises
+      _ -> case all equalBits (transpose branchBits') of
+            True  -> return $ head $ branchBits'
+            False -> do premises <- mkPremises
+                        forM (transpose branchBits') $ mergeN premises
     where
       nonBottomBits  = catMaybes branchBits
       branchBitWidth = maximum $ map length nonBottomBits 
@@ -76,7 +79,9 @@ caseOfBits flags branchBits =
           patterns          = binaries $ length flags 
           mkPremise pattern = and $ zipWith select pattern flags
 
-      mergeN premises bitsT = case all (\b -> b == head bitsT) bitsT of
+      equalBits bs = all (\b -> b == head bs) bs
+
+      mergeN premises bitsT = case equalBits bitsT of
         True  -> return $ head bitsT 
         False -> zipWithM implies premises bitsT >>= and
 

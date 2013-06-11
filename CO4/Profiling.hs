@@ -13,7 +13,7 @@ import qualified Data.Map as M
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache (MonadCache (..))
-import           Debug.Trace (trace)
+--import           Debug.Trace (trace)
 
 class MonadSAT m => MonadProfiling m where
   traced :: String -> m a -> m a
@@ -76,12 +76,12 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
       (\case Nothing -> Just $ ProfileData 1 0 0
              Just p  -> Just $ p { numCalls = succ $ numCalls p }) name
 
-    sd     <- gets stackDepth
+    --sd     <- gets stackDepth
     modify $ onStackDepth succ
 
     v1     <- MonadSAT.numVariables
     c1     <- MonadSAT.numClauses
-    result <- trace (replicate (2*sd) ' ' ++ "Running '" ++ name ++ "'") action
+    result <- {-trace (replicate (2*sd) ' ' ++ "Running '" ++ name ++ "'")-} action
     v2     <- MonadSAT.numVariables
     c2     <- MonadSAT.numClauses
 

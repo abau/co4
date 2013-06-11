@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.34
+Version:        	0.0.35
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -64,7 +64,7 @@ Library
                     , mtl == 2.1.*
                     , syb == 0.3.*
                     , pretty == 1.1.*
-                    , satchmo-core == 0.5.*
+                    , satchmo-core == 0.6.*
                     , haskell-src-exts == 1.13.*
                     , haskell-src-exts-qq == 0.6.*
                     , haskell-src-meta == 0.6.*
