@@ -214,9 +214,9 @@ ge :: Nat -> Nat -> Bool
 ge xs ys = ge_run True xs ys
 
 ge_run prev xs ys = case xs of
-    [] -> prev && not ( or' ys )
+    [] -> prev && not ( or ys )
     x : xs' ->  case ys of
-        [] -> prev
+        [] -> prev || or xs
         y : ys' -> ge_run ((x && not y) || (prev && (x == y))) xs' ys'
 
 or' xs = case xs of
