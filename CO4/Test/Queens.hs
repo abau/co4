@@ -21,7 +21,7 @@ $( runIO $ configurable [ ImportPrelude
                         , Profiling
                         -- ,DumpAll "/tmp/WCB"
                         ] 
-         $ compileFile "CO4/Test/Factor.standalone.hs")
+         $ compileFile "CO4/Test/Queens.standalone.hs")
 
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
@@ -36,18 +36,18 @@ toBin x =
 fromBin :: [Bool] -> Int
 fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
 
-result x = do
+result n = do
     hSetBuffering stdout LineBuffering
-    let xs = toBin x ; w = length xs
+    let xs = toBin n ; w = length xs
     solution <- solveAndTestBooleanP 
        xs
-       (uTuple2 (uNat w) (uNat w))
+       (kList n (uNat w))
        encMain main
     case solution of
-        Nothing -> putStrLn "no factors"
-        Just (a,b) -> print (fromBin a, fromBin b)
+        Nothing -> putStrLn "no placement"
+        Just xs -> print (map fromBin xs)
 
 mainz = do
-    [ s ] <- getArgs
+    [s] <- getArgs
     result $ read s
 
