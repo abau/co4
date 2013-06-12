@@ -50,6 +50,8 @@ preludeFunctionDeclarations = [
   , [dec| fst (x,_) = x |]
   , [dec| snd (_,y) = y |]
   , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
+  , [dec| zipWith f xs ys = map (\(x,y) -> f x y) (zip xs ys) |]
+  , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
   ]
 
 -- These declarations are not parsed by CO4.

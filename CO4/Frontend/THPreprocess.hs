@@ -28,6 +28,7 @@ preprocess a = everywhereM (mkM noMultipleClauses) a
   >>= return . everywhere  (mkT noListExpression) 
   >>= return . everywhere  (mkT noTuplePattern) 
   >>= return . everywhere  (mkT noTupleExpression) 
+  >>= return . everywhere  (mkT noTupleType) 
   >>=          everywhereM (mkM noNestedPatternsInClauseParameters)
   >>=          everywhereM (mkM noNestedPatternsInLambdaParameters)
   >>=          everywhereM (mkM noNestedPatternsInMatch)
@@ -148,6 +149,11 @@ noTupleExpression :: Exp -> Exp
 noTupleExpression exp = case exp of
   TupE xs -> foldl AppE (ConE $ tupleName $ length xs) xs
   _       -> exp
+
+noTupleType :: Type -> Type
+noTupleType ty = case ty of
+  TupleT i -> ConT (tupleName i)
+  _        -> ty
 
 -- |Transforms nested patterns in arguments of function clauses into case expressions
 -- over those arguments

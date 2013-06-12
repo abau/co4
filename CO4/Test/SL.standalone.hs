@@ -11,6 +11,13 @@ type SRS = [ Rule ]
 
 data Step = Step Interpretation SRS
 
+main :: SRS -> Interpretation -> Bool
+main srs int = 
+        let ks = map (keep int) srs
+        in     positiveI int
+            && or (map not ( map fst ks))
+
+{-
 main :: SRS -> Step -> Bool
 main srs step = case step of 
     Step int  srs'  -> 
@@ -18,6 +25,7 @@ main srs step = case step of
         in     positiveI int
             && or (map not ( map fst ks))
             && srs' == map snd ( filter fst ks )
+-}
 
 -- | note: partial function 
 -- (raises exception if incompatible)
@@ -51,9 +59,16 @@ iSymbol :: Interpretation -> Symbol -> Matrix Arctic
 iSymbol i s = case i of
     [] -> undefined
     tm : i' -> case tm of
-        (t,m) -> case t == s of
+        (t,m) -> -- case  t == s of  -- FIXME
+                case eqSymbol t s of
              True  -> m
              False -> iSymbol i' s
+
+-- following hack makes eqSymbol monomorphic
+-- so it can be used as argument for elemWith
+eqSymbol p q = (p == q ) && case p of
+    [] -> True ; x : xs -> case x of 
+         True -> True ; False -> True
 
 iWord i w = case w of
     [] -> undefined
