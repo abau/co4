@@ -8,6 +8,7 @@ module CO4.EncodedAdt
 where
 
 import           Prelude hiding (and,undefined)
+import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (forM,zipWithM)
 import           Data.List (transpose)
@@ -63,27 +64,36 @@ caseOfBits flags branchBits =
     Exception.assert (not $ null nonBottomBits) 
   $ Exception.assert (length flags == bitWidth (length branchBits)) 
   $ case (flags,branchBits') of
-      ([f],[a,b]) -> caseOf2Bits f a b
+      -- ([f],[a,b]) -> caseOf2Bits f a b
       _ -> case all equalBits (transpose branchBits') of
             True  -> return $ head $ branchBits'
-            False -> do premises <- mkPremises
-                        forM (transpose branchBits') $ mergeN premises
+            False -> do --premises <- mkPremises
+                        forM (transpose branchBits') $ mergeN Prelude.undefined
     where
       nonBottomBits  = catMaybes branchBits
       branchBitWidth = maximum $ map length nonBottomBits 
       branchBits'    = for branchBits $ \case
         Nothing -> replicate branchBitWidth $ constant False
         Just bs -> bs ++ replicate (branchBitWidth - (length bs)) (constant False)
+{-
       mkPremises     = mapM mkPremise patterns 
         where 
           patterns          = binaries $ length flags 
           mkPremise pattern = and $ zipWith select pattern flags
+-}
 
       equalBits bs = all (\b -> b == head bs) bs
 
       mergeN premises bitsT = case equalBits bitsT of
         True  -> return $ head bitsT 
-        False -> zipWithM implies premises bitsT >>= and
+        False -> do
+           -- zipWithM implies premises bitsT >>= and
+           r <- primitive
+           forM (zip bitsT (binaries $ length flags)) $ \ (b, pattern) -> do
+                let fs = zipWith select pattern flags
+                assert ( r : P.not b : map P.not fs  )
+                assert ( P.not r :  b : map P.not fs  )
+           return r
 
       caseOf2Bits f as bs = zipWithM merge2 as bs
         where 
