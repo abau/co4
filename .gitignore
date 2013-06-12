@@ -1,8 +1,11 @@
+*~
 *.swp
 *.vim
 *.raml
 *.clp
 *.lp
+*.hi
+*.o
 dist/
 archive/
 scheme/
