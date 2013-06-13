@@ -16,6 +16,7 @@ import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
 import System.Environment (getArgs)
+import System.IO
 
 $( runIO $ configurable [ImportPrelude
                         -- ,Profiling
@@ -45,5 +46,6 @@ result_for sec =
     solveAndTestBooleanP sec (kList (length sec) uBase) encMain main
 
 mainz = do
+    hSetBuffering stdout LineBuffering
     [ arg1 ] <- getArgs
     result_for $ inforna arg1

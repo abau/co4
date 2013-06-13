@@ -11,13 +11,6 @@ type SRS = [ Rule ]
 
 data Step = Step Interpretation SRS
 
-main :: SRS -> Interpretation -> Bool
-main srs int = 
-        let ks = map (keep int) srs
-        in     positiveI int
-            && or (map not ( map fst ks))
-
-{-
 main :: SRS -> Step -> Bool
 main srs step = case step of 
     Step int  srs'  -> 
@@ -25,7 +18,6 @@ main srs step = case step of
         in     positiveI int
             && or (map not ( map fst ks))
             && srs' == map snd ( filter fst ks )
--}
 
 -- | note: partial function 
 -- (raises exception if incompatible)

@@ -5,11 +5,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module CO4.Test.TermComp where
-
-import           Data.List (nub)
-import qualified Data.Map as M
-
+module CO4.Test.SL where
 
 import           Language.Haskell.TH (runIO)
 
@@ -18,10 +14,15 @@ import qualified Satchmo.Core.Decode
 import           CO4 hiding (solve)
 import           CO4.Prelude
 
+import Data.List ( nub )
+import qualified Data.Map as M
+import Control.Monad ( forM,void )
+
 import qualified TPDB.Data as TPDB
 import qualified TPDB.Input as TPDB
 import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
+import qualified TPDB.Plain.Read as TPDB
 
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
@@ -40,6 +41,12 @@ cSymbol xs = case xs of
                   , cSymbol xs' 
                   ]
 
+uSymbol bits = uList bits uBool
+uWord len bits = uList len (uSymbol bits)
+uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
+uSRS rules len bits = uList rules ( uRule len bits )
+
+
 uNat bits = kList bits uBool
 
 uArctic bits = 
@@ -57,6 +64,14 @@ uInter syms dim bits = case syms of
                   , uInter ss dim bits
                   ]
 
+uStep srs dim bits = 
+    let sigma = nub $ do (l,r) <- srs ;  l ++ r
+        width = maximum $ do (l,r) <- srs; map length [l,r]
+        bits = maximum $ map length sigma 
+    in  known 0 1 [ uInter sigma dim bits 
+                  , uSRS (length srs) width bits
+                  ]
+
 toBin :: Int -> [Bool]
 toBin x = 
     if x == 0 then [] 
@@ -65,22 +80,38 @@ toBin x =
 fromBin :: [Bool] -> Int
 fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
 
-solve filePath = do
-  sys <- TPDB.get_srs filePath
+alphabet :: TPDB.SRS TPDB.Identifier -> [ TPDB.Identifier ]
+alphabet sys = nub $ concat 
+            $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
-  let sigma = nub $ concat 
-            $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys
+
+example = case TPDB.srs "(RULES a -> b)" of Right sys -> solveTPDB sys
+
+solve filePath = TPDB.get_srs filePath >>= solveTPDB
+
+solveTPDB sys = do
+
+  let sigma = alphabet sys
       m = M.fromList $ zip sigma $ map toBin [ 0 .. ]
-      f xs = map (m M.!) xs
+      m' = M.fromList $ zip (map toBin [0..]) sigma
+      f xs = map (m M.!) xs ; f' xs = map (m' M.!) xs
       srs = map 
         ( \ u -> ( f $ TPDB.lhs u, f $ TPDB.rhs u ) ) $ TPDB.rules sys
 
-  let dim = 3 ; bits = 3
+  print $ TPDB.pretty sys
+  print srs
+  print m
+
+  let dim = 1 ; bits = 10
   solution <- solveAndTestBooleanP 
-      srs (uInter (M.elems m) dim bits)
+      srs (uStep srs dim bits)
       encMain main
 
   case solution of
     Nothing -> return ()
-    Just s  -> print s
+    Just (Step int srs')  -> do
+        void $ forM int print
+        void $ forM ( map ( \(l,r) -> (f' l, f' r)) srs') print
+
+        
 
