@@ -69,13 +69,14 @@ instance Primitive p => EncodedAdt Overlapping p where
                      $ map (Just . return . definedness)        branches
 
         def'        <- and [branchDef, definedness adt]
+
+        let adt'    = Overlapping def' relevantFlags (fromJust $ arguments adt)
+
         flags'      <- caseOfBits relevantFlags $ map flags     branches
         arguments'  <- caseOfArguments adt'     $ map arguments branches
         return $ Overlapping def' flags' arguments'
     where
       relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
-      adt'          = Overlapping (definedness adt) relevantFlags 
-                                  (fromJust $ arguments adt)
 
   encodedConstructor i n = Exception.assert (i < n) 
                          . Overlapping (constant True) flags 
