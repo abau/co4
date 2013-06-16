@@ -56,6 +56,7 @@ instance Primitive p => EncodedAdt Overlapping p where
 
   caseOf adt branches | isConstantlyUndefined adt 
                      || (all isConstantlyUndefined branches) 
+ {- TODO: really? -} || (all (\x -> isConstantlyUndefined x || isBottom x) branches)
                       = return undefined
   caseOf adt branches | isBottom adt || (all isBottom branches)
                       = return Bottom
