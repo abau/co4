@@ -1,5 +1,7 @@
 module CO4.Test.SL where
 
+main = main_step
+
 -- * string rewriting:
 
 type Symbol =  [ Bool ]
@@ -7,12 +9,80 @@ type Word = [ Symbol ]
 type Rule = ( Word , Word )
 type SRS = [ Rule ]
 
+-- * label, then remove
+
+
+
+-- * model, labelling
+
+type Model = [(Symbol,Func)]
+
+isModel srs mod =
+    all ( \ u -> case u of (l,r) -> eqFunc l r ) ( mSRS mod srs )
+
+main_model srs mod = isModel srs mod
+    
+
+
+
+
+-- FIXME: following should be merged with Interpretation stuff below
+
+
+mSymbol :: Model -> Symbol -> Func
+mSymbol m s = case m of
+    [] -> undefined
+    tm : m' -> case tm of
+        (t,m) -> -- case  t == s of  -- FIXME
+                case eqSymbol t s of
+             True  -> m
+             False -> mSymbol m' s
+
+mWord :: Model -> [Symbol] -> Func
+mWord m w = case w of
+    [] -> undefined
+    x : xs -> let s = mSymbol m x 
+              in case xs of
+                    [] -> s
+                    _  -> timesF s (mWord m xs)
+
+mRule i u = case u of (l,r) -> (mWord i l, mWord i r)
+
+mSRS i s = map (mRule i) s
+
+-- | binary decision tree, used to map bitstrings to values
+data BDT a = Leaf a | Branch (BDT a) (BDT a) -- deriving Eq
+type Func = BDT [Bool]
+
+eqFunc s t = case s of
+    Leaf x -> case t of
+        Leaf y -> eqSymbol x y -- x == y
+        _ -> undefined
+    Branch l r -> case t of
+        Leaf y -> undefined
+        Branch p q -> (eqFunc l p) && (eqFunc r q)
+
+-- | wrong way: first g, then f  (information goes from right to left)
+timesF :: BDT a -> BDT [Bool] -> BDT a
+timesF f g = case g of
+    Leaf w -> Leaf (applyF f w)
+    Branch l r -> Branch (timesF f l) (timesF f r)
+
+applyF :: BDT a -> [Bool] -> a
+applyF f w = case f of
+    Leaf u -> u
+    Branch l r -> case w of
+        [] -> undefined
+        x:xs -> applyF (case x of
+            False -> l
+            True  -> r ) xs
+
 -- * compatibility, monotonicity
 
 data Step = Step Interpretation SRS
 
-main :: SRS -> Step -> Bool
-main srs step = case step of 
+main_step :: SRS -> Step -> Bool
+main_step srs step = case step of 
     Step int  srs'  -> 
         let ks = map (keep int) srs
         in     positiveI int
@@ -30,7 +100,12 @@ keep i u = case iRule i u of
               False -> undefined -- ??
 
 positiveI :: Interpretation -> Bool
-positiveI i = all ( \ (s,m) -> positiveM m ) i
+positiveI i = allI ( \ m -> positiveM m ) i
+
+allI :: (a -> Bool) -> BDT a -> Bool
+allI prop t = case t of
+    Leaf x -> prop x
+    Branch l r -> allI prop l && allI prop r
 
 positiveM :: Matrix Arctic -> Bool
 positiveM m = case m of
@@ -45,16 +120,11 @@ geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
 
 -- * interpretation:
 
-type Interpretation = [ (Symbol, Matrix Arctic) ]
+type Interpretation = BDT (Matrix Arctic)
 
 iSymbol :: Interpretation -> Symbol -> Matrix Arctic
-iSymbol i s = case i of
-    [] -> undefined
-    tm : i' -> case tm of
-        (t,m) -> -- case  t == s of  -- FIXME
-                case eqSymbol t s of
-             True  -> m
-             False -> iSymbol i' s
+iSymbol i s = applyF i s
+
 
 -- following hack makes eqSymbol monomorphic
 -- so it can be used as argument for elemWith

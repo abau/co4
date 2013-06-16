@@ -6,6 +6,7 @@
 *.lp
 *.hi
 *.o
+*.oprof
 dist/
 archive/
 scheme/
