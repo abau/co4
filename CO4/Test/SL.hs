@@ -26,7 +26,8 @@ import qualified TPDB.Plain.Read as TPDB
 
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
-                        , DumpAll "/tmp/sl"                          
+                        -- , DumpAll "/tmp/sl" 
+                        , Profiling
                         ] 
          $ compileFile "CO4/Test/SL.standalone.hs" )
 
@@ -64,12 +65,12 @@ uInter syms dim bits = case syms of
                   , uInter ss dim bits
                   ]
 
-uStep srs dim bits = 
+uStep srs dim bits_for_number = 
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
         width = maximum $ do (l,r) <- srs; map length [l,r]
-        bits = maximum $ map length sigma 
-    in  known 0 1 [ uInter sigma dim bits 
-                  , uSRS (length srs) width bits
+        bits_for_symbol = maximum $ map length sigma 
+    in  known 0 1 [ uInter sigma dim bits_for_number 
+                  , uSRS (length srs) width bits_for_symbol
                   ]
 
 toBin :: Int -> [Bool]
@@ -102,7 +103,7 @@ solveTPDB sys = do
   print srs
   print m
 
-  let dim = 1 ; bits = 10
+  let dim = 3 ; bits = 5
   solution <- solveAndTestBooleanP 
       srs (uStep srs dim bits)
       encMain main
