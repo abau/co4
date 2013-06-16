@@ -54,12 +54,20 @@ uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
 uSRS rules len bits = uList rules ( uRule len bits )
 
 
-uModel syms bits = case syms of
-    [] -> known 0 2 []
-    s:ss -> known 1 2 [ known 0 1 [ cSymbol s
-                                  , uBDT bits (kList bits uBool)
-                                  ] 
-                      , uModel ss bits ]
+uModel sym_bits model_bits = uBDT sym_bits 
+                           $ uBDT model_bits 
+                           $ kList model_bits uBool
+
+
+uLab srs bits_for_model num_ints dim bits_for_numbers = 
+    let sigma = nub $ do (l,r) <- srs ;  l ++ r
+        width = maximum $ do (l,r) <- srs; map length [l,r]
+        bits_for_symbols = maximum $ map length sigma 
+    in  known 0 1 
+           [ uModel bits_for_symbols bits_for_model
+           , kList num_ints $ uInter (bits_for_symbols + bits_for_model) 
+                                     dim bits_for_numbers
+           ]
 
 
 uNat bits = kList bits uBool
@@ -73,13 +81,6 @@ uMatrix dim bits =
 uInter bits_for_symbols dim bits_for_numbers = 
    uBDT bits_for_symbols ( uMatrix dim bits_for_numbers )
 
-uStep srs dim bits_for_number = 
-    let sigma = nub $ do (l,r) <- srs ;  l ++ r
-        width = maximum $ do (l,r) <- srs; map length [l,r]
-        bits_for_symbols = maximum $ map length sigma 
-    in  known 0 1 [ uInter bits_for_symbols dim bits_for_number 
-                  , uSRS (length srs) width bits_for_symbols
-                  ]
 
 toBin :: Int -> [Bool]
 toBin x = 
@@ -98,7 +99,7 @@ alphabet sys = nub $ concat
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
 
-example = case TPDB.srs "(RULES a -> b)" of Right sys -> solveTPDB sys
+example = case TPDB.srs "(RULES a -> b )" of Right sys -> solveTPDB sys
 
 solve filePath = TPDB.get_srs filePath >>= solveTPDB
 
@@ -107,27 +108,32 @@ solveTPDB sys = do
   let sigma = alphabet sys
       bits_for_symbols = length $ toBin $ length sigma - 1
       m = M.fromList $ zip sigma $ map (toBin' bits_for_symbols) [ 0 .. ]
-      m' = M.fromList $ zip (map toBin [0..]) sigma
+      m' = M.fromList $ zip (map (toBin' bits_for_symbols) [0..]) sigma
       f xs = map (m M.!) xs ; f' xs = map (m' M.!) xs
       srs = map 
         ( \ u -> ( f $ TPDB.lhs u, f $ TPDB.rhs u ) ) $ TPDB.rules sys
-
+      bdt2map t = let h t xs = case t of
+                          Leaf y -> case M.lookup xs m' of
+                               Just v -> [(v, y)]
+                               Nothing -> []
+                          Branch l r -> h l (xs ++ [False]) ++ h r (xs ++ [True])
+                  in  M.fromList $ h t []
+          
   print $ TPDB.pretty sys
   print srs
   print m
 
-  let dim = 1 ; bits = 5
-  solution <- solveAndTestBooleanP 
-      srs (uStep srs dim bits)
-      encMain main
-{-
-  let syms = nub $ do (l,r) <- srs ; l ++ r
-  solution <- solveAndTestBooleanP srs (uModel syms 2) encMain main
--}
+  let alloc = uLab srs 1 -- bits_for_model
+                       1 -- num_interpretations
+                       1 -- dim for matrices
+                       1 -- bits_for_numbers (in matrices)
+  solution <- solveAndTestBooleanP srs alloc encMain main
 
   case solution of
     Nothing -> return ()
-    Just s  -> print s
+    Just (Label mod ints) -> do
+        print $ bdt2map mod
+        void $ forM ints $ \ int -> print $ bdt2map  int
         
 
 

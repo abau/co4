@@ -1,7 +1,5 @@
 module CO4.Test.SL where
 
-main = main_step
-
 -- * string rewriting:
 
 type Symbol =  [ Bool ]
@@ -9,50 +7,64 @@ type Word = [ Symbol ]
 type Rule = ( Word , Word )
 type SRS = [ Rule ]
 
--- * label, then remove
+-- * label, then remove, then unlabel
+
+data Label = Label Model [ Interpretation ]
 
 
+-- | lex. comb. of  interpretations removes one original rule completely 
+-- (that is, all its labelled versions)
+main srs lab = case lab of
+    Label mod ints -> 
+          all ( positiveI ) ints
+       && let srss = labelled srs mod
+              css  = map (map (comps ints)) srss
+          in     not ( any (any isNone) css )
+              && any ( all isGreater ) css
 
 -- * model, labelling
 
-type Model = [(Symbol,Func)]
+type Model = BDT Func
 
-isModel srs mod =
-    all ( \ u -> case u of (l,r) -> eqFunc l r ) ( mSRS mod srs )
-
-main_model srs mod = isModel srs mod
     
+-- | produces semantically labelled version (one SRS for each rule)
+-- (the type is identical but the symbols have additional bits)
+-- this function raises an exception if the given structure
+-- is not a model
+-- labelled :: SRS -> Model -> [SRS]
+labelled srs mod =
+    let ks = keys ( leftmost mod )
+        labelRule u k = case u of 
+            (l,r) -> case labelledW mod l k of 
+                ( ltop, l' ) -> case labelledW mod r k of 
+                    ( rtop, r' ) -> case eqSymbol ltop rtop of
+                          True -> ( l', r' )
+                          False -> undefined
+    in  map ( \ u ->  map ( \ k -> labelRule u k ) ks    ) srs 
 
+type Value = [Bool]
 
+-- labelledW :: Model -> [Symbol] -> Value -> (Value,[Symbol])
+labelledW mod w k = case w of
+            [] -> (k, [])
+            x:xs' -> case labelledW mod xs' k of
+                (k', ys) -> let s = applyF mod x
+                            in  (applyF s k', (x ++ k') : ys )
 
-
--- FIXME: following should be merged with Interpretation stuff below
-
-
-mSymbol :: Model -> Symbol -> Func
-mSymbol m s = case m of
-    [] -> undefined
-    tm : m' -> case tm of
-        (t,m) -> -- case  t == s of  -- FIXME
-                case eqSymbol t s of
-             True  -> m
-             False -> mSymbol m' s
-
-mWord :: Model -> [Symbol] -> Func
-mWord m w = case w of
-    [] -> undefined
-    x : xs -> let s = mSymbol m x 
-              in case xs of
-                    [] -> s
-                    _  -> timesF s (mWord m xs)
-
-mRule i u = case u of (l,r) -> (mWord i l, mWord i r)
-
-mSRS i s = map (mRule i) s
 
 -- | binary decision tree, used to map bitstrings to values
 data BDT a = Leaf a | Branch (BDT a) (BDT a) -- deriving Eq
 type Func = BDT [Bool]
+
+-- keys :: BDT a -> [[Bool]]
+keys t = case t of
+    Leaf _ -> [[]]
+    Branch l r -> map (False :) (keys l) ++ map (True :) (keys r)
+
+-- leftmost :: BDT a -> a
+leftmost t = case t of
+    Leaf x -> x
+    Branch l r -> leftmost l
 
 eqFunc s t = case s of
     Leaf x -> case t of
@@ -63,12 +75,12 @@ eqFunc s t = case s of
         Branch p q -> (eqFunc l p) && (eqFunc r q)
 
 -- | wrong way: first g, then f  (information goes from right to left)
-timesF :: BDT a -> BDT [Bool] -> BDT a
+-- timesF :: BDT a -> BDT [Bool] -> BDT a
 timesF f g = case g of
     Leaf w -> Leaf (applyF f w)
     Branch l r -> Branch (timesF f l) (timesF f r)
 
-applyF :: BDT a -> [Bool] -> a
+-- applyF :: BDT a -> [Bool] -> a
 applyF f w = case f of
     Leaf u -> u
     Branch l r -> case w of
@@ -77,27 +89,35 @@ applyF f w = case f of
             False -> l
             True  -> r ) xs
 
--- * compatibility, monotonicity
+-- * lex. combination
 
-data Step = Step Interpretation SRS
 
-main_step :: SRS -> Step -> Bool
-main_step srs step = case step of 
-    Step int  srs'  -> 
-        let ks = map (keep int) srs
-        in     positiveI int
-            && or (map not ( map fst ks))
-            && srs' == map snd ( filter fst ks )
+-- comps :: [ Interpretation ] -> Rule -> Comp
+comps is u = lexi (map (\ i -> comp i u) is)
 
--- | note: partial function 
--- (raises exception if incompatible)
-keep :: Interpretation -> Rule -> (Bool, Rule)
-keep i u = case iRule i u of 
+-- lexi :: [Comp] -> Comp
+lexi cs = case cs of
+    [] -> Equals
+    c : cs' -> case c of
+        Greater -> Greater
+        Equals -> lexi cs'
+        None -> None
+
+-- * arctic interpretation
+
+data Comp = Greater | Equals | None
+
+isNone c = case c of { None -> True ; _ -> False }
+isGreater c = case c of { Greater -> True ; _ -> False }
+
+comp :: Interpretation -> Rule -> Comp
+comp i u = case iRule i u of
     (l,r) -> case gg0MA l r of
-          True -> (False, u)
-          False -> case geMA l r of
-              True -> (True, u)
-              False -> undefined -- ??
+        True ->  Greater
+        False -> case geMA l r of
+            True -> Equals
+            False -> None
+
 
 positiveI :: Interpretation -> Bool
 positiveI i = allI ( \ m -> positiveM m ) i
@@ -122,7 +142,7 @@ geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
 
 type Interpretation = BDT (Matrix Arctic)
 
-iSymbol :: Interpretation -> Symbol -> Matrix Arctic
+-- iSymbol :: Interpretation -> Symbol -> Matrix Arctic
 iSymbol i s = applyF i s
 
 
@@ -131,6 +151,7 @@ iSymbol i s = applyF i s
 eqSymbol p q = (p == q ) && case p of
     [] -> True ; x : xs -> case x of 
          True -> True ; False -> True
+
 
 iWord i w = case w of
     [] -> undefined
