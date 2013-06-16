@@ -99,7 +99,7 @@ alphabet sys = nub $ concat
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
 
-example = case TPDB.srs "(RULES a -> b )" of Right sys -> solveTPDB sys
+example = case TPDB.srs "(RULES a a -> a b a)" of Right sys -> solveTPDB sys
 
 solve filePath = TPDB.get_srs filePath >>= solveTPDB
 
@@ -123,10 +123,10 @@ solveTPDB sys = do
   print srs
   print m
 
-  let alloc = uLab srs 1 -- bits_for_model
+  let alloc = uLab srs 2 -- bits_for_model
                        1 -- num_interpretations
                        1 -- dim for matrices
-                       1 -- bits_for_numbers (in matrices)
+                       3 -- bits_for_numbers (in matrices)
   solution <- solveAndTestBooleanP srs alloc encMain main
 
   case solution of
