@@ -26,11 +26,12 @@ data Energy = MinusInfinity | Finite Nat8 --  deriving Show
 -- the main constraint
 
 
--- main e p = geEnergy (maxbound p) e
+main = main_simple
 
 
--- main s p = geEnergy (bound p s) (maxbound_single p)
-main s p = case maxbound_double p of
+main_simple s p = geEnergy (bound p s) (maxbound_single p)
+
+main_with_stability s p = case maxbound_double p of
      ( first, second ) -> gtEnergy first second -- stability
                        && geEnergy (bound p s) first
 

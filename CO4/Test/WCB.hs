@@ -19,7 +19,7 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ImportPrelude
-                        -- ,Profiling
+                        ,Profiling
                         -- ,DumpAll "/tmp/WCB"
                         ] 
          $ compileFile "CO4/Test/WCB.standalone.hs" )
