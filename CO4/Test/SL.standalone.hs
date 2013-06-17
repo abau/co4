@@ -189,7 +189,7 @@ sumA xs = foldr plusA MinusInfinity xs
 
 -- * arctic operations:
 
-data Arctic = MinusInfinity | Finite Nat 
+data Arctic = MinusInfinity | Finite Nat8
     -- deriving (Eq, Show)
 
 infinite a = case a of
@@ -229,48 +229,18 @@ timesA e f = case e of
 type Bit = Bool 
 type Nat = [Bit]
 
-maxNat :: Nat -> Nat -> Nat
+maxNat :: Nat8 -> Nat8 -> Nat8
 maxNat xs ys = case ge xs ys of
               False -> ys
               True  -> xs
 
-minNat :: Nat -> Nat -> Nat
+minNat :: Nat8 -> Nat8 -> Nat8
 minNat xs ys = case ge xs ys of
               False -> xs
               True  -> ys
 
-ge :: Nat -> Nat -> Bool
-ge xs ys = ge_run True xs ys
+ge x y = geNat8 x y
 
-ge_run prev xs ys = case xs of
-    [] -> prev && not ( or ys )
-    x : xs' ->  case ys of
-        [] -> prev || or xs
-        y : ys' -> 
-           ge_run ((x && not y) || (prev && (x == y))) xs' ys'
+add x y = plusNat8 x y
 
-add :: Nat -> Nat -> Nat
-add xs ys = add_with False xs ys
 
-add_with c xs ys = case xs of
-    [] -> increment_with c ys
-    x : xs' -> case ys of
-        [] -> increment_with c xs
-        y : ys' -> ( xor3 c x y ) : add_with (atleast2 c x y) xs' ys'
-
-increment_with c xs = case xs of
-    [] -> [c]
-    x : xs' -> (xor2 c x) : increment_with ( c && x) xs'
-
-atleast2 x y z = or3 (x && y) (x && z) (y && z)
-
-or3 :: Bit -> Bit -> Bit -> Bit
-or3 x y z = x || (y || z)
-
-xor3 :: Bit -> Bit -> Bit -> Bit
-xor3 x y z = xor2 x (xor2 y z)
-  
-xor2 :: Bit -> Bit -> Bit
-xor2 a b = case a of
-  False -> b
-  True  -> not b
