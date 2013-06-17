@@ -31,6 +31,7 @@ import           CO4.Profiling (traced)
 import           CO4.EncEq (encEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
+import           CO4.PreludeNat (encNat8)
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -96,9 +97,13 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
     args'    <- instantiate args
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
-      EVar fName -> if fromName fName == eqName
-                    then instantiateEq args'
-                    else instantiateCachedApp fName args'
+      EVar fName -> case fromName fName of
+        n | n == eqName   -> instantiateEq args'
+        n | n == nat8Name -> case args of
+          [ECon i] -> return $ TH.AppE (TH.VarE 'encNat8) $ intE $ read $ fromName i
+          _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
+
+        _ -> instantiateCachedApp fName args'
     where 
       instantiateCachedApp fName args' = 
         bindAndApplyArgs (\args'' -> 

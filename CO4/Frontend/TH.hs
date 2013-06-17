@@ -92,6 +92,8 @@ parseTHExpression expression = case expression of
 
   TH.CaseE e matches -> ECase (parse e) $ map parseTHMatch matches
 
+  TH.LitE (TH.IntegerL i) -> ECon $ readName $ show i
+
   _ -> notSupported "parseTHExpression" expression
   
   where
@@ -153,4 +155,4 @@ fromTHName = name . TH.nameBase
 
 notSupported :: (TH.Ppr a, Show a) => String -> a -> b
 notSupported funName a = 
-  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported: ", show a]
+  error $ concat ["Frontend.TH.", funName, ": '", show $ TH.ppr a, "' not supported (", show a,")"]

@@ -4,17 +4,16 @@
 module CO4.EncodedAdt
   ( IntermediateAdt (..), EncodedAdt (..)
   , isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined, isValid
-  , isInvalid, caseOfBits)
+  , isInvalid, flags', caseOfBits)
 where
 
 import           Prelude hiding (and,undefined)
 import qualified Prelude
 import qualified Control.Exception as Exception
-import           Control.Monad (forM,zipWithM)
+import           Control.Monad (forM)
 import           Data.List (transpose)
 import           Data.Maybe (fromMaybe,catMaybes)
-import           Satchmo.Core.Primitive 
-  (Primitive,constant,implies,and,select,primitive,assert)
+import           Satchmo.Core.Primitive (Primitive,constant,select,primitive,assert)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Decode (Decode)
 import           Satchmo.Core.MonadSAT (MonadSAT)
@@ -24,6 +23,8 @@ data IntermediateAdt p = IntermediateConstructorIndex Int [p]
                        | IntermediateUndefined
 
 class Primitive p => EncodedAdt e p where
+
+  make :: [p] -> e p
 
   undefined :: e p
 
@@ -59,6 +60,12 @@ isValid x = not ( isConstantlyUndefined x || isBottom x )
 isInvalid :: EncodedAdt e p => e p -> Bool
 isInvalid = not . isValid
 
+-- |Unsafe version of `flags`
+flags' :: EncodedAdt e p => e p -> [p]
+flags' e = case flags e of
+  Nothing -> error "EncodedAdt.flags': missing flags"
+  Just fs -> fs
+
 caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonBottomBits) 
@@ -84,16 +91,3 @@ caseOfBits flags branchBits =
                 assert ( r : P.not b : map P.not fs  )
                 assert ( P.not r :  b : map P.not fs  )
            return r
-
-      caseOf2Bits f as bs = zipWithM merge2 as bs
-        where 
-          merge2 a b = case a == b of
-            True  -> return a
-            False -> do
-              r <- primitive
-              assert [P.not r,       f,       a]
-              assert [P.not r, P.not f,       b]
-              assert [      r, P.not f, P.not b]
-              assert [      r,       f, P.not a]
-              return r
-

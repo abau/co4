@@ -110,7 +110,7 @@ decodeCons i (CCon consName params) = do
                          $ map varP paramNames
         in
           TH.ConP 'IntermediateConstructorIndex
-                               [ TH.LitP  $ TH.IntegerL $ fromIntegral i
+                               [ intP $ fromIntegral i
                                , paramPattern
                                ]
       applyCons = foldl TH.AppE (conE consName) $ map varE decodedNames

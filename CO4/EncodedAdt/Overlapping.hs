@@ -34,6 +34,8 @@ instance (Primitive p,Show p) => Show (Overlapping p) where
 
 instance Primitive p => EncodedAdt Overlapping p where
 
+  make fs = Overlapping (constant True) fs []
+
   undefined = Overlapping (constant False) [] []
 
   isBottom Bottom = True
