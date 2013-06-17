@@ -1,6 +1,6 @@
 module WCB where
 
-import CO4.PreludeNat
+
 
 data Base = A | C | G | U -- deriving Show
 
@@ -11,10 +11,16 @@ data Paren = Open | Close | Blank
 type Secondary = [Paren]
 
 
+{-
+newtype Nat8 = Nat8 ()
 
-type Nat = Nat8
+nat8 :: Int -> Nat8; nat8 = undefined
+geNat8 :: Nat8 -> Nat8 -> Bool ; geNat8 = undefined
+maxNat8 :: Nat8 -> Nat8 -> Nat8 ; maxNat8 = undefined
+plusNat8 :: Nat8 -> Nat8 -> Nat8 ; plusNat8 = undefined
+-}
 
-data Energy = MinusInfinity | Finite Nat --  deriving Show
+data Energy = MinusInfinity | Finite Nat8 --  deriving Show
 
 
 -- the main constraint
@@ -30,14 +36,14 @@ main s p = case maxbound_double p of
 
 -- | result: the maximum possible energy that can be bound here
 maxbound_single :: Primary -> Energy
-maxbound_single p = maxbound MinusInfinity (Finite 0) plus times cost p
+maxbound_single p = maxbound MinusInfinity (Finite (nat8 0)) plus times cost p
 
 -- | result (first, second) best bound energy
 maxbound_double :: Primary 
                 -> (Energy, Energy) 
 maxbound_double p = maxbound
     ( MinusInfinity, MinusInfinity )
-    ( Finite 0, MinusInfinity )
+    ( Finite (nat8 0), MinusInfinity )
     ( \ (f1, s1) (f2, s2) -> ( maxEnergy f1 f2
                              , maxEnergy ( minEnergy f1 f2 )
                                  (maxEnergy s2 s2 ) ) )
