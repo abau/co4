@@ -5,7 +5,8 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module CO4.Test.SL where
+-- module CO4.Test.SL where
+module Main where
 
 import           Language.Haskell.TH (runIO)
 
@@ -15,8 +16,10 @@ import           CO4 hiding (solve)
 import           CO4.Prelude
 
 import Data.List ( nub )
+import Data.Maybe (maybeToList)
 import qualified Data.Map as M
 import Control.Monad ( forM,void )
+import System.Environment
 
 import qualified TPDB.Data as TPDB
 import qualified TPDB.Input as TPDB
@@ -27,7 +30,7 @@ import qualified TPDB.Plain.Read as TPDB
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
                         -- , DumpAll "/tmp/sl" 
-                        , Profiling
+                        -- , Profiling
                         ] 
          $ compileFile "CO4/Test/SL.standalone.hs" )
 
@@ -67,6 +70,7 @@ uLab srs bits_for_model num_ints dim bits_for_numbers =
            [ uModel bits_for_symbols bits_for_model
            , kList num_ints $ uInter (bits_for_symbols + bits_for_model) 
                                      dim bits_for_numbers
+           , kList (length srs) uBool
            ]
 
 
@@ -99,6 +103,10 @@ alphabet sys = nub $ concat
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
 
+mainz = do
+    [ f ] <- getArgs
+    solve f
+
 example = case TPDB.srs "(RULES a a -> a b a)" of Right sys -> solveTPDB sys
 
 solve filePath = TPDB.get_srs filePath >>= solveTPDB
@@ -112,30 +120,41 @@ solveTPDB sys = do
       f xs = map (m M.!) xs ; f' xs = map (m' M.!) xs
       srs = map 
         ( \ u -> ( f $ TPDB.lhs u, f $ TPDB.rhs u ) ) $ TPDB.rules sys
+
       bdt2map t = let h t xs = case t of
-                          Leaf y -> case M.lookup xs m' of
-                               Just v -> [(v, y)]
-                               Nothing -> []
+                          Leaf y -> [(xs, y)]
                           Branch l r -> h l (xs ++ [False]) ++ h r (xs ++ [True])
                   in  M.fromList $ h t []
+
+      bdt2int t = M.fromList $ do
+                  (xs, w) <- M.toList $ bdt2map t
+                  v <- maybeToList $ M.lookup xs m'
+                  return ( v, bdt2mod w )
+
+      bdt2mod t = M.fromList $ do
+                  (k,v) <- M.toList $ bdt2map t
+                  return ( fromBin k, fromBin v )
+
+      
+
           
   print $ TPDB.pretty sys
   print srs
   print m
 
   let alloc = uLab srs 2 -- bits_for_model
-                       1 -- num_interpretations
-                       1 -- dim for matrices
-                       3 -- bits_for_numbers (in matrices)
+                       4 -- num_interpretations
+                       2 -- dim for matrices
+                       2 -- bits_for_numbers (in matrices)
   solution <- solveAndTestBooleanP srs alloc encMain main
 
   case solution of
     Nothing -> return ()
-    Just (Label mod ints) -> do
-        print $ bdt2map mod
+    Just (Label mod ints remove) -> do
+        print $ bdt2int mod
         void $ forM ints $ \ int -> print $ bdt2map  int
+        print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 
 
-        
 

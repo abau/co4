@@ -9,18 +9,19 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
-data Label = Label Model [ Interpretation ]
+data Label = Label Model [ Interpretation ] [ Bool ]
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
 -- (that is, all its labelled versions)
 main srs lab = case lab of
-    Label mod ints -> 
+    Label mod ints remove -> 
           all ( positiveI ) ints
        && let srss = labelled srs mod
               css  = map (map (comps ints)) srss
           in     not ( any (any isNone) css )
-              && any ( all isGreater ) css
+              && or remove
+              && eqSymbol remove ( map ( all isGreater ) css )
 
 -- * model, labelling
 
