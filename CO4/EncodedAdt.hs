@@ -22,11 +22,13 @@ import           CO4.Util (bitWidth,binaries,for)
 data IntermediateAdt p = IntermediateConstructorIndex Int [p]
                        | IntermediateUndefined
 
-class Primitive p => EncodedAdt e p where
+class (Primitive p) => EncodedAdt e p where
 
   make :: [p] -> e p
 
   undefined :: e p
+
+  bottom :: e p
 
   isBottom :: e p -> Bool
 

@@ -76,19 +76,19 @@ encGtNat8,encGeNat8,encEqNat8,encLeNat8,encLtNat8,encMaxNat8,encMinNat8
   :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) => e p -> e p -> m (e p)
 encGtNat8 = flip encLtNat8
 encGeNat8 = flip encLeNat8
-encEqNat8 = onFlags "eqNat8"
+encEqNat8 = catchInvalid2 $ onFlags "eqNat8"
   (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and >>= return . make . return)
 
-encLeNat8 = onFlags "leNat8" $ \a b -> do
+encLeNat8 = catchInvalid2 $ onFlags "leNat8" $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   return $ make [r]
 
-encLtNat8 = onFlags "ltNat8" $ \a b -> do
+encLtNat8 = catchInvalid2 $ onFlags "ltNat8" $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return $ make [l]
 
-encMaxNat8 a b = tracedWhenProfling "maxNat8" $ do
+encMaxNat8 = catchInvalid2 $ \a b -> tracedWhenProfling "maxNat8" $ do
   result <- replicateM 8 primitive >>= return . make
   [ra] <- liftM flags' $ encEqNat8 result a
   [rb] <- liftM flags' $ encEqNat8 result b
@@ -97,7 +97,7 @@ encMaxNat8 a b = tracedWhenProfling "maxNat8" $ do
   assert [ g     , rb ]
   return result
 
-encMinNat8 a b = tracedWhenProfling "minNat8" $ do
+encMinNat8 = catchInvalid2 $ \a b -> tracedWhenProfling "minNat8" $ do
   result <- replicateM 8 primitive >>= return . make
   [ra] <- liftM flags' $ encEqNat8 result a
   [rb] <- liftM flags' $ encEqNat8 result b
@@ -127,7 +127,7 @@ encComparePrimitives a b = case (a,b) of
 
 encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) 
             => e p -> e p -> m (e p)
-encPlusNat8 = onFlags "plusNat8" $ \as bs -> do
+encPlusNat8 = catchInvalid2 $ onFlags "plusNat8" $ \as bs -> do
   zs <- addWithCarry 8 (constant False) as bs
   return $ make zs
   where
@@ -148,7 +148,7 @@ encPlusNat8 = onFlags "plusNat8" $ \as bs -> do
 
 encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) 
             => e p -> e p -> m (e p)
-encTimesNat8 = onFlags "timesNat8" $ \as bs -> do
+encTimesNat8 = catchInvalid2 $ onFlags "timesNat8" $ \as bs -> do
   kzs <- product_components (Just 8) as bs
   export (Just 8) kzs
 
@@ -242,6 +242,15 @@ onFlags :: (MonadProfiling m, EncodedAdt e p)
 onFlags name f a b = case (flags a, flags b) of
   (Just as, Just bs) -> tracedWhenProfling name $ f as bs
   _                  -> error "PreludeNat.onFlags: missing flags"
+
+catchInvalid2 :: (Monad m, EncodedAdt e p) 
+              => (e p -> e p -> m (e p)) -> e p -> e p -> m (e p)
+catchInvalid2 f a b = 
+  if isConstantlyUndefined a || isConstantlyUndefined b
+  then return undefined
+  else if isBottom a || isBottom b 
+       then return bottom
+       else f a b
 
 tracedWhenProfling :: (MonadProfiling m) => String -> m a -> m a
 tracedWhenProfling name action = 

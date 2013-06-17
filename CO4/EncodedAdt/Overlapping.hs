@@ -38,6 +38,8 @@ instance Primitive p => EncodedAdt Overlapping p where
 
   undefined = Overlapping (constant False) [] []
 
+  bottom = Bottom
+
   isBottom Bottom = True
   isBottom _      = False
 
