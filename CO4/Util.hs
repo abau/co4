@@ -5,6 +5,7 @@ where
 import           Control.Exception (assert)
 import           Data.List (partition,find)
 import           Data.Maybe (mapMaybe)
+import           Text.Read (readEither)
 import           CO4.Language
 import           CO4.Names
 import           CO4.PPrint
@@ -227,3 +228,9 @@ binaries i = do
 -- |@bitWidth n@ returns the number of bits needed to encode @n@ different states
 bitWidth :: Int -> Int
 bitWidth = ceiling . logBase 2 . fromIntegral 
+
+-- |Checks whether a string represents an integer
+isInt :: String -> Bool
+isInt s = case readEither s :: Either String Int of
+  Left _  -> False
+  Right _ -> True

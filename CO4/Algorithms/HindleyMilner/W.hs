@@ -207,9 +207,10 @@ w context exp = case exp of
       case (lookup name context, name) of
         (Just s, _)      -> return s
         (_ , NTyped _ s) -> return s
-        _                -> fail $ "Algorithms.HindleyMilner.W: "
-                                ++ "Can not deduce type for '" 
-                                ++ (show $ pprint name) ++ "'"
+        _ -> if isInt (fromName name) 
+             then return $ SType $ TCon intName []
+             else fail $ "Algorithms.HindleyMilner.W: " 
+                      ++ "Can not deduce type for '" ++ (show $ pprint name) ++ "'"
 
 -- |Annotates the schemes to a program
 wProgram :: MonadUnique u => Context -> Program -> HM u Program

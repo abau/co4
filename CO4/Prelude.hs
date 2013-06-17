@@ -2,6 +2,7 @@
 module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedFunctionNames, unparsedPreludeContext
   , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
+  , module CO4.PreludeNat
   )
 where
 
@@ -12,8 +13,9 @@ import           CO4.Algorithms.HindleyMilner.Util (Context (..),binds,emptyCont
 import           CO4.TypesUtil (functionType)
 import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
 import           CO4.Unique (MonadUnique)
-import           CO4.Names (Namelike,listName,consName,eqName,tupleName)
+import           CO4.Names
 import           CO4.Allocator.Common (constructors)
+import           CO4.PreludeNat
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -78,23 +80,34 @@ unparsedFunctionNames = [eqName]
 
 unparsedPreludeContext :: Context
 unparsedPreludeContext = binds 
-  [ (eqName   , SForall a $ SType $ functionType [TVar a,TVar a] (TCon bool []))
-  , ("False"  ,             SType $ TCon bool [])
-  , ("True"   ,             SType $ TCon bool [])
-  , (listName , SForall a $ SType listType)
-  , (consName , SForall a $ SType $ functionType [TVar a,listType] listType)
-  , mkTuple 2 , mkTuple 3 , mkTuple 4 , mkTuple 5
+  [ (eqName      , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
+  , ("False"     ,             SType boolT)
+  , ("True"      ,             SType boolT)
+  , (listName    , SForall a $ SType listT)
+  , (consName    , SForall a $ SType $ functionType [TVar a,listT] listT)
+  , mkTuple 2    , mkTuple 3 , mkTuple 4 , mkTuple 5
+  , (nat8Name    , SType $ functionType [TCon intName []] nat8T)
+  , ("gtNat8"    , SType $ functionType [nat8T,nat8T] boolT)
+  , ("geNat8"    , SType $ functionType [nat8T,nat8T] boolT)
+  , ("leNat8"    , SType $ functionType [nat8T,nat8T] boolT)
+  , ("ltNat8"    , SType $ functionType [nat8T,nat8T] boolT)
+  , ("maxNat8"   , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("minNat8"   , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("plusNat8"  , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("timesNat8" , SType $ functionType [nat8T,nat8T] nat8T)
   ] emptyContext
   where 
     names@(a:_) = map UntypedName ["a","b","c","d","e"]
-    bool        = UntypedName "Bool"
-    listType    = TCon listName [TVar a]
+    boolT       = TCon boolName []
+    listT       = TCon listName [TVar a]
 
     mkTuple i = 
       let type_ = functionType (map TVar $ take i names) 
                 $ TCon (tupleName i) $ map TVar $ take i names
       in
         ( tupleName i, (foldr SForall (SType type_) $ take i names) )
+
+    nat8T = TCon nat8TypeName []
 
 -- * Allocators
 

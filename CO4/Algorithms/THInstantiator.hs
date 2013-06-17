@@ -7,10 +7,11 @@ where
 
 import           Control.Monad (ap)
 import           Control.Monad.Identity (Identity,runIdentity)
+import           Text.Read (readEither)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
-import           CO4.Names (funName,listName)
-import           CO4.THUtil (toTHName)
+import           CO4.Names (fromName,funName,listName)
+import           CO4.THUtil (toTHName,intE)
 
 class Monad m => MonadTHInstantiator m where
 
@@ -98,7 +99,9 @@ class Monad m => MonadTHInstantiator m where
       c' <- instantiate c
       return (TH.SigE $ TH.ConE c') `ap` instantiate s
 
-    ECon c -> return TH.ConE `ap` instantiate c
+    ECon c -> case readEither (fromName c) of
+      Left _  -> return TH.ConE `ap` instantiate c
+      Right i -> return $ intE i
 
   instantiateApp :: Expression -> m TH.Exp
   instantiateApp (EApp f args) = do
