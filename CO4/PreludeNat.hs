@@ -25,8 +25,6 @@ import           CO4.Encodeable (Encodeable (..))
 import           CO4.Allocator.Common (Allocator,known,constructors)
 import           CO4.EncEq (EncEq(..))
 
-profilePreludeNat = False
-
 type Nat8 = Word8
 
 instance (Primitive p, EncodedAdt e p) => Encodeable Nat8 e p where
