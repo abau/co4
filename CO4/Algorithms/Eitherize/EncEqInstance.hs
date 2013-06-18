@@ -17,6 +17,8 @@ import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
+import           CO4.Profiling (traced)
+import           CO4.Config (MonadConfig,is,Config(Profiling))
 
 -- |Generates a @EncEq@ instance
 --
@@ -24,7 +26,7 @@ import           CO4.Util (replaceAt,for)
 -- >  => EncEq (T v1 ...) e p where
 -- >   encEq _ x y | isInvalid x = encFalseCons
 -- >   encEq _ x y | isInvalid y = encFalseCons
--- >   encEq _ x y = 
+-- >   encEq _ x y = traced "==_T" $
 -- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
 -- >                                       (constructorArgument 0 0 y)
 -- >     eq10  <- encEq (undefined :: T10) (constructorArgument 1 0 x) 
@@ -38,7 +40,7 @@ import           CO4.Util (replaceAt,for)
 -- >     eqY1  <- caseOf y [encFalseCons, eq1, encFalseCons, ...]
 -- >     ...
 -- >     caseOf x [y0, y1, ...]
-encEqInstance :: (MonadUnique u) => Declaration -> u TH.Dec
+encEqInstance :: (MonadUnique u,MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
   [x,y,p,e] <- mapM newName ["x","y","p","e"]
 
@@ -51,7 +53,8 @@ encEqInstance adt@(DAdt name vars conss) = do
       instanceHead = TH.InstanceD predicates 
                    $ appsT (TH.ConT ''EncEq) [ appsT (conT name) $ map varT vars
                                              , varT e, varT p ]
-  body <- encEqBody x y conss 
+  body        <- encEqBody x y conss 
+  isProfiling <- is Profiling
 
   let thType            = toTH $ typeOfAdt adt
       mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -60,7 +63,14 @@ encEqInstance adt@(DAdt name vars conss) = do
         , TH.AppE (TH.VarE 'return) 
                   (appsE (TH.VarE 'encodedConstructor) 
                          [intE 0, intE 2, TH.ListE []]))]
-      clauses = [ mkInvalidClause x, mkInvalidClause y, mkClause $ TH.NormalB body ]
+      clauses = 
+        [ mkInvalidClause x
+        , mkInvalidClause y
+        , mkClause $ TH.NormalB $
+            case isProfiling of 
+              False -> body
+              True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
+        ]
   return $ instanceHead [funD "encEq" clauses]
 
 encEqBody :: (MonadUnique u,Namelike n) => n -> n -> [Constructor] -> u TH.Exp
