@@ -28,8 +28,8 @@ import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator.Common (known)
 import           CO4.Profiling (traced)
-import           CO4.EncEq (encEq)
-import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
+import           CO4.EncEq (encEq,encProfiledEq)
+import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profiling))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
 import           CO4.PreludeNat (encNat8)
 
@@ -113,11 +113,15 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           ]) args'
 
       instantiateEq args' = do
+        profiling <- is Profiling
+
+        let encName = if profiling then 'encProfiledEq else 'encEq
+
         scheme <- liftM toTH $ schemeOfExp $ head args
         bindAndApplyArgs (\args'' -> 
           appsE (TH.VarE 'withCache) 
-          [ appsE (TH.ConE 'CacheCall) [stringE "encEq", TH.ListE args'']
-          , appsE (TH.VarE 'encEq) $ typedUndefined scheme : args''
+          [ appsE (TH.ConE 'CacheCall) [stringE "==", TH.ListE args'']
+          , appsE (TH.VarE encName) $ typedUndefined scheme : args''
           ]) args'
 
   instantiateCase (ECase e ms) = do

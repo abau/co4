@@ -23,7 +23,7 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           CO4.EncodedAdt hiding (undefined)
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.Allocator.Common (Allocator,known,constructors)
-import           CO4.EncEq (EncEq(..))
+import           CO4.EncEq (EncEq(..),EncProfiledEq(..))
 
 type Nat8 = Word8
 
@@ -39,6 +39,9 @@ instance (Primitive p, EncodedAdt e p, Decode SAT p Bool) => Decode SAT (e p) Na
 
 instance (Primitive p, EncodedAdt e p) => EncEq Nat8 e p where
   encEq _ a b = encEqNat8 a b
+
+instance (Primitive p, EncodedAdt e p) => EncProfiledEq Nat8 e p where
+  encProfiledEq _ a b = encEqNat8 a b
 
 uNat8 :: Allocator
 uNat8 = constructors $ replicate (2^8) $ Just []

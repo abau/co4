@@ -9,14 +9,16 @@ import qualified Language.Haskell.TH as TH
 import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
-import           CO4.Names (Namelike)
-import           CO4.EncEq (EncEq (..))
+import           CO4.Names (Namelike,fromName)
+import           CO4.EncEq (EncEq (..),EncProfiledEq (..))
 import           CO4.EncodedAdt 
 import           CO4.Algorithms.Eitherize.Names (encodedName)
 import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
+import           CO4.Config (MonadConfig,Config(Profiling),is)
+import           CO4.Profiling (traced)
 
 -- |Generates a @EncEq@ instance
 --
@@ -38,20 +40,23 @@ import           CO4.Util (replaceAt,for)
 -- >     eqY1  <- caseOf y [encFalseCons, eq1, encFalseCons, ...]
 -- >     ...
 -- >     caseOf x [y0, y1, ...]
-encEqInstance :: (MonadUnique u) => Declaration -> u TH.Dec
+encEqInstance :: (MonadUnique u, MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
   [x,y,p,e] <- mapM newName ["x","y","p","e"]
+  profiling <- is Profiling
 
-  let predicates = primitive : encAdt : encEqs
+  let instanceName = if profiling then ''EncProfiledEq else ''EncEq
+      predicates   = primitive : encAdt : encEqs
         where 
-          encEqs    = for vars $ \v -> TH.ClassP ''EncEq [varT v, varT e, varT p]
-          primitive = TH.ClassP ''Primitive [varT p]
-          encAdt    = TH.ClassP ''EncodedAdt [varT e, varT p]
+          encEqs       = for vars $ \v -> TH.ClassP instanceName 
+                                                    [varT v, varT e, varT p]
+          primitive    = TH.ClassP ''Primitive [varT p]
+          encAdt       = TH.ClassP ''EncodedAdt [varT e, varT p]
       
       instanceHead = TH.InstanceD predicates 
-                   $ appsT (TH.ConT ''EncEq) [ appsT (conT name) $ map varT vars
-                                             , varT e, varT p ]
-  body <- encEqBody x y conss 
+                   $ appsT (TH.ConT instanceName) [ appsT (conT name) $ map varT vars
+                                                  , varT e, varT p ]
+  body <- encEqBody profiling x y conss 
 
   let thType            = toTH $ typeOfAdt adt
       mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -60,11 +65,20 @@ encEqInstance adt@(DAdt name vars conss) = do
         , TH.AppE (TH.VarE 'return) 
                   (appsE (TH.VarE 'encodedConstructor) 
                          [intE 0, intE 2, TH.ListE []]))]
-      clauses = [ mkInvalidClause x, mkInvalidClause y, mkClause $ TH.NormalB body ]
-  return $ instanceHead [funD "encEq" clauses]
+      clauses = 
+         [ mkInvalidClause x
+         , mkInvalidClause y
+         , mkClause $ TH.NormalB $
+             case profiling of 
+               False -> body
+               True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
+         ]
+  if profiling
+    then return $ instanceHead [funD "encProfiledEq" clauses]
+    else return $ instanceHead [funD "encEq" clauses]
 
-encEqBody :: (MonadUnique u,Namelike n) => n -> n -> [Constructor] -> u TH.Exp
-encEqBody x y conss = do
+encEqBody :: (MonadUnique u,Namelike n) => Bool -> n -> n -> [Constructor] -> u TH.Exp
+encEqBody profiling x y conss = do
   (eqJNames, eqIJStmts) <- liftM unzip $ zipWithM eqConstructor [0..] conss
 
   eqYNames  <- forM conss $ const $ newName "eqY"
@@ -105,8 +119,10 @@ encEqBody x y conss = do
       return (varE eqJName, encIJs ++ [eqJ])
 
     eqIJ name i j t = 
-      bindS' name $ appsE (TH.VarE 'encEq) 
-          [ typedUndefined $ toTH t
-          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE x]
-          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE y]
-          ]
+      let encEqName = if profiling then 'encProfiledEq else 'encEq
+      in
+        bindS' name $ appsE (TH.VarE encEqName) 
+            [ typedUndefined $ toTH t
+            , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE x]
+            , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE y]
+            ]
