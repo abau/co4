@@ -24,17 +24,27 @@ data ProfileData = ProfileData { numCalls     :: Int
                                } 
                                deriving Show
 
+nullProfileData :: ProfileData
+nullProfileData = ProfileData 0 0 0
+
 type ProfileMap = M.Map String ProfileData
 
 data Profile = Profile { innerUnder      :: ProfileMap
                        , inner           :: ProfileMap
                        , currentFunction :: String
+                       , currentInner    :: ProfileData
                        , stackDepth      :: Int
                        }
 
+nullProfile :: Profile
+nullProfile = Profile M.empty M.empty "__init" nullProfileData 0
+
 onInnerUnder,onInner :: (ProfileMap -> ProfileMap) -> Profile -> Profile
-onInnerUnder f p = p { innerUnder = f $ innerUnder p }
-onInner      f p = p { inner      = f $ inner      p }
+onInnerUnder   f p = p { innerUnder   = f $ innerUnder   p }
+onInner        f p = p { inner        = f $ inner        p }
+
+onCurrentInner :: (ProfileData -> ProfileData) -> Profile -> Profile
+onCurrentInner f p = p { currentInner = f $ currentInner p }
 
 onStackDepth :: (Int -> Int) -> Profile -> Profile
 onStackDepth f p = p { stackDepth = f $ stackDepth p }
@@ -48,19 +58,11 @@ newtype SimpleProfiling m a = SimpleProfiling
 
 instance MonadSAT m => MonadSAT (SimpleProfiling m) where
   fresh = do
-    c <- gets currentFunction
-    modify $ onInner $ 
-      M.alter (\case Nothing -> Nothing 
-                     Just p  -> Just $ p { numVariables = succ $ numVariables p }
-              ) c
+    modify $ onCurrentInner $ \p -> p { numVariables = succ $ numVariables p }
     lift MonadSAT.fresh
 
   emit clause = do 
-    c <- gets currentFunction
-    modify $ onInner $
-      M.alter (\case Nothing -> Nothing
-                     Just p  -> Just $ p { numClauses = succ $ numClauses p }
-              ) c
+    modify $ onCurrentInner $ \p -> p { numClauses = succ $ numClauses p }
     lift $ MonadSAT.emit clause
 
   note         = lift . MonadSAT.note
@@ -69,7 +71,9 @@ instance MonadSAT m => MonadSAT (SimpleProfiling m) where
 
 instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
   traced name action = do
+    writeCurrentInner
     previous <- gets currentFunction
+
     modify $ setCurrentFunction name
 
     modify $ onInner $ M.alter 
@@ -85,8 +89,8 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
     v2     <- MonadSAT.numVariables
     c2     <- MonadSAT.numClauses
 
+    writeCurrentInner
     modify $ setCurrentFunction previous
-
     modify $ onInnerUnder $ M.alter
       ( \case Nothing -> Just $ ProfileData 1 (v2 - v1) (c2 - c1)
               Just p  -> Just $ p { numCalls     = numCalls     p + 1
@@ -96,8 +100,22 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
       ) name 
 
     modify $ onStackDepth pred
-
     return result
+
+    where
+      writeCurrentInner = do
+        fun   <- gets currentFunction
+        pData <- gets currentInner
+
+        modify $ onInner $ M.alter
+          ( \case Nothing -> Just pData 
+                  Just p  -> Just $ 
+                    p { numCalls     = numCalls     p + numCalls     pData
+                      , numVariables = numVariables p + numVariables pData
+                      , numClauses   = numClauses   p + numClauses   pData
+                      }
+          ) fun
+        modify $ onCurrentInner $ const nullProfileData
 
 instance MonadCache p m => MonadCache p (SimpleProfiling m) where
   retrieve = lift . retrieve
@@ -105,8 +123,7 @@ instance MonadCache p m => MonadCache p (SimpleProfiling m) where
 
 simpleProfiling :: (MonadIO m, MonadSAT m) => SimpleProfiling m a -> m a
 simpleProfiling p = do 
-  (result, profile) <- runStateT (fromSimpleProfiling p) 
-                                 (Profile M.empty M.empty "__init" 0)
+  (result, profile) <- runStateT (fromSimpleProfiling p) nullProfile
   printProfile "inner-under" innerUnder profile
   printProfile "inner"       inner      profile
   return result
