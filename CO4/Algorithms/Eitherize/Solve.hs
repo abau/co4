@@ -2,13 +2,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Algorithms.Eitherize.Solve
    ( ConstraintSystem
-   , solveAndTestBoolean, solveAndTestBooleanP
-   , solveAndTestFormula, solveAndTestFormulaP
-   , solveAndTest, solveAndTestP, solve)
+   , solveAndTestBoolean, solveProfileAndTestBoolean
+   , solveAndTestBooleanP, solveProfileAndTestBooleanP
+   , solveAndTestFormula, solveProfileAndTestFormula
+   , solveAndTestFormulaP, solveProfileAndTestFormulaP
+   , solveAndTest, solveAndTestP , solve)
 where
 
 import           Prelude hiding (and)
 import           System.IO (hFlush,stdout)
+import           Satchmo.Core.MonadSAT (MonadSAT,note)
 import qualified Satchmo.Core.SAT.Minisat as Backend 
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert,and)
@@ -25,51 +28,70 @@ import           CO4.EncodedAdt.Overlapping (Overlapping)
 
 type EncodedAdt = Overlapping
 
-type ConstraintSystem p = (EncodedAdt p) 
-                       -> SimpleProfiling (Cache (EncodedAdt p) Backend.SAT) (EncodedAdt p)
+type ProfiledConstraintSystem p = (EncodedAdt p) 
+                               -> SimpleProfiling (Cache (EncodedAdt p) Backend.SAT) 
+                                                  (EncodedAdt p)
 
-type ParamConstraintSystem p = (EncodedAdt p) -> ConstraintSystem p
+type ConstraintSystem p = (EncodedAdt p) 
+                       -> Cache (EncodedAdt p) Backend.SAT (EncodedAdt p)
+
+type ParamConstraintSystem p         = (EncodedAdt p) -> ConstraintSystem p
+type ProfiledParamConstraintSystem p = (EncodedAdt p) -> ProfiledConstraintSystem p
 
 
 -- | Equals 'solveAndTest'. Uses 'Boolean's for encoding.
 solveAndTestBoolean 
   :: (Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
-  => Allocator                                      
-  -> ConstraintSystem Boolean
-  -> (a -> b)                            
-  -> IO (Maybe a)
+  => Allocator -> ConstraintSystem Boolean -> (a -> b) -> IO (Maybe a)
 solveAndTestBoolean = solveAndTest
+
+-- | Equals 'solveProfileAndTest'. Uses 'Boolean's for encoding.
+solveProfileAndTestBoolean 
+  :: (Decode Backend.SAT (EncodedAdt Boolean) a, Show a, Show b) 
+  => Allocator -> ProfiledConstraintSystem Boolean -> (a -> b) -> IO (Maybe a)
+solveProfileAndTestBoolean = solveProfileAndTest
 
 -- | Equals 'solveAndTestP'. Uses 'Boolean's for encoding.
 solveAndTestBooleanP
   :: ( Encodeable k EncodedAdt Boolean, Decode Backend.SAT (EncodedAdt Boolean) a
      , Show a, Show b) 
-  => k
-  -> Allocator                                      
-  -> ParamConstraintSystem Boolean
-  -> (k -> a -> b)                            
-  -> IO (Maybe a)
+  => k -> Allocator -> ParamConstraintSystem Boolean -> (k -> a -> b) -> IO (Maybe a)
 solveAndTestBooleanP = solveAndTestP
+
+-- | Equals 'solveProfileAndTestP'. Uses 'Boolean's for encoding.
+solveProfileAndTestBooleanP
+  :: ( Encodeable k EncodedAdt Boolean, Decode Backend.SAT (EncodedAdt Boolean) a
+     , Show a, Show b) 
+  => k -> Allocator -> ProfiledParamConstraintSystem Boolean 
+  -> (k -> a -> b) -> IO (Maybe a)
+solveProfileAndTestBooleanP = solveProfileAndTestP
 
 -- | Equals 'solveAndTest'. Uses 'Formula's for encoding.
 solveAndTestFormula 
   :: (Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
-  => Allocator                                      
-  -> ConstraintSystem Formula
-  -> (a -> b)                            
-  -> IO (Maybe a)
+  => Allocator -> ConstraintSystem Formula -> (a -> b) -> IO (Maybe a)
 solveAndTestFormula = solveAndTest
+
+-- | Equals 'solveProfileAndTest'. Uses 'Formula's for encoding.
+solveProfileAndTestFormula 
+  :: (Decode Backend.SAT (EncodedAdt Formula) a, Show a, Show b) 
+  => Allocator -> ProfiledConstraintSystem Formula -> (a -> b) -> IO (Maybe a)
+solveProfileAndTestFormula = solveProfileAndTest
 
 -- | Equals 'solveAndTestP'. Uses 'Formula's for encoding.
 solveAndTestFormulaP 
   :: ( Encodeable k EncodedAdt Formula, Decode Backend.SAT (EncodedAdt Formula) a
      , Show a, Show b) 
-  => k 
-  -> Allocator                                      
-  -> ParamConstraintSystem Formula
-  -> (k -> a -> b)                            
-  -> IO (Maybe a)
+  => k -> Allocator -> ParamConstraintSystem Formula -> (k -> a -> b) -> IO (Maybe a)
 solveAndTestFormulaP = solveAndTestP
+
+-- | Equals 'solveProfileAndTestP'. Uses 'Formula's for encoding.
+solveProfileAndTestFormulaP 
+  :: ( Encodeable k EncodedAdt Formula, Decode Backend.SAT (EncodedAdt Formula) a
+     , Show a, Show b) 
+  => k -> Allocator -> ProfiledParamConstraintSystem Formula 
+  -> (k -> a -> b) -> IO (Maybe a)
+solveProfileAndTestFormulaP = solveProfileAndTestP
 
 -- |Solves an encoded constraint system and tests the found solution
 -- against the original constraint system
@@ -80,16 +102,20 @@ solveAndTest :: ( Primitive p, Show p
       -> ConstraintSystem p                             -- ^Encoded constraint system
       -> (a -> b)                                       -- ^Original constraint system
       -> IO (Maybe a)
-solveAndTest allocator constraint test = do
-  solution <- solve allocator constraint
-  case solution of
-    Nothing -> do putStrLn "No solution found"
-                  return Nothing
-    Just s  -> do putStrLn $ "Solution: " ++ (show s)
-                  putStr "Test: "
-                  hFlush stdout 
-                  putStrLn $ show $ test s
-                  return $ Just s
+solveAndTest allocator constraint test = 
+  solve allocator constraint >>= testSolution test
+
+-- |Solves an encoded constraint system and tests the found solution
+-- against the original constraint system
+solveProfileAndTest :: ( Primitive p, Show p
+                       , Decode Backend.SAT (EncodedAdt p) a
+                       , Show a, Show b) 
+      => Allocator                                      -- ^Allocator
+      -> ProfiledConstraintSystem p                     -- ^Encoded constraint system
+      -> (a -> b)                                       -- ^Original constraint system
+      -> IO (Maybe a)
+solveProfileAndTest allocator constraint test = 
+  solveAndProfile allocator constraint >>= testSolution test
 
 -- |Solves an encoded parametrized constraint system and tests the found solution
 -- against the original constraint system
@@ -101,50 +127,80 @@ solveAndTestP :: ( Encodeable k EncodedAdt p, Primitive p, Show p
       -> ParamConstraintSystem p                        -- ^Encoded constraint system
       -> (k -> a -> b)                                  -- ^Original constraint system
       -> IO (Maybe a)
-solveAndTestP k allocator constraint test = do
-  solution <- solve allocator $ constraint $ encodeConstant k
-  case solution of
-    Nothing -> do putStrLn "No solution found"
-                  return Nothing
-    Just s  -> do putStrLn $ "Solution: " ++ (show s)
-                  putStr "Test: "
-                  hFlush stdout 
-                  putStrLn $ show $ test k s
-                  return $ Just s
+solveAndTestP k allocator constraint test =
+  solve allocator (constraint $ encodeConstant k) >>= testSolution (test k)
+
+-- |Solves and profiles an encoded parametrized constraint system and tests the 
+-- found solution against the original constraint system
+solveProfileAndTestP :: ( Encodeable k EncodedAdt p, Primitive p, Show p
+                        , Decode Backend.SAT (EncodedAdt p) a
+                        , Show a, Show b) 
+      => k                                              -- ^Known parameter
+      -> Allocator                                      -- ^Allocator
+      -> ProfiledParamConstraintSystem p                -- ^Encoded constraint system
+      -> (k -> a -> b)                                  -- ^Original constraint system
+      -> IO (Maybe a)
+solveProfileAndTestP k allocator constraint test =
+  solveAndProfile allocator (constraint $ encodeConstant k) >>= testSolution (test k)
+
+testSolution :: (Show a, Show b) => (a -> b) -> Maybe a -> IO (Maybe a)
+testSolution test solution = case solution of
+  Nothing -> do putStrLn "No solution found"
+                return Nothing
+  Just s  -> do putStrLn $ "Solution: " ++ (show s)
+                putStr "Test: "
+                hFlush stdout 
+                putStrLn $ show $ test s
+                return $ Just s
 
 -- |Solves an encoded constraint system
-solve :: ( Primitive p, Show p
-         , Decode Backend.SAT (EncodedAdt p) a) 
+solve :: (Primitive p, Show p, Decode Backend.SAT (EncodedAdt p) a) 
       => Allocator                                      -- ^Allocator
       -> ConstraintSystem p                             -- ^Encoded constraint system
       -> IO (Maybe a)
 solve allocator constraint = 
   Backend.solve' True $ do 
-    u <- encode allocator
-    --Backend.note $ "Encoded unknown:\n" ++ show u
-    result <- runCache $ simpleProfiling (constraint u)
+    unknown <- encode allocator
+    --Backend.note $ "Encoded unknown:\n" ++ show unknown
+    result <- runCache $ constraint unknown
+    handleResult unknown result
 
-    case E.flags result of
-      Nothing -> do
-        Backend.note "Error: missing flags in constraint system's result (maybe 'undefined' or 'bottom')"
-        return Nothing
+-- |Solves and profiles an encoded constraint system
+solveAndProfile :: (Primitive p, Show p, Decode Backend.SAT (EncodedAdt p) a) 
+      => Allocator                                      -- ^Allocator
+      -> ProfiledConstraintSystem p                     -- ^Encoded constraint system
+      -> IO (Maybe a)
+solveAndProfile allocator constraint = 
+  Backend.solve' True $ do 
+    unknown <- encode allocator
+    --Backend.note $ "Encoded unknown:\n" ++ show unknown
+    result <- runCache $ simpleProfiling $ constraint unknown
+    handleResult unknown result
 
-      Just flags ->
-        case E.constantConstructorIndex result of
-          Just 0 -> do 
-            Backend.note "Known result: unsatisfiable"
-            return Nothing
+handleResult :: (Primitive p, Show p, MonadSAT m, Decode m (EncodedAdt p) a)
+             => EncodedAdt p -> EncodedAdt p -> m (Maybe (m a))
+handleResult unknown result = do
+  case E.flags result of
+    Nothing -> do
+      note "Error: missing flags in constraint system's result (maybe 'undefined' or 'bottom')"
+      return Nothing
 
-          Just 1 -> do 
-            Backend.note "Known result: valid"
-            return Nothing
+    Just flags ->
+      case E.constantConstructorIndex result of
+        Just 0 -> do 
+          note "Known result: unsatisfiable"
+          return Nothing
 
-          Nothing -> do
-            formula <- and [ head flags , E.definedness result ]
-            Backend.note $ "Assertion: " ++ (show formula)
-            assert [ formula ]
-            return $ Just $ decode u 
+        Just 1 -> do 
+          note "Known result: valid"
+          return Nothing
 
-          _ -> do 
-            Backend.note "Error: constraint system did not evaluate to a Boolean"
-            return Nothing
+        Nothing -> do
+          formula <- and [ head flags , E.definedness result ]
+          note $ "Assertion: " ++ (show formula)
+          assert [ formula ]
+          return $ Just $ decode unknown 
+
+        _ -> do 
+          note "Error: constraint system did not evaluate to a Boolean"
+          return Nothing
