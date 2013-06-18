@@ -10,5 +10,4 @@ import CO4.Cache (MonadCache)
 import CO4.Profiling (MonadProfiling)
 
 class (Primitive p, EncodedAdt e p) => EncEq a e p where
-  encEq :: (MonadSAT m, MonadCache (e p) m, MonadProfiling m) 
-        => a -> e p -> e p -> m (e p)
+  encEq :: (MonadSAT m, MonadCache (e p) m) => a -> e p -> e p -> m (e p)
