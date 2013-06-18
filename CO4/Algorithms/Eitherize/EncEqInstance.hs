@@ -9,7 +9,7 @@ import qualified Language.Haskell.TH as TH
 import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
-import           CO4.Names (Namelike,fromName)
+import           CO4.Names (Namelike)
 import           CO4.EncEq (EncEq (..))
 import           CO4.EncodedAdt 
 import           CO4.Algorithms.Eitherize.Names (encodedName)
