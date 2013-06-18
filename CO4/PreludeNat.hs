@@ -23,6 +23,7 @@ import           Satchmo.Core.MonadSAT (MonadSAT)
 import           CO4.EncodedAdt hiding (undefined)
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.Allocator.Common (Allocator,known,constructors)
+import           CO4.Profiling (MonadProfiling,traced)
 import           CO4.EncEq (EncEq(..))
 
 profilePreludeNat = False
@@ -40,7 +41,7 @@ instance (Primitive p, EncodedAdt e p, Decode SAT p Bool) => Decode SAT (e p) Na
     IntermediateConstructorIndex i _ -> return $ fromIntegral i
 
 instance (Primitive p, EncodedAdt e p) => EncEq Nat8 e p where
-  encEq _ a b = encEqNat8 a b
+  encEq _ a b = tracedWhenProfling "==_Nat8" $ encEqNat8 a b
 
 uNat8 :: Allocator
 uNat8 = constructors $ replicate (2^8) $ Just []
@@ -72,22 +73,22 @@ encNat8 :: (Primitive p, EncodedAdt e p, Monad m) => Int -> m (e p)
 encNat8 i = return $ encodedConstructor i (2^8) []
 
 encGtNat8,encGeNat8,encEqNat8,encLeNat8,encLtNat8,encMaxNat8,encMinNat8
-  :: (Primitive p, EncodedAdt e p, MonadSAT m) => e p -> e p -> m (e p)
+  :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) => e p -> e p -> m (e p)
 encGtNat8 = flip encLtNat8
 encGeNat8 = flip encLeNat8
-encEqNat8 = catchInvalid2 $ onFlags 
+encEqNat8 = catchInvalid2 $ onFlags "eqNat8"
   (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and >>= return . make . return)
 
-encLeNat8 = catchInvalid2 $ onFlags $ \a b -> do
+encLeNat8 = catchInvalid2 $ onFlags "leNat8" $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   return $ make [r]
 
-encLtNat8 = catchInvalid2 $ onFlags $ \a b -> do
+encLtNat8 = catchInvalid2 $ onFlags "ltNat8" $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return $ make [l]
 
-encMaxNat8 = catchInvalid2 $ \a b -> do
+encMaxNat8 = catchInvalid2 $ \a b -> tracedWhenProfling "maxNat8" $ do
   result <- replicateM 8 primitive >>= return . make
   [ra] <- liftM flags' $ encEqNat8 result a
   [rb] <- liftM flags' $ encEqNat8 result b
@@ -96,7 +97,7 @@ encMaxNat8 = catchInvalid2 $ \a b -> do
   assert [ g     , rb ]
   return result
 
-encMinNat8 = catchInvalid2 $ \a b -> do
+encMinNat8 = catchInvalid2 $ \a b -> tracedWhenProfling "minNat8" $ do
   result <- replicateM 8 primitive >>= return . make
   [ra] <- liftM flags' $ encEqNat8 result a
   [rb] <- liftM flags' $ encEqNat8 result b
@@ -124,9 +125,9 @@ encComparePrimitives a b = case (a,b) of
     y <- or ys
     return ( y, not y )
 
-encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
+encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) 
             => e p -> e p -> m (e p)
-encPlusNat8 = catchInvalid2 $ onFlags $ \as bs -> do
+encPlusNat8 = catchInvalid2 $ onFlags "plusNat8" $ \as bs -> do
   zs <- addWithCarry 8 (constant False) as bs
   return $ make zs
   where
@@ -145,9 +146,9 @@ encPlusNat8 = catchInvalid2 $ onFlags $ \as bs -> do
           rest <- addWithCarry (w-1) d xs ys
           return $ r : rest
 
-encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
+encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m, MonadProfiling m) 
             => e p -> e p -> m (e p)
-encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
+encTimesNat8 = catchInvalid2 $ onFlags "timesNat8" $ \as bs -> do
   kzs <- product_components (Just 8) as bs
   export (Just 8) kzs
 
@@ -236,9 +237,10 @@ halfAdder p1 p2 = do
   assert [not p2, p3, p4]
   return (p3,p4)
 
-onFlags :: (EncodedAdt e p) => ([p] -> [p] -> m a) -> e p -> e p -> m a
-onFlags f a b = case (flags a, flags b) of
-  (Just as, Just bs) -> f as bs
+onFlags :: (MonadProfiling m, EncodedAdt e p) 
+        => String -> ([p] -> [p] -> m a) -> e p -> e p -> m a
+onFlags name f a b = case (flags a, flags b) of
+  (Just as, Just bs) -> tracedWhenProfling name $ f as bs
   _                  -> error "PreludeNat.onFlags: missing flags"
 
 catchInvalid2 :: (Monad m, EncodedAdt e p) 
@@ -249,3 +251,9 @@ catchInvalid2 f a b =
   else if isBottom a || isBottom b 
        then return bottom
        else f a b
+
+tracedWhenProfling :: (MonadProfiling m) => String -> m a -> m a
+tracedWhenProfling name action = 
+  if profilePreludeNat 
+  then traced name action
+  else action
