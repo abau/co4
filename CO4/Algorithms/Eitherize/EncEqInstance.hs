@@ -6,13 +6,12 @@ where
 import           Prelude hiding (and)
 import           Control.Monad (forM,zipWithM,liftM)
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Core.Primitive (Primitive)
+import           Satchmo.Core.Primitive (Primitive,constant,and)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
 import           CO4.Names (Namelike,fromName)
 import           CO4.EncEq (EncEq (..),EncProfiledEq (..))
 import           CO4.EncodedAdt 
-import           CO4.Algorithms.Eitherize.Names (encodedName)
 import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
@@ -24,22 +23,26 @@ import           CO4.Profiling (traced)
 --
 -- > instance (Primitive p,EncodedAdt e p,EncEq v1 e p,...) 
 -- >  => EncEq (T v1 ...) e p where
--- >   encEq _ x y | isInvalid x = encFalseCons
--- >   encEq _ x y | isInvalid y = encFalseCons
--- >   encEq _ x y = 
--- >     eq00  <- encEq (undefined :: T00) (constructorArgument 0 0 x) 
--- >                                       (constructorArgument 0 0 y)
--- >     eq10  <- encEq (undefined :: T10) (constructorArgument 1 0 x) 
--- >                                       (constructorArgument 1 0 y)
+-- >   encEqPrimitive _ x y | isInvalid x = return (constant False)
+-- >   encEqPrimitive _ x y | isInvalid y = return (constant False)
+-- >   encEqPrimitive _ x y = do
+-- >     let xFlags = flags' x
+-- >         yFlags = flags' y
+-- >
+-- >     eq00  <- encEqPrimitive (undefined :: T00) (constructorArgument 0 0 x) 
+-- >                                                (constructorArgument 0 0 y)
+-- >     eq10  <- encEqPrimitive (undefined :: T10) (constructorArgument 1 0 x) 
+-- >                                                (constructorArgument 1 0 y)
 -- >     ...
 -- >     eq0   <- and [eq00, eq10, eq20, ...]
 -- >     eq1   <- and [eq01, eq11, eq21, ...]
 -- >     ...
 -- >   
--- >     eqY0  <- caseOf y [eq0, encFalseCons, encFalseCons, ...]
--- >     eqY1  <- caseOf y [encFalseCons, eq1, encFalseCons, ...]
+-- >     eqY0  <- caseOfBits yFlags [Just [eq0], Just [constant False], ...]
+-- >     eqY1  <- caseOfBits yFlags [Just [constant False], Just [eq1], ...]
 -- >     ...
--- >     caseOf x [y0, y1, ...]
+-- >     r     <- caseOfBits xFlags [Just y0, Just y1, ...]
+-- >     return (flags' r)
 encEqInstance :: (MonadUnique u, MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
   [x,y,p,e] <- mapM newName ["x","y","p","e"]
@@ -60,11 +63,9 @@ encEqInstance adt@(DAdt name vars conss) = do
 
   let thType            = toTH $ typeOfAdt adt
       mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
-      mkInvalidClause n = mkClause $ TH.GuardedB [
-        ( TH.NormalG $ TH.AppE (TH.VarE 'isInvalid) (varE n)
-        , TH.AppE (TH.VarE 'return) 
-                  (appsE (TH.VarE 'encodedConstructor) 
-                         [intE 0, intE 2, TH.ListE []]))]
+      constantFalse     = appsE' [TH.VarE 'return, TH.VarE 'constant] $ TH.ConE 'False
+      mkInvalidClause n = mkClause $ TH.GuardedB 
+        [( TH.NormalG $ TH.AppE (TH.VarE 'isInvalid) (varE n), constantFalse )]
       clauses = 
          [ mkInvalidClause x
          , mkInvalidClause y
@@ -74,33 +75,46 @@ encEqInstance adt@(DAdt name vars conss) = do
                True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
          ]
   if profiling
-    then return $ instanceHead [funD "encProfiledEq" clauses]
-    else return $ instanceHead [funD "encEq" clauses]
+    then return $ instanceHead [funD "encProfiledEqPrimitive" clauses]
+    else return $ instanceHead [funD "encEqPrimitive" clauses]
 
 encEqBody :: (MonadUnique u,Namelike n) => Bool -> n -> n -> [Constructor] -> u TH.Exp
 encEqBody profiling x y conss = do
+  [xFlags,yFlags,r] <- mapM newName ["xFlags","yFlags","r"]
   (eqJNames, eqIJStmts) <- liftM unzip $ zipWithM eqConstructor [0..] conss
 
   eqYNames  <- forM conss $ const $ newName "eqY"
 
-  let encFalse    = appsE (TH.VarE 'encodedConstructor) [intE 0, intE 2, TH.ListE []]
-      eqYStmt j n = bindS' n $ appsE (TH.VarE 'caseOf) 
-                             $ [varE y, TH.ListE args]
+  let letStmts      = TH.LetS
+                      [ valD' xFlags $ TH.AppE (TH.VarE 'flags') (varE x)
+                      , valD' yFlags $ TH.AppE (TH.VarE 'flags') (varE y)
+                      ]
+      constantFalse = TH.AppE (TH.VarE 'constant) (TH.ConE 'False)
+      just          = TH.AppE (TH.ConE 'Just) 
+      singleton     = TH.ListE . return
+      eqYStmt j n   = bindS' n $ appsE (TH.VarE 'caseOfBits) 
+                               $ [varE yFlags, TH.ListE args]
 
-        where args = replaceAt j (eqJNames !! j) 
-                   $ replicate (length conss) encFalse
+        where args  = replaceAt j (just $ singleton $ eqJNames !! j) 
+                    $ replicate (length conss) 
+                    $ just $ singleton constantFalse
 
-      eqYStmts    = zipWith eqYStmt [0..] eqYNames
+      eqYStmts      = zipWith eqYStmt [0..] eqYNames
 
-      result      = appsE (TH.VarE 'caseOf) [varE x, TH.ListE $ map varE eqYNames]
+      rStmt         = bindS' r $ appsE (TH.VarE 'caseOfBits) 
+                    [ varE xFlags, TH.ListE $ map (just . varE) eqYNames ]
+      result        = appsE' [TH.VarE 'return, TH.VarE 'head] $ varE r
 
-  return $ TH.DoE $ concat eqIJStmts ++ eqYStmts ++ [TH.NoBindS result]
-
+  return $ TH.DoE $ concat 
+    [ [letStmts] 
+    , concat eqIJStmts
+    , eqYStmts 
+    , [rStmt,TH.NoBindS result]
+    ]
   where 
-    
-    eqConstructor _ (CCon _ []) = return (encTrue, [])
+    eqConstructor _ (CCon _ []) = return (constantTrue, [])
       where 
-        encTrue = appsE (TH.VarE 'encodedConstructor) [intE 1, intE 2, TH.ListE []]
+        constantTrue = TH.AppE (TH.VarE 'constant) (TH.ConE 'True)
 
     eqConstructor j (CCon _ args) = do
       eqIJNames <- forM args $ const $ newName "eq"
@@ -108,18 +122,13 @@ encEqBody profiling x y conss = do
 
       let encIJs = zipWith3 (\n i -> eqIJ n i j) eqIJNames [0..] args 
 
-
-          encNil      = appsE (TH.VarE 'encodedConstructor) [ intE 0, intE 2, TH.ListE []]
-          encCons a b = appsE (TH.VarE 'encodedConstructor) [ intE 1, intE 2
-                                                            , TH.ListE [a,b]]
-          eqJ    = bindS' eqJName $ TH.AppE (varE $ encodedName "and") 
-                                  $ foldr encCons encNil
-                                  $ map varE eqIJNames
+          eqJ    = bindS' eqJName $ TH.AppE (TH.VarE 'and) 
+                                  $ TH.ListE $ map varE eqIJNames
 
       return (varE eqJName, encIJs ++ [eqJ])
 
     eqIJ name i j t = 
-      let encEqName = if profiling then 'encProfiledEq else 'encEq
+      let encEqName = if profiling then 'encProfiledEqPrimitive else 'encEqPrimitive
       in
         bindS' name $ appsE (TH.VarE encEqName) 
             [ typedUndefined $ toTH t

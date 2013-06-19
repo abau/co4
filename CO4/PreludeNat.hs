@@ -38,10 +38,10 @@ instance (Primitive p, EncodedAdt e p, Decode SAT p Bool) => Decode SAT (e p) Na
     IntermediateConstructorIndex i _ -> return $ fromIntegral i
 
 instance (Primitive p, EncodedAdt e p) => EncEq Nat8 e p where
-  encEq _ a b = encEqNat8 a b
+  encEqPrimitive _ a b = encEqNat8 a b >>= return . head . flags'
 
 instance (Primitive p, EncodedAdt e p) => EncProfiledEq Nat8 e p where
-  encProfiledEq _ a b = encEqNat8 a b
+  encProfiledEqPrimitive _ a b = encEqNat8 a b >>= return . head . flags'
 
 uNat8 :: Allocator
 uNat8 = constructors $ replicate (2^8) $ Just []

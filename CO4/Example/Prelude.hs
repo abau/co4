@@ -33,4 +33,4 @@ uColor i = constructors [ Just [], Just [], Just [], Just [ uList 3 (uColor (i-1
 
 allocator = uColor 1
 
-result = solveProfileAndTestBoolean allocator encMain main 
+result = solveAndTestBoolean allocator encMain main 
