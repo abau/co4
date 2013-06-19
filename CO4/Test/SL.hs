@@ -30,7 +30,8 @@ import qualified TPDB.Plain.Read as TPDB
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
                         -- , DumpAll "/tmp/sl" 
-                        -- , Profiling
+                        -- , Profile
+                        , Cache
                         ] 
          $ compileFile "CO4/Test/SL.standalone.hs" )
 
@@ -146,7 +147,7 @@ solveTPDB sys = do
                        4 -- num_interpretations
                        2 -- dim for matrices
                        2 -- bits_for_numbers (in matrices)
-  solution <- solveAndTestBooleanP srs alloc encMain main
+  solution <- solveAndTestBooleanP srs booleanCache alloc encMain main
 
   case solution of
     Nothing -> return ()

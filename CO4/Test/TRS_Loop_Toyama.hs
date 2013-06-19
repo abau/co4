@@ -4,7 +4,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
-module CO4.Test.TRS_Loop_Toyama where
+--module CO4.Test.TRS_Loop_Toyama where
+module Main where
 
 import qualified Prelude ; import Prelude (($), (-), (*))
 
@@ -16,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
+$( runIO $ configurable [] $ compileFile "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]
@@ -67,4 +68,6 @@ uLoopingDerivation numSteps numSubst termDepth =
                         ]
                ]
 
-result = solveAndTestBoolean (uLoopingDerivation 3 2 2) encMain main
+result = solveAndTestBoolean Prelude.id (uLoopingDerivation 3 2 2) encMain main
+
+mainz = result

@@ -19,8 +19,9 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ImportPrelude
-                        ,Profiling
+                        --,Profile
                         -- ,DumpAll "/tmp/WCB"
+                        , Cache
                         ] 
          $ compileFile "CO4/Test/WCB.standalone.hs" )
 
@@ -43,7 +44,7 @@ ex0 = [Open,Open
 -- allocator = kList size uBase
 
 result_for sec = 
-    solveAndTestBooleanP sec (kList (length sec) uBase) encMain main
+    solveAndTestBooleanP sec booleanCache (kList (length sec) uBase) encMain main
 
 mainz = do
     hSetBuffering stdout LineBuffering

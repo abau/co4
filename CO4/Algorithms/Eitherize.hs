@@ -29,7 +29,7 @@ import           CO4.Cache (CacheKey (..),withCache)
 import           CO4.Allocator.Common (known)
 import           CO4.Profiling (traced)
 import           CO4.EncEq (encEq,encProfiledEq)
-import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profiling))
+import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
 import           CO4.PreludeNat (encNat8)
 
@@ -72,7 +72,6 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
 type ToplevelName = Name
 data ExpInstantiatorData = ExpInstantiatorData 
   { toplevelNames :: [ToplevelName]
-  , profiling     :: Bool
   , adts          :: [Declaration]
   }
 
@@ -94,7 +93,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
   instantiateCon (ECon n) = return $ varE $ encodedConsName n
 
   instantiateApp (EApp f args) = do
-    args'    <- instantiate args
+    args' <- instantiate args
+    cache <- is Cache
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
       EVar fName -> case fromName fName of
@@ -103,26 +103,32 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           [ECon i] -> return $ TH.AppE (TH.VarE 'encNat8) $ intE $ read $ fromName i
           _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
 
-        _ -> instantiateCachedApp fName args'
+        _ | cache  -> bindAndApplyArgs (\args'' -> 
+                        appsE (TH.VarE 'withCache) 
+                        [ appsE (TH.ConE 'CacheCall) [ stringE $ encodedName fName
+                                                     , TH.ListE args'']
+                        , appsE (varE $ encodedName fName) args''
+                        ]) args'
+        _         -> bindAndApplyArgs (appsE $ varE $ encodedName fName) args'
     where 
-      instantiateCachedApp fName args' = 
-        bindAndApplyArgs (\args'' -> 
-          appsE (TH.VarE 'withCache) 
-          [ appsE (TH.ConE 'CacheCall) [stringE $ encodedName fName, TH.ListE args'']
-          , appsE (varE $ encodedName fName) args''
-          ]) args'
-
       instantiateEq args' = do
-        profiling <- is Profiling
+        profile <- is Profile
+        
 
-        let encName = if profiling then 'encProfiledEq else 'encEq
+        let encName = if profile then 'encProfiledEq else 'encEq
 
         scheme <- liftM toTH $ schemeOfExp $ head args
-        bindAndApplyArgs (\args'' -> 
-          appsE (TH.VarE 'withCache) 
-          [ appsE (TH.ConE 'CacheCall) [stringE "==", TH.ListE args'']
-          , appsE (TH.VarE encName) $ typedUndefined scheme : args''
-          ]) args'
+
+        is Cache >>= \case
+          False -> bindAndApplyArgs (\args'' -> appsE (TH.VarE encName) 
+                                              $ typedUndefined scheme : args''
+                                    ) args'
+
+          True  -> bindAndApplyArgs (\args'' -> 
+                    appsE (TH.VarE 'withCache) 
+                    [ appsE (TH.ConE 'CacheCall) [stringE "==", TH.ListE args'']
+                    , appsE (TH.VarE encName) $ typedUndefined scheme : args''
+                    ]) args'
 
   instantiateCase (ECase e ms) = do
     e'Name <- newName "bindCase"
@@ -134,16 +140,20 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
     if lengthOne ms'
       then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
 
-      else do caseOfE <- bindAndApply 
-                (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
-                (\exps -> appsE (TH.VarE 'withCache)
-                            [ appsE (TH.ConE 'CacheCase) exps
-                            , appsE (TH.VarE 'caseOf) exps 
-                            ]
-                ) ms'
+      else do 
+        caseOfE <- is Cache >>= \case
+          False -> bindAndApply 
+                     (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
+                     (appsE $ TH.VarE 'caseOf) ms'
+          True  -> bindAndApply 
+                    (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
+                    (\exps -> appsE (TH.VarE 'withCache)
+                                [ appsE (TH.ConE 'CacheCase) exps
+                                , appsE (TH.VarE 'caseOf) exps 
+                                ]
+                    ) ms'
 
-              return $ TH.DoE [ binding, TH.NoBindS $ checkValidity e'Name 
-                                                    $ caseOfE ]
+        return $ TH.DoE [ binding, TH.NoBindS $ checkValidity e'Name $ caseOfE ]
     where 
       -- Instantiate matches
       instantiateMatches e'Name matches =
@@ -215,7 +225,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
   instantiateBind (DBind (Binding name exp)) = do
     name'        <- instantiateName name
     exp'         <- instantiate exp
-    profiledExp' <- asks profiling >>= return . \case 
+    profiledExp' <- is Profile >>= return . \case 
       False -> exp'
       True  -> case exp' of
         TH.LamE patterns exp'' -> TH.LamE patterns 
@@ -225,8 +235,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
 -- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
 -- @prof@ enables profiling.
-eitherize :: (MonadUnique u,MonadConfig u) => Bool -> Program -> u [TH.Dec]
-eitherize profiling program = do
+eitherize :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+eitherize program = do
   typedProgram <- schemes program
   withPrelude  <- is ImportPrelude
 
@@ -241,7 +251,7 @@ eitherize profiling program = do
   decls   <- execWriterT $ runAdtInstantiator $ collect adts
   values' <- liftM concat $ runReaderT 
                 (runExpInstantiator $ instantiate $ map DBind pFuns)
-                (ExpInstantiatorData toplevelNames profiling adts)
+                (ExpInstantiatorData toplevelNames adts)
                          
   return $ {-deleteSignatures $-} decls ++ values'
 

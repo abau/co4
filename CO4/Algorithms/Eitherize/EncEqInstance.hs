@@ -16,7 +16,7 @@ import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
-import           CO4.Config (MonadConfig,Config(Profiling),is)
+import           CO4.Config (MonadConfig,Config(Profile),is)
 import           CO4.Profiling (traced)
 
 -- |Generates a @EncEq@ instance
@@ -46,9 +46,9 @@ import           CO4.Profiling (traced)
 encEqInstance :: (MonadUnique u, MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
   [x,y,p,e] <- mapM newName ["x","y","p","e"]
-  profiling <- is Profiling
+  profile   <- is Profile
 
-  let instanceName = if profiling then ''EncProfiledEq else ''EncEq
+  let instanceName = if profile then ''EncProfiledEq else ''EncEq
       predicates   = primitive : encAdt : encEqs
         where 
           encEqs       = for vars $ \v -> TH.ClassP instanceName 
@@ -59,7 +59,7 @@ encEqInstance adt@(DAdt name vars conss) = do
       instanceHead = TH.InstanceD predicates 
                    $ appsT (TH.ConT instanceName) [ appsT (conT name) $ map varT vars
                                                   , varT e, varT p ]
-  body <- encEqBody profiling x y conss 
+  body <- encEqBody profile x y conss 
 
   let thType            = toTH $ typeOfAdt adt
       mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -70,16 +70,16 @@ encEqInstance adt@(DAdt name vars conss) = do
          [ mkInvalidClause x
          , mkInvalidClause y
          , mkClause $ TH.NormalB $
-             case profiling of 
+             case profile of 
                False -> body
                True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
          ]
-  if profiling
+  if profile
     then return $ instanceHead [funD "encProfiledEqPrimitive" clauses]
     else return $ instanceHead [funD "encEqPrimitive" clauses]
 
 encEqBody :: (MonadUnique u,Namelike n) => Bool -> n -> n -> [Constructor] -> u TH.Exp
-encEqBody profiling x y conss = do
+encEqBody profile x y conss = do
   [xFlags,yFlags,r] <- mapM newName ["xFlags","yFlags","r"]
   (eqJNames, eqIJStmts) <- liftM unzip $ zipWithM eqConstructor [0..] conss
 
@@ -128,7 +128,7 @@ encEqBody profiling x y conss = do
       return (varE eqJName, encIJs ++ [eqJ])
 
     eqIJ name i j t = 
-      let encEqName = if profiling then 'encProfiledEqPrimitive else 'encEqPrimitive
+      let encEqName = if profile then 'encProfiledEqPrimitive else 'encEqPrimitive
       in
         bindS' name $ appsE (TH.VarE encEqName) 
             [ typedUndefined $ toTH t

@@ -24,4 +24,4 @@ $( [d|
 
 allocator = uTuple2 uNat8 uNat8
 
-result p = solveAndTestBooleanP (nat8 p) allocator encMain main 
+result p = solveAndTestBooleanP (nat8 p) id allocator encMain main 

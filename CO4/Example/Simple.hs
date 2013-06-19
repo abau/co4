@@ -8,7 +8,7 @@
 module CO4.Example.Simple
 where
 
-import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.))
+import           Prelude (undefined,(>>=),error,Show (..),putStrLn,(.),id)
 import qualified Data.Maybe as M
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
@@ -31,4 +31,4 @@ $( [d| data Bool = False | True
 
 allocator = constructors [ M.Just [] , M.Just [] ]
 
-result = solveAndTestBooleanP True allocator encMain main 
+result = solveAndTestBooleanP True id allocator encMain main 

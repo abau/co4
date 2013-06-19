@@ -109,7 +109,7 @@ dumpAfterStage' stage program = do
 compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
                  => Program -> m [TH.Dec]
 compileToSatchmo program = do
-  thProgram <- flip eitherize program =<< is Profiling
+  thProgram <- eitherize program 
 
   C.dumpAfterStage stageSatchmo $ show $ TH.ppr thProgram
   C.dumpAfterStage stageSatchmoUnqualified 
