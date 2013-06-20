@@ -43,7 +43,7 @@ implements addition and multiplication of binary values:
             True  -> withCarry (add b) shiftResult
     ...
 
-The toplevel constraint `main r (a,b)` is satisfied if 
+The toplevel constraint `constraint r (a,b)` is satisfied if 
 
  - `a * b = r` (without an overflow) and
  - `a > 1` and
@@ -51,7 +51,7 @@ The toplevel constraint `main r (a,b)` is satisfied if
 
 So:
 
-    main r (a,b) = case mult a b of
+    constraint r (a,b) = case mult a b of
       (result,carry) -> and [ result == r
                             , not (trivial a)
                             , not (trivial b)
@@ -83,23 +83,23 @@ As `main` is a constraint over a pair of naturals, the final allocator is
 
 Finally, we want to solve the compiled constraint system `encMain`.
 CO4 provides several solving functions, e.g.
-`solveAndTestBooleanP :: (...) => k -> Allocator -> ParamConstraintSystem Boolean -> (k -> a -> b) -> IO (Maybe a)`
+`solveAndTestBooleanP :: [...] -> k -> Allocator -> ParamConstraintSystem m Boolean -> (k -> a -> b) -> IO (Maybe a)`
 solves a parametrized constraint system with 
 
  - `k` being the parameter
  - `(k -> a -> b)` being the original constraint system. The found solution is
  checked against this function in order to verify the solution.
 
-In the `main` constraint we seek a factorization for a given natural number `x` of
-bit width `bitWidth` using the previously defined allocators:
+In the main `constraint` we seek a factorization for a given natural number `x` of
+bit-width `bitWidth` using the previously defined allocators:
 
-    solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) allocator encMain main 
+    solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache allocator encMain main 
 
 If there is a factorization, we want to decode the factors to decimal numbers:
 
     result :: Int -> IO (Maybe (Int,Int))
     result x = do
-      solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) allocator encMain main 
+      solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache allocator encMain main 
       case solution of
         Nothing    -> return Nothing
         Just (a,b) -> return $ Just (fromBinary a, fromBinary b)
