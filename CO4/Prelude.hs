@@ -3,6 +3,7 @@ module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedFunctionNames, unparsedPreludeContext
   , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
   , module CO4.PreludeNat
+  , module CO4.EncEq
   )
 where
 
@@ -16,6 +17,7 @@ import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.Allocator.Common (constructors)
 import           CO4.PreludeNat
+import           CO4.EncEq
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
