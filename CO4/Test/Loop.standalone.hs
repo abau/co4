@@ -9,10 +9,15 @@ type SRS = [ Rule ]
 
 -- * top level constraint
 
-main :: SRS -> Derivation -> Bool
-main srs d = 
+data Looping_Derivation =
+     Looping_Derivation Word [Step] Word
+
+main :: SRS -> Looping_Derivation -> Bool
+main srs ld = case ld of 
+    Looping_Derivation pre d suf -> 
         conformant srs d
-    &&  isInfix (start d) (result d)
+        -- &&  isInfix (start d) (result d)
+        && eqWord (pre ++ start d ++ suf) (result d)
 
 isInfix xs ys = 
     any ( \ zs -> isPrefixOf xs zs) (tails ys)
@@ -21,7 +26,7 @@ isPrefixOf xs ys = case xs of
     [] -> True
     x:xs' -> case ys of
         [] -> False
-        y:ys' -> (x == y) && isPrefixOf xs' ys'
+        y:ys' -> (eqSym x y) && isPrefixOf xs' ys'
 
 tails xs = xs : case xs of
     [] -> []
@@ -58,7 +63,7 @@ result steps = case steps of
     [] -> undefined
     x : ys -> case ys of 
         [] -> right_value x
-        y : zs -> case right_value x == left_value y of
+        y : zs -> case eqWord (right_value x) (left_value y) of
             False -> undefined
             True  -> result ys
 
@@ -68,6 +73,23 @@ conformant srs steps =
           Step p u s -> elemRule u srs ) steps
 
 elemRule u srs = 
-    any ( \ v -> u == v ) srs
+    any ( \ v -> eqRule u v ) srs
 
+-- * argh
+
+eqRule u v = case u of
+    (u1,u2) -> case v of
+        (v1,v2) -> eqWord u1 v1 && eqWord u2 v2
+eqWord = eqList eqSym
+eqSym = eqList eqBool
+
+eqBool x y = case x of
+    False -> not y
+    True -> y    
+
+eqList comp xs ys = case xs of
+    [] -> case ys of []  -> True ;  _ -> False
+    x : xs' -> case ys of
+        [] -> False
+        y : ys' -> comp x y && eqList comp xs' ys'
 
