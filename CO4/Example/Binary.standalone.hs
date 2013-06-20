@@ -3,7 +3,7 @@ module Binary where
 type Bit = Bool
 type Nat = [Bit]
 
-main r (a,b) = case mult a b of
+constraint r (a,b) = case mult a b of
   (result,carry) -> and [ result == r
                         , not (trivial a)
                         , not (trivial b)

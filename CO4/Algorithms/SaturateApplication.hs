@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import           CO4.Language
 import           CO4.Unique
 import           CO4.Names
-import           CO4.Util (programDeclarations,mainName,programFromDeclarations)
+import           CO4.Util (programDeclarations,programFromDeclarations)
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)
 import           CO4.Algorithms.Util (sanitize,eraseTypedNames)
 import           CO4.Algorithms.Instantiator
@@ -77,5 +77,5 @@ saturateApplication program = do
                                          $ programDeclarations typedProgram) 
                         M.empty
   return $ eraseTypedNames 
-         $ programFromDeclarations (mainName program) 
+         $ programFromDeclarations  
          $ program' ++ decls'

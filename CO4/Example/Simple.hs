@@ -24,11 +24,11 @@ $( [d| data Bool = False | True
         False -> False
         True  -> y
 
-       main p x = and p (not x)
+       constraint p x = and p (not x)
 
    |] >>= runIO . configurable [] . compile 
   )
 
 allocator = constructors [ M.Just [] , M.Just [] ]
 
-result = solveAndTestBooleanP True id allocator encMain main 
+result = solveAndTestBooleanP True id allocator encConstraint constraint

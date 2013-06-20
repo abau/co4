@@ -20,7 +20,7 @@ $( [d|
                | Blue
                | Mix [Color]
 
-    main c = case c of
+    constraint c = case c of
       Blue  -> True
       Mix m -> m == [ Green , Blue ]
       _     -> False
@@ -33,4 +33,4 @@ uColor i = constructors [ Just [], Just [], Just [], Just [ uList 3 (uColor (i-1
 
 allocator = uColor 1
 
-result = solveAndTestBoolean allocator encMain main 
+result = solveAndTestBoolean id allocator encConstraint constraint

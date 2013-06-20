@@ -7,8 +7,7 @@ import           Data.List (partition,find)
 import           Data.Maybe (mapMaybe)
 import           Text.Read (readEither)
 import           CO4.Language
-import           CO4.Names
-import           CO4.PPrint
+import           CO4.Names as N
 import           CO4.TypesUtil (countTCon)
 
 -- |Gets all declarations of a program
@@ -27,13 +26,14 @@ mainName :: Program -> Name
 mainName = boundName . pMain
 
 -- |Builds a program from a list of declarations. Fails if main binding is not found.
-programFromDeclarations :: Name -> [Declaration] -> Program
-programFromDeclarations mainName decls  = case partition isMain decls of
+programFromDeclarations :: [Declaration] -> Program
+programFromDeclarations decls  = case partition isMain decls of
   ([DBind main],rest) -> Program main rest
-  ([],_) -> error $ "Util.programFromDeclarations: no top-level '" ++ show (pprint mainName) ++ "' binding found"
-  (_,_)  -> error $ "Util.programFromDeclarations: multiple top-level '" ++ show (pprint mainName) ++ "' bindings found"
+  ([],_) -> error $ "Util.programFromDeclarations: no top-level binding '" ++ N.mainName ++ "' or '" ++ deprecatedMainName ++ "' found"
+  (_,_)  -> error $ "Util.programFromDeclarations: multiple top-level bindings '" ++ N.mainName ++ "' or '" ++ deprecatedMainName ++ "' found"
   
-  where isMain (DBind (Binding name _)) = name == mainName 
+  where isMain (DBind (Binding name _)) = name == N.mainName 
+                                       || name == deprecatedMainName
         isMain _                        = False
 
 -- |Finds a top-level binding by its name

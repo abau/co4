@@ -37,7 +37,7 @@ instance SchemeFrontend TH.Type where
 -}
 
 parseTHDeclarations :: [TH.Dec] -> Program
-parseTHDeclarations = programFromDeclarations (name "main") . map parseTHDeclaration
+parseTHDeclarations = programFromDeclarations . map parseTHDeclaration
 
 parseTHDeclaration :: TH.Dec -> Declaration
 parseTHDeclaration dec = case dec of

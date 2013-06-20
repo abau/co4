@@ -90,7 +90,7 @@ schemesConfig hmConfig context program = do
 
   if (null $ boundInScheme schemeOfMain) || (not $ errorOnPolymorphicMain hmConfig)
     then return $ runIdentity $ runTypeApp $ instantiateProgram program'
-    else error $ "Algorithms.HindleyMilner: main must not have the polymorphic type '" ++ show (pprint schemeOfMain) ++ "'"
+    else error $ "Algorithms.HindleyMilner: main-constraint must not have the polymorphic type '" ++ show (pprint schemeOfMain) ++ "'"
 
 -- | While introducing explicit type applications, we apply an instantiated
 -- type @t@ to polymorphic function symbols in the first place:
@@ -226,8 +226,7 @@ wProgram context program = do
               return (s ++ s', ctxt', bg' ++ valueDecls')
           ) ([],context',[]) bgs
 
-  return $ programFromDeclarations   (mainName program) 
-                                   $ typeDecls ++ (map DBind valueDecls')
+  return $ programFromDeclarations $ typeDecls ++ (map DBind valueDecls')
 
 -- |Annotates the schemes to a mutually recursive binding group 
 wBindingGroup :: MonadUnique u => Context -> BindingGroup 

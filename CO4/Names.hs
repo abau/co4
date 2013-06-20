@@ -3,7 +3,7 @@
 -- |Namelike definitions
 module CO4.Names 
   ( Namelike (..), convertName, funName, listName, consName, eqName, tupleName
-  , nat8Name, nat8TypeName, intName, boolName
+  , nat8Name, nat8TypeName, intName, boolName, mainName, deprecatedMainName
   )
 where
 
@@ -72,3 +72,9 @@ intName = readName "Int"
 
 boolName :: Namelike n => n
 boolName = readName "Bool"
+
+mainName :: Namelike n => n
+mainName = readName "constraint"
+
+deprecatedMainName :: Namelike n => n
+deprecatedMainName = readName "main"

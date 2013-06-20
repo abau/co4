@@ -25,7 +25,7 @@ allocator = uTuple2 uNat uNat
 result :: Int -> IO (Maybe (Int,Int))
 result x = do
   solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache
-                                   allocator encMain main 
+                                   allocator encConstraint constraint
   case solution of
     Nothing    -> return Nothing
     Just (a,b) -> return $ Just (fromBinary a, fromBinary b)

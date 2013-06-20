@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromMaybe,mapMaybe)
 import           CO4.Language
-import           CO4.Util (programDeclarations,programFromDeclarations,mainName)
+import           CO4.Util (programDeclarations,programFromDeclarations)
 import           CO4.Unique (MonadUnique,newName,originalName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
@@ -130,7 +130,7 @@ instantiation maxDepth program = do
   return $ eraseTypedNames
          $ collapseApplications 
          $ collapseAbstractions
-         $ programFromDeclarations (mainName program) 
+         $ programFromDeclarations
          $ p' ++ (map DBind $ instances state)
    
 freeNames :: (MonadUnique u,MonadConfig u) => Expression -> Instantiator u [Name]
