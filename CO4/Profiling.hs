@@ -6,10 +6,10 @@ module CO4.Profiling
   (MonadProfiling (..), SimpleProfiling, simpleProfiling)
 where
 
-import           Control.Monad.State
+import           Control.Monad.State.Strict
 import           Data.List (sortBy)
 import           Data.Function (on)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import           Satchmo.Core.MonadSAT (MonadSAT)
 import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache (MonadCache (..))
@@ -18,9 +18,9 @@ import           CO4.Cache (MonadCache (..))
 class MonadSAT m => MonadProfiling m where
   traced :: String -> m a -> m a
 
-data ProfileData = ProfileData { numCalls     :: Int
-                               , numVariables :: Int
-                               , numClauses   :: Int
+data ProfileData = ProfileData { numCalls     :: ! Int
+                               , numVariables :: ! Int
+                               , numClauses   :: ! Int
                                } 
                                deriving Show
 
@@ -29,11 +29,11 @@ nullProfileData = ProfileData 0 0 0
 
 type ProfileMap = M.Map String ProfileData
 
-data Profile = Profile { innerUnder      :: ProfileMap
-                       , inner           :: ProfileMap
-                       , currentFunction :: String
-                       , currentInner    :: ProfileData
-                       , stackDepth      :: Int
+data Profile = Profile { innerUnder      :: ! ProfileMap
+                       , inner           :: ! ProfileMap
+                       , currentFunction :: ! String
+                       , currentInner    :: ! ProfileData
+                       , stackDepth      :: ! Int
                        }
 
 nullProfile :: Profile
@@ -58,11 +58,11 @@ newtype SimpleProfiling m a = SimpleProfiling
 
 instance MonadSAT m => MonadSAT (SimpleProfiling m) where
   fresh = do
-    modify $ onCurrentInner $ \p -> p { numVariables = succ $ numVariables p }
+    modify $! onCurrentInner $! \p -> p { numVariables = succ $ numVariables p }
     lift MonadSAT.fresh
 
   emit clause = do 
-    modify $ onCurrentInner $ \p -> p { numClauses = succ $ numClauses p }
+    modify $! onCurrentInner $! \p -> p { numClauses = succ $ numClauses p }
     lift $ MonadSAT.emit clause
 
   note         = lift . MonadSAT.note
@@ -74,14 +74,14 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
     writeCurrentInner
     previous <- gets currentFunction
 
-    modify $ setCurrentFunction name
+    modify $! setCurrentFunction name
 
-    modify $ onInner $ M.alter 
+    modify $! onInner $! M.alter 
       (\case Nothing -> Just $ ProfileData 1 0 0
              Just p  -> Just $ p { numCalls = succ $ numCalls p }) name
 
     --sd     <- gets stackDepth
-    modify $ onStackDepth succ
+    modify $! onStackDepth succ
 
     v1     <- MonadSAT.numVariables
     c1     <- MonadSAT.numClauses
@@ -90,8 +90,8 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
     c2     <- MonadSAT.numClauses
 
     writeCurrentInner
-    modify $ setCurrentFunction previous
-    modify $ onInnerUnder $ M.alter
+    modify $! setCurrentFunction previous
+    modify $! onInnerUnder $ M.alter
       ( \case Nothing -> Just $ ProfileData 1 (v2 - v1) (c2 - c1)
               Just p  -> Just $ p { numCalls     = numCalls     p + 1
                                   , numVariables = numVariables p + (v2 - v1)
@@ -99,7 +99,7 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
                                   }
       ) name 
 
-    modify $ onStackDepth pred
+    modify $! onStackDepth pred
     return result
 
     where
@@ -107,15 +107,15 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
         fun   <- gets currentFunction
         pData <- gets currentInner
 
-        modify $ onInner $ M.alter
+        modify $! onInner $! M.alter
           ( \case Nothing -> Just pData 
-                  Just p  -> Just $ 
+                  Just p  -> Just $! 
                     p { numCalls     = numCalls     p + numCalls     pData
                       , numVariables = numVariables p + numVariables pData
                       , numClauses   = numClauses   p + numClauses   pData
                       }
           ) fun
-        modify $ onCurrentInner $ const nullProfileData
+        modify $! onCurrentInner $! const nullProfileData
 
 instance MonadCache p m => MonadCache p (SimpleProfiling m) where
   retrieve = lift . retrieve
