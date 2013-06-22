@@ -15,11 +15,14 @@ import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
+import qualified Data.Map as M
+import Control.Monad ( void, forM )
+
 import System.Environment (getArgs)
 import System.IO
 
-$( runIO $ configurable [ImportPrelude
-                        -- ,DumpAll "/tmp/WCB"
+$( runIO $ configurable [ ImportPrelude
+                        -- , DumpAll "/tmp/WCB"
                         , Cache
                         , Profile
                         ] 
@@ -59,14 +62,19 @@ ex0 = [ Open, Open
       , Close , Close, Blank 
       ]
 
-result_for sec = 
-    solveAndTestBooleanP 
+result_for sec = do
+    out <- solveAndTestBooleanP 
        sec 
        ( booleanCache  .  profile )
        ( known 0 1 [ balanced sec ( const uBase)
                    , uTriag [1..length sec] uEnergy
                    ] )
        encMain main
+    case out of
+       Nothing -> print "Nothing"
+       Just (p, m) -> do
+           print $ elems p
+           void $ forM ( elems m ) $ (print . elems)
 
 mainz = do
     hSetBuffering stdout LineBuffering

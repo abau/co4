@@ -6,6 +6,7 @@ import CO4.Test.WCB_Nat8
 
 main = main_simple
 
+
 type Matrix a = Tree (Tree a)
 
 -- | additional parameter t is the ADP matrix
@@ -14,11 +15,9 @@ type Matrix a = Tree (Tree a)
 main_simple :: Secondary 
             -> (Primary, Matrix Energy)
             -> Bool
-main_simple s (p, t) = True ||
-   (  maxbound_ok MinusInfinity (Finite (nat8 0)) 
-             plus times eqEnergy cost p t
-    && geEnergy (bound p s) (rightmost (leftmost t ))
-   )
+main_simple s (p, t) = 
+       ( geEnergy (bound p s) (rightmost (leftmost t )) )
+    && ( maxbound_ok MinusInfinity (Finite (nat8 0)) plus times eqEnergy cost p t )
 
 {-
 main_with_stability s p = case maxbound_double p of
@@ -67,8 +66,8 @@ assocs :: Tree a -> [(Index,a)]
 assocs t = case t of
     Leaf x -> [ ([], x) ]
     Branch l r -> 
-        map ( \ (k,v) -> (False:k,v)) (assocs l)
-     ++ map ( \ (k,v) -> (True :k,v)) (assocs r)
+        map ( \ (k,v) -> ((False:k),v)) (assocs l)
+     ++ map ( \ (k,v) -> ((True :k),v)) (assocs r)
 
 elems :: Tree a -> [a]
 elems t = map snd ( assocs t )
@@ -85,17 +84,17 @@ subtree t w = case w of
                 False -> l
                 True  -> r ) xs
 
-apply :: Tree a -> Index -> a
-apply t w = case t of
+applyI :: Tree a -> Index -> a
+applyI t w = case t of
     Leaf u -> u
     Branch l r -> case w of
         [] -> undefined
-        x:xs -> apply (case x of
+        x:xs -> applyI (case x of
             False -> l
             True  -> r ) xs
 
 get :: Tree (Tree a) -> Index -> Index -> a
-get t i j = apply (apply t i) j
+get t i j = applyI (applyI t i) j
 
 -- | explicit binary encoding for bases
 data Base = Base [Bool] -- of length 2
@@ -107,7 +106,7 @@ u = Base [True, True]
 
 applyB :: Base -> Tree a -> a
 applyB b t = case b of
-    Base bits -> apply t bits
+    Base bits -> applyI t bits
 
 cost :: Base -> Base -> Energy
 cost b1 b2 = applyB b2 ( applyB b1 costT )
@@ -168,6 +167,7 @@ minEnergy a b = case geEnergy a b of
     False -> a
     True  -> b
 
+eqEnergy :: Energy -> Energy -> Bool
 eqEnergy a b = case a of
     MinusInfinity -> case b of
         MinusInfinity -> True
@@ -176,8 +176,10 @@ eqEnergy a b = case a of
         MinusInfinity -> False
         Finite g -> (geNat8 f g) && (leNat8 f g)
 
+gtEnergy :: Energy -> Energy -> Bool
 gtEnergy a b = not (geEnergy b a)
 
+geEnergy :: Energy -> Energy -> Bool
 geEnergy a b = case b of
   MinusInfinity -> True
   Finite b' -> case a of 
@@ -222,7 +224,7 @@ parse stack p s = case s of
 -- | check that the given matrix is the correct ADP
 -- matrix for the computation of the max. energy
 
-
+{-
 maxbound_ok
          :: e -- ^ semi-ring zero (= forbidden energy)
          -> e -- ^ semi-ring one (= zero enery)
@@ -233,40 +235,58 @@ maxbound_ok
          -> Primary 
          -> Matrix e
          -> Bool
+-}
 maxbound_ok zero one plus times eq cost p t = 
-    forall (indices p) ( \ start ->
-    forall (indices p) ( \ end ->
-        (lessI end start) ||
-            eq (get t start end)
-                ( foldr plus one
-                 ( group times cost p t start end
-                 : splittings times cost p t start end)
-                )
-    ))
+    foreach (indices p) ( \ start ->
+    foreach (indices p) ( \ end ->
+        eq (get t start end)
+         (case lessI end start of
+             True -> zero
+             False -> case lessI start end of
+                False -> one
+                True -> 
+                  ( foldr plus 
+                    (group times cost p t start end)
+                    (splittings times cost p t start end)
+                  )
+    )))
 
-forall xs prop = all prop xs
 
+foreach :: [a] -> (a -> Bool) -> Bool
+foreach xs prop = all prop xs
+
+{-
 group :: (e -> e -> e) 
       -> (Base -> Base -> e)
       -> Primary
       -> Matrix e
       -> Index -> Index 
       -> e
+-}
 group times cost p t start end = 
-    times (cost (apply p start) (apply p end))
+    times (cost (applyI p start) (applyI p end))
           (get t (next p start) (previous p end))
 
 
 -- | energies from all splits 
 -- (in two non-empty parts)
+{-
+splittings :: (e -> e -> e) 
+      -> (Base -> Base -> e)
+      -> Primary
+      -> Matrix e
+      -> Index -> Index 
+      -> [e]
+-}
 splittings times cost p t start end =
     map ( \ mid -> 
               times (get t start mid)
                     (get t (next p mid) end)
         ) ( between p start end )
 
+between :: Tree a -> Index -> Index -> [ Index ]
 between p start end = 
-    filter ( \ q -> lessI start q && lessI q end )
+    filter ( \ q -> ( lessI start q && lessI q end ))
            ( indices p )
 
 
@@ -301,7 +321,7 @@ previous t p = case decrementI p of
     q : qs  -> rightmostI ( subtree t (q:qs) )
 
         
-    
+{-    
 
 
 -- | balanced binary fold 
@@ -319,3 +339,4 @@ distribute xs = case xs of
     [] -> ( [], [] )
     x:xs' -> case distribute xs' of (ys,zs) -> (x : zs, ys)
 
+-}
