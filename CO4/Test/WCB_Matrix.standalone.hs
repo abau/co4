@@ -289,36 +289,36 @@ between p start end =
     filter ( \ q -> ( lessI start q && lessI q end ))
            ( indices p )
 
+data Maybe' a = Nothing' | Just' a
 
--- | return [] for overflow
-incrementI :: Index -> Index
+incrementI :: Index -> Maybe' Index
 incrementI i = case i of
-    [] -> undefined
+    [] -> Nothing'
     x : xs -> case incrementI xs of
-         [] -> case x of
-              False -> [ True ]
-              True -> []
-         ys -> x : ys
+         Nothing' -> case x of
+              False -> Just' [ True ]
+              True -> Nothing'
+         Just' ys -> Just' (x : ys)
 
 -- | return [] for overflow
-decrementI :: Index -> Index
+decrementI :: Index -> Maybe' Index
 decrementI i = case i of
-    [] -> undefined
+    [] -> Nothing'
     x : xs -> case decrementI xs of
-         [] -> case x of
-              False -> [ ]
-              True -> [False]
-         ys -> x : ys
+         Nothing' -> case x of
+              False -> Nothing'
+              True -> Just' [False]
+         Just' ys -> Just' (x : ys)
 
 next  :: Tree a -> Index -> Index
 next t p = case incrementI p of
-    [] -> undefined
-    q : qs  -> leftmostI ( subtree t (q:qs) )
+    Nothing' -> undefined
+    Just' qs  -> qs ++ leftmostI ( subtree t qs )
 
 previous :: Tree a -> Index -> Index
 previous t p = case decrementI p of
-    [] -> undefined
-    q : qs  -> rightmostI ( subtree t (q:qs) )
+    Nothing' -> undefined
+    Just' qs  -> qs ++ rightmostI ( subtree t qs )
 
         
 {-    
