@@ -20,7 +20,8 @@ import System.IO
 
 $( runIO $ configurable [ImportPrelude
                         -- ,DumpAll "/tmp/WCB"
-                        , Cache, Profile
+                        , Cache
+                        , Profile
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
 
@@ -28,18 +29,20 @@ $( runIO $ configurable [ImportPrelude
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
+-- data Base = Base [Bool]
 uBase = known 0 1 [ kList 2 uBool ]
-
 
 -- balanced binary encoding (create prefix code)
 -- balanced :: [a] -> Tree a
 balanced xs f = case xs of
-    [x] -> known 0 2 [ leaf x ]
+    [x] -> known 0 2 [ f x ]
     _ -> let (pre, post) = splitAt (div (length xs) 2)
                            xs
          in  known 1 2 [ balanced pre f 
                        , balanced post f
                        ]
+
+uEnergy = constructors [ Just [] , Just [ uNat8 ]]
 
 uTriag xs e = balanced xs $ \ x ->
               balanced xs $ \ y -> 
@@ -59,8 +62,8 @@ ex0 = [ Open, Open
 result_for sec = 
     solveAndTestBooleanP 
        sec 
-       ( booleanCache . profile ) 
-       ( known 0 1 [ kList (length sec) uBase
+       ( booleanCache  .  profile )
+       ( known 0 1 [ balanced sec ( const uBase)
                    , uTriag [1..length sec] uEnergy
                    ] )
        encMain main

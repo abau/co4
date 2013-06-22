@@ -10,6 +10,12 @@ nat8 i = Nat8 i
 geNat8 :: Nat8 -> Nat8 -> Bool 
 geNat8 (Nat8 a) (Nat8 b) = a >= b
 
+leNat8 :: Nat8 -> Nat8 -> Bool 
+leNat8 (Nat8 a) (Nat8 b) = a <= b
+
+eqNat8 :: Nat8 -> Nat8 -> Bool 
+eqNat8 (Nat8 a) (Nat8 b) = a == b
+
 maxNat8 :: Nat8 -> Nat8 -> Nat8 
 maxNat8 (Nat8 a) (Nat8 b) = Nat8 (max a b)
 

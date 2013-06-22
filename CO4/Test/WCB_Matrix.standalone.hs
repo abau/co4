@@ -14,8 +14,11 @@ type Matrix a = Tree (Tree a)
 main_simple :: Secondary 
             -> (Primary, Matrix Energy)
             -> Bool
-main_simple s (p, t) = True 
-    || geEnergy (bound p s) (maxbound_single p t)
+main_simple s (p, t) = True ||
+   (  maxbound_ok MinusInfinity (Finite (nat8 0)) 
+             plus times eqEnergy cost p t
+    && geEnergy (bound p s) (rightmost (leftmost t ))
+   )
 
 {-
 main_with_stability s p = case maxbound_double p of
@@ -29,17 +32,38 @@ main_with_stability s p = case maxbound_double p of
 data Tree a = Leaf a 
            | Branch (Tree a) (Tree a) 
 
+type Index = [Bool]
+
+lessI xs ys = case xs of
+    [] -> case ys of
+        []  -> False
+        _ -> True
+    x:xs -> case ys of
+        [] -> False
+        y:ys -> (not x && y) 
+             || ((not x || y) && lessI xs ys )
+
 leftmost :: Tree a -> a
 leftmost t = case t of
      Leaf x -> x
      Branch l r -> leftmost l
+
+leftmostI :: Tree a -> Index
+leftmostI t = case t of
+     Leaf x -> []
+     Branch l r -> False : leftmostI l
 
 rightmost :: Tree a -> a
 rightmost t = case t of
      Leaf x -> x
      Branch l r -> rightmost r
 
-assocs :: Tree a -> [([Bool],a)]
+rightmostI :: Tree a -> Index
+rightmostI t = case t of
+     Leaf x -> []
+     Branch l r -> True : rightmostI r
+
+assocs :: Tree a -> [(Index,a)]
 assocs t = case t of
     Leaf x -> [ ([], x) ]
     Branch l r -> 
@@ -49,10 +73,19 @@ assocs t = case t of
 elems :: Tree a -> [a]
 elems t = map snd ( assocs t )
 
-indices :: Tree a -> [ [Bool]]
+indices :: Tree a -> [Index]
 indices t = map fst ( assocs t )
 
-apply :: Tree a -> [ Bool ] -> a
+subtree :: Tree a -> Index -> Tree a
+subtree t w = case w of
+        [] -> t
+        x:xs -> subtree (case t of 
+            Leaf _ -> undefined
+            Branch l r -> case x of
+                False -> l
+                True  -> r ) xs
+
+apply :: Tree a -> Index -> a
 apply t w = case t of
     Leaf u -> u
     Branch l r -> case w of
@@ -60,6 +93,9 @@ apply t w = case t of
         x:xs -> apply (case x of
             False -> l
             True  -> r ) xs
+
+get :: Tree (Tree a) -> Index -> Index -> a
+get t i j = apply (apply t i) j
 
 -- | explicit binary encoding for bases
 data Base = Base [Bool] -- of length 2
@@ -79,10 +115,10 @@ cost b1 b2 = applyB b2 ( applyB b1 costT )
 -- | FIXME: these costs are arbitrary:
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi mi mi (Finite (nat8 1)) ) -- a
-    (basetree mi mi (Finite (nat8 2)) mi) -- c
-    (basetree mi (Finite (nat8 2)) mi (Finite(nat8 1)))
-    (basetree (Finite (nat8 1)) mi (Finite (nat8 2))mi)
+    (basetree mi mi mi one) -- a u
+    (basetree mi mi one mi) -- c g
+    (basetree mi one mi one) -- g c, g u
+    (basetree one mi one mi) -- u a, u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
@@ -94,23 +130,21 @@ type Primary = Tree Base
 
 data Paren = Open | Close | Blank
 
-type Secondary = Tree Paren
+type Secondary = [ Paren ]
 
 
 data Energy = MinusInfinity 
             | Finite Nat8 --  deriving Show
 
 mi = MinusInfinity
+zero = Finite (nat8 0)
+one = Finite (nat8 1)
 
--- | result: the maximum possible energy that can be bound here
-maxbound_single :: Primary -> Matrix Energy -> Energy
-maxbound_single p t = 
-    maxbound MinusInfinity (Finite (nat8 0)) 
-             plus times cost p t
 
--- | result (first, second) best bound energy
 
 {-
+
+-- | result (first, second) best bound energy
 
 maxbound_double :: Primary 
                 -> (Energy, Energy) 
@@ -133,6 +167,14 @@ maxEnergy a b = case geEnergy a b of
 minEnergy a b = case geEnergy a b of
     False -> a
     True  -> b
+
+eqEnergy a b = case a of
+    MinusInfinity -> case b of
+        MinusInfinity -> True
+        Finite g -> False
+    Finite f -> case b of
+        MinusInfinity -> False
+        Finite g -> (geNat8 f g) && (leNat8 f g)
 
 gtEnergy a b = not (geEnergy b a)
 
@@ -159,7 +201,7 @@ times e f = case e of
 -- * compute bound energy for a given secondary str.
 
 bound :: Primary -> Secondary -> Energy
-bound p s = parse [] (elems p) (elems s)
+bound p s = parse [] (elems p) s
 
 parse :: [ Base ] -> [Base] -> [Paren] -> Energy
 parse stack p s = case s of
@@ -180,69 +222,86 @@ parse stack p s = case s of
 -- | check that the given matrix is the correct ADP
 -- matrix for the computation of the max. energy
 
+
 maxbound_ok
          :: e -- ^ semi-ring zero (= forbidden energy)
          -> e -- ^ semi-ring one (= zero enery)
          -> ( e -> e -> e ) -- ^ semiring plus (= max)
          -> ( e -> e -> e ) -- ^ semiring times (= plus)
+         -> ( e -> e -> Bool ) -- ^  equality
          -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
          -> Primary 
          -> Matrix e
          -> Bool
-maxbound_ok zero one plus times cost p t = 
-    forall (indices p) $ \ start ->
-    forall (indices p) $ \ end ->
-        case less p q of
-            False -> True
-            True  -> 
-                eqE (get t start end)
-                 (foldr plus
-                    (group zero one plus times cost p t start end)
-                    (splittings zero one plus times cost p t start end) )
+maxbound_ok zero one plus times eq cost p t = 
+    forall (indices p) ( \ start ->
+    forall (indices p) ( \ end ->
+        (lessI end start) ||
+            eq (get t start end)
+                ( foldr plus one
+                 ( group times cost p t start end
+                 : splittings times cost p t start end)
+                )
+    ))
 
-group :: e -- ^ semi-ring zero (= forbidden energy)
-         -> e -- ^ semi-ring one (= zero enery)
-         -> ( e -> e -> e ) -- ^ semiring plus (= max)
-         -> ( e -> e -> e ) -- ^ semiring times (= plus)
-         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
-      -> Primary 
+forall xs prop = all prop xs
+
+group :: (e -> e -> e) 
+      -> (Base -> Base -> e)
+      -> Primary
       -> Matrix e
+      -> Index -> Index 
       -> e
-group zero one plus times cost p t = case p of
-  []     -> zero
-  (x:xs) -> times (cost x (last' xs)) (maxbound zero one plus times cost (init' xs))
+group times cost p t start end = 
+    times (cost (apply p start) (apply p end))
+          (get t (next p start) (previous p end))
 
 
-splits :: [a] -> [([a],[a])]
+-- | energies from all splits 
+-- (in two non-empty parts)
+splittings times cost p t start end =
+    map ( \ mid -> 
+              times (get t start mid)
+                    (get t (next p mid) end)
+        ) ( between p start end )
 
--- splits xs = zip (inits xs) (tails xs)
+between p start end = 
+    filter ( \ q -> lessI start q && lessI q end )
+           ( indices p )
 
-splits xs = ( [], xs ) : case xs of
-    [] -> []
-    x : xs' -> map ( \ (ys,zs) -> (x : ys, zs) ) (splits xs' )
 
--- | max energy from all splits (in two non-empty parts)
-splittings :: e -- ^ semi-ring zero (= forbidden energy)
-         -> e -- ^ semi-ring one (= zero enery)
-         -> ( e -> e -> e ) -- ^ semiring plus (= max)
-         -> ( e -> e -> e ) -- ^ semiring times (= plus)
-         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
-      -> Primary -> [e]
-splittings zero one plus times cost p 
-       = map ( \ (p1,p2) ->  times (maxbound zero one plus times cost p1) 
-                                   (maxbound zero one plus times cost p2)) 
-           ( filter' ( \ (p1,p2) -> case p1 of 
-               [] -> False ; _ -> case p2 of [] -> False ; _ -> True )
-            ( splits p ) )
+-- | return [] for overflow
+incrementI :: Index -> Index
+incrementI i = case i of
+    [] -> undefined
+    x : xs -> case incrementI xs of
+         [] -> case x of
+              False -> [ True ]
+              True -> []
+         ys -> x : ys
 
-filter' :: (a -> Bool) -> [a] -> [a]
-filter' f xs = case xs of
-  []   -> []
-  y:ys -> let zs = filter' f ys
-          in  case f y of
-            False -> zs
-            True -> y : zs
+-- | return [] for overflow
+decrementI :: Index -> Index
+decrementI i = case i of
+    [] -> undefined
+    x : xs -> case decrementI xs of
+         [] -> case x of
+              False -> [ ]
+              True -> [False]
+         ys -> x : ys
 
+next  :: Tree a -> Index -> Index
+next t p = case incrementI p of
+    [] -> undefined
+    q : qs  -> leftmostI ( subtree t (q:qs) )
+
+previous :: Tree a -> Index -> Index
+previous t p = case decrementI p of
+    [] -> undefined
+    q : qs  -> rightmostI ( subtree t (q:qs) )
+
+        
+    
 
 
 -- | balanced binary fold 
