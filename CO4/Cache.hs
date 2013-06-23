@@ -7,8 +7,8 @@ module CO4.Cache
   (MonadCache (..), CacheKey (..), Cache, runCache, withCache)
 where
 
-import           Control.Monad.State
-import qualified Data.Map as M
+import           Control.Monad.State.Strict
+import qualified Data.Map.Strict as M
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
 
 data CacheKey e = CacheCall String [e]

@@ -91,6 +91,7 @@ unparsedPreludeContext = binds
   , (nat8Name    , SType $ functionType [TCon intName []] nat8T)
   , ("gtNat8"    , SType $ functionType [nat8T,nat8T] boolT)
   , ("geNat8"    , SType $ functionType [nat8T,nat8T] boolT)
+  , ("eqNat8"    , SType $ functionType [nat8T,nat8T] boolT)
   , ("leNat8"    , SType $ functionType [nat8T,nat8T] boolT)
   , ("ltNat8"    , SType $ functionType [nat8T,nat8T] boolT)
   , ("maxNat8"   , SType $ functionType [nat8T,nat8T] nat8T)

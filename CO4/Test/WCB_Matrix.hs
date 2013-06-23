@@ -22,9 +22,9 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ ImportPrelude
-                        -- , DumpAll "/tmp/WCB"
-                        , Cache
-                        , Profile
+                        , DumpAll "/tmp/WCB"
+                        -- , Cache
+                        -- , Profile
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
 
@@ -62,14 +62,16 @@ ex0 = [ Open, Open
       , Close , Close, Blank 
       ]
 
+result_for :: [Paren] -> IO ()
 result_for sec = do
     out <- solveAndTestBooleanP 
        sec 
-       ( booleanCache  .  profile )
-       ( known 0 1 [ balanced sec ( const uBase)
+       id -- ( booleanCache  .  profile )
+       ( known 0 1 [ balanced sec ( const uBase )
                    , uTriag [1..length sec] uEnergy
                    ] )
-       encMain main
+       encConstraint
+       constraint
     case out of
        Nothing -> print "Nothing"
        Just (p, m) -> do

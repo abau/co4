@@ -5,9 +5,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- module CO4.Test.WCB where
-module Main where
-
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -20,12 +17,14 @@ import System.IO
 
 $( runIO $ configurable [ImportPrelude
                         -- ,DumpAll "/tmp/WCB"
-                        , Cache, Profile
+                        , Cache
+                        -- , Profile
                         ] 
          $ compileFile "CO4/Test/WCB.standalone.hs" )
 
 
-uBase = constructors [ Just [], Just [], Just [], Just []]
+-- uBase = constructors [ Just [], Just [], Just [], Just []]
+uBase = known 0 1 [ kList 2 uBool ]
 
 kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
@@ -42,14 +41,22 @@ ex0 = [Open,Open
 
 -- allocator = kList size uBase
 
-result_for sec = 
-    solveAndTestBooleanP 
+result_for sec = do
+    out <- solveAndTestBooleanP 
        sec 
-       ( booleanCache . profile ) 
+       booleanCache 
        (kList (length sec) uBase) 
-       encMain main
+       encConstraint constraint
+    case out of
+        Nothing -> putStrLn "Nothing"
+        Just prim -> do
+            putStrLn $ map unParen sec
+            putStrLn $ map unBase prim
 
-mainz = do
+unParen s = case s of Open -> '(' ; Blank -> '.' ; Close -> ')'
+unBase b = applyB b (basetree 'A' 'C' 'G' 'U')
+
+main = do
     hSetBuffering stdout LineBuffering
     [ arg1 ] <- getArgs
     result_for $ inforna arg1
