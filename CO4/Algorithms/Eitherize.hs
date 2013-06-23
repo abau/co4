@@ -10,7 +10,9 @@ import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Data.List (find)
+import           Data.Maybe (catMaybes)
 import qualified Language.Haskell.TH as TH
+import           Satchmo.Core.MonadSAT (MonadSAT)
 import           CO4.Language
 import           CO4.Util
 import           CO4.THUtil
@@ -23,11 +25,11 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
+  (EncodedAdt,undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
-import           CO4.Cache (CacheKey (..),withCache)
+import           CO4.Cache (MonadCache,CacheKey (..),withCache)
 import           CO4.Allocator.Common (known)
-import           CO4.Profiling (traced)
+import           CO4.Profiling (MonadProfiling,traced)
 import           CO4.EncEq (encEq,encProfiledEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
@@ -231,7 +233,37 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         TH.LamE patterns exp'' -> TH.LamE patterns 
                                 $ appsE (TH.VarE 'traced) [ stringE name, exp'' ]
         _                      -> appsE (TH.VarE 'traced) [ stringE name, exp' ]
-    return [ valD' name' profiledExp' ]
+
+    signature' <- instantiateSignature name' numArgs
+    return [ signature', valD' name' profiledExp' ]
+    where
+      numArgs = case exp of
+        ELam ps _ -> length ps
+        _         -> 0
+
+instantiateSignature :: (MonadConfig m, Namelike n) => n -> Int -> m (TH.Dec)
+instantiateSignature name numArgs =
+  let e = TH.VarT $ TH.mkName "e"
+      m = TH.VarT $ TH.mkName "m"
+      p = TH.VarT $ TH.mkName "p"
+
+      typeVars = (map (TH.PlainTV . TH.mkName) ["e","m","p"])
+      type_    = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
+                       (TH.AppT m $ TH.AppT e p)
+                       (replicate numArgs $ TH.AppT e p)
+  in do
+    isProfile <- is Profile
+    isCache   <- is Cache   
+
+    return $ sigD' name $ TH.ForallT typeVars
+      (catMaybes [ if isCache   then Just $ TH.ClassP ''MonadCache [TH.AppT e p, m]
+                                else Nothing
+                 , if isProfile then Just $ TH.ClassP ''MonadProfiling [m]
+                                else Nothing
+                 , Just $ TH.ClassP ''EncodedAdt [e, p]
+                 , Just $ TH.ClassP ''MonadSAT   [m]
+                 ]
+      ) type_
 
 -- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
 -- @prof@ enables profiling.
