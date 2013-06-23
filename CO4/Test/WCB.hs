@@ -18,7 +18,7 @@ import System.IO
 $( runIO $ configurable [ImportPrelude
                         -- ,DumpAll "/tmp/WCB"
                         , Cache
-                        -- , Profile
+                        , Profile
                         ] 
          $ compileFile "CO4/Test/WCB.standalone.hs" )
 
@@ -44,7 +44,7 @@ ex0 = [Open,Open
 result_for sec = do
     out <- solveAndTestBooleanP 
        sec 
-       booleanCache 
+       ( booleanCache . profile )
        (kList (length sec) uBase) 
        encConstraint constraint
     case out of

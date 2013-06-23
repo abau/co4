@@ -212,6 +212,11 @@ ifthenelse i t e = do
 
 fullAdder :: (Primitive p, MonadSAT m) => p -> p -> p -> m (p,p)
 fullAdder p1 p2 p3 = do
+  (r12,c12) <- halfAdder p1 p2
+  (r,c3) <- halfAdder r12 p3
+  c <- or [c12,c3]
+  return (r, c)
+{-
   p4 <- primitive
   p5 <- primitive
   assert [not p1, not p2, p5]
@@ -235,22 +240,14 @@ fullAdder p1 p2 p3 = do
   assert [p1, p2, not p3, p4]
   assert [p1, p2, p3, not p4]
   return ( p4, p5 )
+-}
 
-halfAdder :: (Primitive p, MonadSAT m) => p -> p -> m (p,p)
+halfAdder :: (Primitive p, MonadSAT m) 
+          => p -> p -> m (p,p)
 halfAdder p1 p2 = do
-  p3 <- primitive
-  p4 <- primitive
-  assert [p1, not p4]
-  assert [p2, not p4]
-  assert [not p3, not p4]
-  assert [not p1, not p2, not p3]
-  assert [not p1, not p2, p4]
-  assert [not p1, p2, p3]
-  assert [not p1, p3, p4]
-  assert [p1, not p2, p3]
-  assert [p1, p2, not p3]
-  assert [not p2, p3, p4]
-  return (p3,p4)
+  c <- and [ p1, p2 ]
+  r <- xor [ p1, p2 ]
+  return (r,c)
 
 onFlags :: (EncodedAdt e p) => ([p] -> [p] -> m a) -> e p -> e p -> m a
 onFlags f a b = case (flags a, flags b) of
