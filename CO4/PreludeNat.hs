@@ -133,24 +133,18 @@ encComparePrimitives a b = case (a,b) of
 
 encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
             => e p -> e p -> m (e p)
-encPlusNat8 = catchInvalid2 $ onFlags $ \as bs -> do
-  zs <- addWithCarry 8 (constant False) as bs
-  return $ make zs
+encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
+  (z,c) <- halfAdder a b
+  zs <- addWithCarry c as bs
+  return $ make $ z : zs
   where
-    addWithCarry w c xxs yys = case ( xxs, yys ) of
-      _ | w <= 0 -> do
-          sequence_ $ do p <- c : xxs ++ yys ; return $ assert [ not p ]
-          return []
-      ( [] , [] ) -> return [ c ]
-      ( [], y : ys) -> do
-          (r,d) <- halfAdder c y
-          rest <- addWithCarry (w-1) d [] ys
-          return $ r : rest
-      ( _ : _ , [] ) -> addWithCarry w c yys xxs
-      ( x : xs, y:ys ) -> do
-          (r,d) <- fullAdder c x y
-          rest <- addWithCarry (w-1) d xs ys
-          return $ r : rest
+    addWithCarry c [] [] = do
+        assert [ not c ] 
+        return []
+    addWithCarry c ( x : xs) ( y:ys ) = do
+          (z,d) <- fullAdder c x y
+          zs <- addWithCarry d xs ys
+          return $ z : zs
 
 encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
             => e p -> e p -> m (e p)
