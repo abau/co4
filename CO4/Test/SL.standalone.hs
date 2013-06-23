@@ -9,6 +9,7 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
+type Interpretation = BDT (Matrix Arctic)
 data Label = Label Model [ Interpretation ] [ Bool ]
 
 
@@ -141,7 +142,7 @@ geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
 
 -- * interpretation:
 
-type Interpretation = BDT (Matrix Arctic)
+-- type Interpretation = BDT (Matrix Arctic)
 
 -- iSymbol :: Interpretation -> Symbol -> Matrix Arctic
 iSymbol i s = applyF i s
