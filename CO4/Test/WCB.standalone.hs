@@ -1,8 +1,16 @@
 module WCB where
 
+import CO4.Test.WCB_Nat8
 
+-- | explicit binary encoding for bases
+data Base = Base [Bool] -- of length 2
 
-data Base = A | C | G | U -- deriving Show
+a = Base [False, False]
+c = Base [False, True]
+g = Base [True, False]
+u = Base [True, True]
+
+-- data Base = A | C | G | U -- deriving Show
 
 type Primary = [Base]
 
@@ -11,14 +19,6 @@ data Paren = Open | Close | Blank
 type Secondary = [Paren]
 
 
-{-
-newtype Nat8 = Nat8 ()
-
-nat8 :: Int -> Nat8; nat8 = undefined
-geNat8 :: Nat8 -> Nat8 -> Bool ; geNat8 = undefined
-maxNat8 :: Nat8 -> Nat8 -> Nat8 ; maxNat8 = undefined
-plusNat8 :: Nat8 -> Nat8 -> Nat8 ; plusNat8 = undefined
--}
 
 data Energy = MinusInfinity | Finite Nat8 --  deriving Show
 
@@ -26,7 +26,8 @@ data Energy = MinusInfinity | Finite Nat8 --  deriving Show
 -- the main constraint
 
 
-main = main_simple
+-- constraint = main_simple
+constraint = main_with_stability
 
 
 main_simple s p = geEnergy (bound p s) (maxbound_single p)
@@ -73,7 +74,7 @@ plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (maxNat8 x y)
-    MinusInfinity -> Finite x
+    MinusInfinity -> e
   MinusInfinity -> f
 
 times :: Energy -> Energy -> Energy
@@ -138,18 +139,64 @@ last' a = case a of
     [] -> x
     _  -> last' xs
 
+
+
+{-
+
+-- | just energy 1 for each admissible base pair
 cost :: Base -> Base -> Energy
 cost b1 b2 = case b1 of
   A -> case b2 of U -> Finite (nat8 1)
                   _ -> MinusInfinity
   U -> case b2 of A -> Finite (nat8 1)
-                  G -> Finite (nat8 2)
+                  G -> Finite (nat8 1)
                   _ -> MinusInfinity
   G -> case b2 of U -> Finite (nat8 1)
-                  C -> Finite (nat8 2)
+                  C -> Finite (nat8 1)
                   _ -> MinusInfinity
-  C -> case b2 of G -> Finite (nat8 2)
+  C -> case b2 of G -> Finite (nat8 1)
                   _ -> MinusInfinity
+-}
+
+applyB :: Base -> Tree a -> a
+applyB b t = case b of
+    Base bits -> applyI t bits
+
+cost :: Base -> Base -> Energy
+cost b1 b2 = applyB b2 ( applyB b1 costT )
+
+mi = MinusInfinity
+one = Finite (nat8 1)
+ 
+-- | FIXME: unit cost model (each base pair binds 1)
+costT :: Tree (Tree Energy)
+costT = basetree
+    (basetree mi mi mi one) -- a u
+    (basetree mi mi one mi) -- c g
+    (basetree mi one mi one) -- g c, g u
+    (basetree one mi one mi) -- u a, u g
+
+basetree a c g u = 
+    Branch (Branch (Leaf a)(Leaf c))
+           (Branch (Leaf g)(Leaf u))
+
+
+-- * binary decision tree, 
+-- used to map bitstrings to values
+data Tree a = Leaf a 
+           | Branch (Tree a) (Tree a) 
+
+type Index = [Bool]
+
+applyI :: Tree a -> Index -> a
+applyI t w = case t of
+    Leaf u -> u
+    Branch l r -> case w of
+        [] -> undefined
+        x:xs -> applyI (case x of
+            False -> l
+            True  -> r ) xs
+
 
 splits :: [a] -> [([a],[a])]
 
