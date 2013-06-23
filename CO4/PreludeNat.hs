@@ -102,19 +102,34 @@ encComparePrimitives :: (Primitive p, MonadSAT m)
 encComparePrimitives a b = case (a,b) of
   ([],[]) -> return ( constant False, constant True )
   ((x:xs),(y:ys)) -> do
-    l <- and [ not x, y ]
-    e <- liftM not $ xor [ x, y ]
     ( ll, ee ) <- encComparePrimitives xs ys
-    lee <- and [l,ee]
-    l' <- or [ ll, lee ]
-    e' <- and [ e, ee ]
-    return ( l', e' )
+    l <- primitive ; e <- primitive
+
+    let implies xs ys = assert (map not xs ++ ys)
+
+    --   l <-> ( ll || (ee && (x < y)) )
+    implies [ ll ] [ l ]
+    implies [ ee, not x, y ] [ l ]
+    implies [ l ] [ ll, ee ]
+    implies [ l ] [ ll, not x ]
+    implies [ l ] [ ll, y ]
+
+    --   e <->   (   ee && (x == y) )
+    implies [ ee, not x, not y ] [ e ]
+    implies [ ee, x, y ] [ e ]
+    implies [ not ee ] [ not e ]
+    implies [ x, not y ] [ not e ]
+    implies [ not x, y ] [ not e ]
+
+    return ( l, e )
+{-
   (xs, []) -> do
     x <- or xs
     return (constant False, not x )
   ([], ys) -> do
     y <- or ys
     return ( y, not y )
+-}
 
 encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
             => e p -> e p -> m (e p)
