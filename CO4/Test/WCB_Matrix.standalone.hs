@@ -189,7 +189,7 @@ maxboundFor zero one plus times cost p t start end =
                 True -> foldb 
                     zero plus
                     ( group times cost p t start end
-                    : splittings times cost p t start end)
+                    : splittings times p t start end)
 
 foreach :: [a] -> (a -> Bool) -> Bool
 foreach xs prop = all prop xs
@@ -217,7 +217,7 @@ splittings :: (e -> e -> e)
       -> Index -> Index 
       -> [e]
 -}
-splittings times cost p t start end =
+splittings times p t start end =
     map ( \ mid -> 
               times (get t start mid)
                     (get t (next p mid) end)

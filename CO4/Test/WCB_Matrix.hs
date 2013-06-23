@@ -78,7 +78,7 @@ result_for sec = do
            print $ elems p
            void $ forM ( elems m ) $ (print . elems)
 
-mainz = do
+main = do
     hSetBuffering stdout LineBuffering
     [ arg1 ] <- getArgs
     result_for $ inforna arg1

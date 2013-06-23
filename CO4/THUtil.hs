@@ -17,6 +17,9 @@ funD' n pats exp = TH.FunD (toTHName n) [TH.Clause pats (TH.NormalB exp) []]
 valD' :: Namelike n => n -> TH.Exp -> TH.Dec
 valD' n exp = TH.ValD (varP n) (TH.NormalB exp) []
 
+sigD' :: Namelike n => n -> TH.Type -> TH.Dec
+sigD' n = TH.SigD (toTHName n)
+
 varE :: Namelike n => n -> TH.Exp
 varE = TH.VarE . toTHName
 
