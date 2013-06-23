@@ -88,23 +88,14 @@ encLtNat8 = catchInvalid2 $ onFlags $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return $ make [l]
 
-encMaxNat8 = catchInvalid2 $ \a b -> do
-  result <- replicateM 8 primitive >>= return . make
-  [ra] <- liftM flags' $ encEqNat8 result a
-  [rb] <- liftM flags' $ encEqNat8 result b
-  [g ] <- liftM flags' $ encGtNat8 a b
-  assert [ not g , ra ]
-  assert [ g     , rb ]
-  return result
+encMaxNat8 = catchInvalid2 $ onFlags $ \ a b -> do
+  (l, _) <- encComparePrimitives b a
+  zipWithM ( \x y -> ifthenelse l x y ) a b >>= return . make
 
-encMinNat8 = catchInvalid2 $ \a b -> do
-  result <- replicateM 8 primitive >>= return . make
-  [ra] <- liftM flags' $ encEqNat8 result a
-  [rb] <- liftM flags' $ encEqNat8 result b
-  [l ] <- liftM flags' $ encLtNat8 a b
-  assert [ not l , ra ]
-  assert [ l     , rb ]
-  return result
+encMinNat8 = catchInvalid2 $ onFlags $ \ a b -> do
+  (l, _) <- encComparePrimitives a b
+  zipWithM ( \x y -> ifthenelse l x y ) a b >>= return . make
+
 
 encComparePrimitives :: (Primitive p, MonadSAT m) 
                      => [p] -> [p] -> m (p, p) -- ^ (less, equals)
@@ -193,7 +184,16 @@ encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
                     (r,c) <- fullAdder x y z
                     reduce bound $ M.unionWith (++) rest
                            $ M.fromList [ (k, more ++ [r]), (k+1, [c]) ]
-  
+
+
+ifthenelse ::   (Primitive p, MonadSAT m) => p -> p -> p -> m p
+ifthenelse i t e = do
+    r <- primitive
+    assert [ not i , not t, r ]
+    assert [ not i , not r, t ]
+    assert [     i , not e, r ]
+    assert [     i , not r, e ]
+    return r
 
 fullAdder :: (Primitive p, MonadSAT m) => p -> p -> p -> m (p,p)
 fullAdder p1 p2 p3 = do
