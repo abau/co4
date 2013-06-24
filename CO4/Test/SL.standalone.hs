@@ -51,8 +51,10 @@ labelledW mod w k = case w of
             [] -> (k, [])
             x:xs' -> case labelledW mod xs' k of
                 (k', ys) -> let s = applyF mod x
-                            in  (applyF s k', (x ++ k') : ys )
+                            in  (applyF s k'
+                                 , (labelledW_app x k') : ys )
 
+labelledW_app x k' = x ++ k'
 
 -- | binary decision tree, used to map bitstrings to values
 data BDT a = Leaf a | Branch (BDT a) (BDT a) -- deriving Eq

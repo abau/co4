@@ -16,7 +16,8 @@ simple :: Secondary
             -> (Primary, Matrix Energy)
             -> Bool
 simple s (p, t) =
-           ( geEnergy (bound p s) (get t (leftmostI p) (rightmostI p)) )
+           ( geEnergy (bound p s) 
+                (get t (leftmostI p) (rightmostI p)) )
         && ( maxboundOk mi zero plus times eqEnergy cost p t )
 
 {-
@@ -44,7 +45,7 @@ applyB b t = case b of
     Base bits -> applyI t bits
 
 cost :: Base -> Base -> Energy
-cost b1 b2 = applyB b2 ( applyB b1 costT )
+cost b1 b2 = applyB b1 (applyB b2 costT)
  
 -- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
@@ -178,7 +179,9 @@ maxboundOk
 maxboundOk zero one plus times eq cost p t = 
     foreach (indices p) ( \ start ->
     foreach (indices p) ( \ end ->
-        eq (get t start end) (maxboundFor zero one plus times cost p t start end)
+        eq (get t start end) 
+           (maxboundFor zero one plus times cost 
+                        p t start end)
    ))
 
 maxboundFor zero one plus times cost p t start end =
@@ -186,8 +189,8 @@ maxboundFor zero one plus times cost p t start end =
              True -> zero
              False -> case lessI start end of
                 False -> one
-                True -> foldb 
-                    zero plus
+                True -> -- foldb zero plus
+                    foldr plus zero
                     ( group times cost p t start end
                     : splittings times p t start end)
 
@@ -221,7 +224,7 @@ splittings times p t start end =
     map ( \ mid -> 
               times (get t start mid)
                     (get t (next p mid) end)
-        ) ( between p start end )
+        ) ( between p start (previous p end ) )
 
 between :: Tree a -> Index -> Index -> [ Index ]
 between p start end = 
@@ -283,14 +286,13 @@ data Tree a = Leaf a
 
 type Index = [Bool]
 
+lessI :: Index -> Index -> Bool
 lessI xs ys = case xs of
-    [] -> case ys of
-        []  -> False
-        _ -> True
+    [] -> False
     x:xs -> case ys of
         [] -> False
         y:ys -> (not x && y) 
-             || ((not x || y) && lessI xs ys )
+             || ( (x == y) && lessI xs ys )
 
 leftmost :: Tree a -> a
 leftmost t = case t of
@@ -339,9 +341,9 @@ applyI t w = case t of
     Leaf u -> u
     Branch l r -> case w of
         [] -> undefined
-        x:xs -> applyI (case x of
-            False -> l
-            True  -> r ) xs
+        x:xs -> case {- known -} x of
+            False -> applyI l xs
+            True  -> applyI r xs
 
 get :: Tree (Tree a) -> Index -> Index -> a
 get t i j = applyI (applyI t i) j
