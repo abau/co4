@@ -12,7 +12,7 @@ module CO4.PreludeNat
 where
 
 import           Prelude hiding (not,and,or)
-import           Control.Monad (liftM,zipWithM,replicateM,forM)
+import           Control.Monad (liftM,zipWithM,forM)
 import           Data.Word (Word8)
 import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)

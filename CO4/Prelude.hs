@@ -2,6 +2,7 @@
 module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedFunctionNames, unparsedPreludeContext
   , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
+  , assertKnown, encAssertKnown, assertDefined, encAssertDefined
   , module CO4.PreludeNat
   , module CO4.EncEq
   )
@@ -18,6 +19,7 @@ import           CO4.Names
 import           CO4.Allocator.Common (constructors)
 import           CO4.PreludeNat
 import           CO4.EncEq
+import           CO4.EncodedAdt (EncodedAdt(..),isConstantlyDefined)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -82,22 +84,24 @@ unparsedFunctionNames = [eqName]
 
 unparsedPreludeContext :: Context
 unparsedPreludeContext = binds 
-  [ (eqName      , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
-  , ("False"     ,             SType boolT)
-  , ("True"      ,             SType boolT)
-  , (listName    , SForall a $ SType listT)
-  , (consName    , SForall a $ SType $ functionType [TVar a,listT] listT)
-  , mkTuple 2    , mkTuple 3 , mkTuple 4 , mkTuple 5
-  , (nat8Name    , SType $ functionType [TCon intName []] nat8T)
-  , ("gtNat8"    , SType $ functionType [nat8T,nat8T] boolT)
-  , ("geNat8"    , SType $ functionType [nat8T,nat8T] boolT)
-  , ("eqNat8"    , SType $ functionType [nat8T,nat8T] boolT)
-  , ("leNat8"    , SType $ functionType [nat8T,nat8T] boolT)
-  , ("ltNat8"    , SType $ functionType [nat8T,nat8T] boolT)
-  , ("maxNat8"   , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("minNat8"   , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("plusNat8"  , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("timesNat8" , SType $ functionType [nat8T,nat8T] nat8T)
+  [ (eqName          , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
+  , ("False"         ,             SType boolT)
+  , ("True"          ,             SType boolT)
+  , (listName        , SForall a $ SType listT)
+  , (consName        , SForall a $ SType $ functionType [TVar a,listT] listT)
+  , mkTuple 2        , mkTuple 3 , mkTuple 4 , mkTuple 5
+  , (nat8Name        , SType $ functionType [TCon intName []] nat8T)
+  , ("gtNat8"        , SType $ functionType [nat8T,nat8T] boolT)
+  , ("geNat8"        , SType $ functionType [nat8T,nat8T] boolT)
+  , ("eqNat8"        , SType $ functionType [nat8T,nat8T] boolT)
+  , ("leNat8"        , SType $ functionType [nat8T,nat8T] boolT)
+  , ("ltNat8"        , SType $ functionType [nat8T,nat8T] boolT)
+  , ("maxNat8"       , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("minNat8"       , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("plusNat8"      , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("timesNat8"     , SType $ functionType [nat8T,nat8T] nat8T)
+  , ("assertKnown"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
+  , ("assertDefined" , SForall a $ SType $ functionType [TVar a] $ TVar a)
   ] emptyContext
   where 
     names@(a:_) = map UntypedName ["a","b","c","d","e"]
@@ -122,3 +126,23 @@ uTuple2 a b       = constructors [ Just [a,b]       ]
 uTuple3 a b c     = constructors [ Just [a,b,c]     ]
 uTuple4 a b c d   = constructors [ Just [a,b,c,d]   ]
 uTuple5 a b c d e = constructors [ Just [a,b,c,d,e] ]
+
+-- * Utilities
+
+assertKnown :: a -> a
+assertKnown = id
+
+encAssertKnown :: (EncodedAdt e p, Monad m) => e p -> m (e p)
+encAssertKnown e = case constantConstructorIndex e of 
+  Nothing -> error "Prelude.encAssertKnown: assertion 'assertKnown' failed"
+  Just _  -> return e
+
+assertDefined :: a -> a
+assertDefined = id
+
+encAssertDefined :: (EncodedAdt e p, Monad m) => e p -> m (e p)
+encAssertDefined e = 
+  if isConstantlyDefined e 
+  then return e
+  else error "Prelude.encAssertDefined: assertion 'assertDefined' failed"
+

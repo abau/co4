@@ -1,10 +1,10 @@
 Name:			        co4
-Version:        	0.0.41
+Version:        	0.0.42
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
 Build-type:       Simple
-Author:         	Alexander Bau
+Author:         	Alexander Bau, Johannes Waldmann
 Maintainer:       Alexander Bau
 Synopsis:       	Complexity concerned constraint compiler
 Category:         Language      
