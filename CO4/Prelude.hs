@@ -19,7 +19,7 @@ import           CO4.Names
 import           CO4.Allocator.Common (constructors)
 import           CO4.PreludeNat
 import           CO4.EncEq
-import           CO4.EncodedAdt (EncodedAdt(..),isConstantlyDefined)
+import           CO4.EncodedAdt (EncodedAdt(..),isConstantlyDefined,isInvalid)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -133,6 +133,7 @@ assertKnown :: a -> a
 assertKnown = id
 
 encAssertKnown :: (EncodedAdt e p, Monad m) => e p -> m (e p)
+encAssertKnown e | isInvalid e = return e
 encAssertKnown e = case constantConstructorIndex e of 
   Nothing -> error "Prelude.encAssertKnown: assertion 'assertKnown' failed"
   Just _  -> return e
