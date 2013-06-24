@@ -10,6 +10,7 @@ where
 import           Control.Monad.State.Strict
 import qualified Data.Map.Strict as M
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
+import           CO4.EncodedAdt (EncodedAdt(..),isValid)
 
 data CacheKey e = CacheCall String [e]
                 | CacheCase e [e]
@@ -71,11 +72,19 @@ runCache c = do
            ]
   return result
 
-withCache :: (MonadCache e m) => CacheKey e -> m e -> m e
-withCache key f =
-  retrieve key >>= \case 
-    Just hit -> return hit
-    Nothing  -> do
-      result <- f
-      cache key result
-      return result
+withCache :: (EncodedAdt e p, MonadCache (e p) m) 
+          => CacheKey (e p) -> m (e p) -> m (e p)
+withCache key f = case key of
+  CacheCase e _ -> if isValid e
+                   then case constantConstructorIndex e of
+                         Just _ -> f
+                         _      -> askCache
+                   else f
+  _ -> askCache
+  where
+    askCache = retrieve key >>= \case 
+                  Just hit -> return hit
+                  Nothing  -> do
+                    result <- f
+                    cache key result
+                    return result
