@@ -12,7 +12,7 @@ module CO4.PreludeNat
 where
 
 import           Prelude hiding (not,and,or)
-import           Control.Monad (liftM,zipWithM,forM)
+import           Control.Monad (zipWithM,forM)
 import           Data.Word (Word8)
 import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)
@@ -102,40 +102,49 @@ encComparePrimitives :: (Primitive p, MonadSAT m)
 encComparePrimitives a b = case (a,b) of
   ([],[]) -> return ( constant False, constant True )
   ((x:xs),(y:ys)) -> do
-    l <- and [ not x, y ]
-    e <- liftM not $ xor [ x, y ]
     ( ll, ee ) <- encComparePrimitives xs ys
-    lee <- and [l,ee]
-    l' <- or [ ll, lee ]
-    e' <- and [ e, ee ]
-    return ( l', e' )
+    l <- primitive ; e <- primitive
+
+    let implies xs ys = assert (map not xs ++ ys)
+
+    --   l <-> ( ll || (ee && (x < y)) )
+    implies [ ll ] [ l ]
+    implies [ ee, not x, y ] [ l ]
+    implies [ l ] [ ll, ee ]
+    implies [ l ] [ ll, not x ]
+    implies [ l ] [ ll, y ]
+
+    --   e <->   (   ee && (x == y) )
+    implies [ ee, not x, not y ] [ e ]
+    implies [ ee, x, y ] [ e ]
+    implies [ not ee ] [ not e ]
+    implies [ x, not y ] [ not e ]
+    implies [ not x, y ] [ not e ]
+
+    return ( l, e )
+{-
   (xs, []) -> do
     x <- or xs
     return (constant False, not x )
   ([], ys) -> do
     y <- or ys
     return ( y, not y )
+-}
 
 encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
             => e p -> e p -> m (e p)
-encPlusNat8 = catchInvalid2 $ onFlags $ \as bs -> do
-  zs <- addWithCarry 8 (constant False) as bs
-  return $ make zs
+encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
+  (z,c) <- halfAdder a b
+  zs <- addWithCarry c as bs
+  return $ make $ z : zs
   where
-    addWithCarry w c xxs yys = case ( xxs, yys ) of
-      _ | w <= 0 -> do
-          sequence_ $ do p <- c : xxs ++ yys ; return $ assert [ not p ]
-          return []
-      ( [] , [] ) -> return [ c ]
-      ( [], y : ys) -> do
-          (r,d) <- halfAdder c y
-          rest <- addWithCarry (w-1) d [] ys
-          return $ r : rest
-      ( _ : _ , [] ) -> addWithCarry w c yys xxs
-      ( x : xs, y:ys ) -> do
-          (r,d) <- fullAdder c x y
-          rest <- addWithCarry (w-1) d xs ys
-          return $ r : rest
+    addWithCarry c [] [] = do
+        assert [ not c ] 
+        return []
+    addWithCarry c ( x : xs) ( y:ys ) = do
+          (z,d) <- fullAdder c x y
+          zs <- addWithCarry d xs ys
+          return $ z : zs
 
 encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
             => e p -> e p -> m (e p)
@@ -197,6 +206,11 @@ ifthenelse i t e = do
 
 fullAdder :: (Primitive p, MonadSAT m) => p -> p -> p -> m (p,p)
 fullAdder p1 p2 p3 = do
+  (r12,c12) <- halfAdder p1 p2
+  (r,c3) <- halfAdder r12 p3
+  c <- or [c12,c3]
+  return (r, c)
+{-
   p4 <- primitive
   p5 <- primitive
   assert [not p1, not p2, p5]
@@ -220,22 +234,14 @@ fullAdder p1 p2 p3 = do
   assert [p1, p2, not p3, p4]
   assert [p1, p2, p3, not p4]
   return ( p4, p5 )
+-}
 
-halfAdder :: (Primitive p, MonadSAT m) => p -> p -> m (p,p)
+halfAdder :: (Primitive p, MonadSAT m) 
+          => p -> p -> m (p,p)
 halfAdder p1 p2 = do
-  p3 <- primitive
-  p4 <- primitive
-  assert [p1, not p4]
-  assert [p2, not p4]
-  assert [not p3, not p4]
-  assert [not p1, not p2, not p3]
-  assert [not p1, not p2, p4]
-  assert [not p1, p2, p3]
-  assert [not p1, p3, p4]
-  assert [p1, not p2, p3]
-  assert [p1, p2, not p3]
-  assert [not p2, p3, p4]
-  return (p3,p4)
+  c <- and [ p1, p2 ]
+  r <- xor [ p1, p2 ]
+  return (r,c)
 
 onFlags :: (EncodedAdt e p) => ([p] -> [p] -> m a) -> e p -> e p -> m a
 onFlags f a b = case (flags a, flags b) of

@@ -23,8 +23,8 @@ import System.IO
 
 $( runIO $ configurable [ ImportPrelude
                         , DumpAll "/tmp/WCB"
-                        -- , Cache
-                        -- , Profile
+                        , Cache
+                        , Profile
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
 
@@ -48,9 +48,7 @@ balanced xs f = case xs of
 uEnergy = constructors [ Just [] , Just [ uNat8 ]]
 
 uTriag xs e = balanced xs $ \ x ->
-              balanced xs $ \ y -> 
-              if x < y then e 
-              else known 0 1 [] -- never accessed
+              balanced xs $ \ y -> e
 
 inforna cs = map ( \ c -> case c of
     '(' -> Open ; '.' -> Blank ; ')' -> Close ) cs
@@ -66,7 +64,7 @@ result_for :: [Paren] -> IO ()
 result_for sec = do
     out <- solveAndTestBooleanP 
        sec 
-       id -- ( booleanCache  .  profile )
+       ( booleanCache  .  profile )
        ( known 0 1 [ balanced sec ( const uBase )
                    , uTriag [1..length sec] uEnergy
                    ] )
