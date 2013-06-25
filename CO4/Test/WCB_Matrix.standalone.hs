@@ -1,24 +1,154 @@
 module CO4.Test.WCB_Matrix where
 
-import CO4.Test.WCB_Nat8
+
+import CO4.Prelude
+import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
 constraint = simple
 
 
-type Matrix a = Tree (Tree a)
-
--- | additional parameter t is the ADP matrix
--- for the primary
-
 simple :: Secondary 
             -> (Primary, Matrix Energy)
             -> Bool
-simple s (p, t) =
-           ( geEnergy (bound p s) 
-                (get t (leftmostI p) (rightmostI p)) )
-        && ( maxboundOk mi zero plus times eqEnergy cost p t )
+simple s (p, m) =
+       geEnergy (bound p s) (upright m)
+   &&  all2 eqEnergy m 
+        (grammar p m)
+
+
+-- type Matrix a = Tree (Tree a)
+type Matrix a = [[a]]
+
+upright m = last ( head m)
+
+last xs = case xs of
+    [] -> undefined
+    x : ys -> case ys of
+        [] ->  x
+        _  -> last ys
+
+init xs = case xs of
+    [] -> undefined
+    x : ys -> case ys of
+        [] -> []
+        _  -> x : init ys
+
+const x y = x
+
+-- just hypothetically:
+-- m ! (i,j) == m !! i !! j
+
+-- |  (shrink m) ! (i,j) ==  e ! (i+1,j-1) 
+shrink :: e -> Matrix e -> Matrix e
+shrink zero m = dropX zero (addY zero m)
+
+dropX zero m = tail m ++ [ map (const zero) (head m) ]
+addY zero m = map ( \ row -> init (zero : row) ) m
+
+
+mtimes :: (e -> e -> e)
+       -> (e -> e -> e)
+       -> Matrix e
+       -> Matrix e
+       -> Matrix e   
+mtimes plus times a b = 
+    let b' = transpose b
+    in  for a  ( \ row -> 
+        for b' ( \ col -> dot plus times row col ) )
+
+dot plus times xs ys = 
+              let zs = zipWith times xs ys 
+              in foldr plus (head zs) (tail zs)
+
+transpose :: Matrix e -> Matrix e
+transpose xss = case assertKnown xss of
+    [] -> []
+    row : rows -> case assertKnown rows of
+       [] -> map ( \ x -> [x] ) row
+       _ -> zipWith (:) row (transpose rows)
+
+pointwise f a b = zipWith (zipWith f) a b    
+
+all2 f a b = and (map and (pointwise f a b))
+
+
+
+choice plus ms = 
+    foldr (pointwise plus) (head ms) (tail ms)
+
+sequence plus times ms = 
+    foldr (mtimes plus times) (head ms) (tail ms)
+
+grammar p s =
+    let s0 = -- choice plus [ empty mi zero p , s ]
+             with_empty mi zero s
+    in forward ( choice plus 
+       [ item mi zero p
+       , sequence plus times [s, s]
+       , pointwise times (bind p) s0
+
+{-     more grammar-like:
+       , sequence plus times 
+            [ expect a mi zero p
+            , s0
+            , expect u mi one p
+            ]
+-}
+       ] )
+
+
+bind p = dropY ( addX ( forward 
+         ( for p ( \ x ->
+         for p ( \ y -> cost x y ) ) ) ) )
+
+addX m = map ( \ row -> mi : row ) m
+dropY m = m ++ [ map (const mi) (head m) ]
+                
+forward m = with_empty mi mi m
+
+with_empty zero one m = case m of
+    [] -> []
+    row : rows -> 
+       (one : tail row)
+       : map ( \ row -> zero : row) 
+             (with_empty zero one (map tail rows))
+        
+
+empty :: e -> e -> Primary -> Matrix e
+empty zero one p = 
+    diag zero ( one : map (const one) p ) 
+
+item :: e -> e -> Primary -> Matrix e
+item zero one p = 
+    shift zero ( diag zero
+     (map ( const one ) p ) )
+
+expect :: Base -> e -> e -> Primary -> Matrix e
+expect base zero one p =
+    shift zero ( diag zero 
+    ( for p ( \ b -> case eqBase base b of
+          False -> zero
+          True  -> one ) ) )
+
+diag :: e -> [e] -> Matrix e
+diag zero xs = case xs of
+    [] -> []
+    x:xs' -> let d = diag zero xs'
+             in  (x : map (const zero) d) 
+                 : map (\ row -> zero : row) d 
+
+shift zero m = 
+    map (\ row -> zero : row) 
+    ( m ++ [ map (const zero) (head m) ] )
+    
+
+for xs f = map f xs
+
+
+
+
 
 {-
 main_with_stability s p = case maxbound_double p of
@@ -29,6 +159,7 @@ main_with_stability s p = case maxbound_double p of
 
 -- * primary struct
 
+
 -- | explicit binary encoding for bases
 data Base = Base [Bool] -- of length 2
 
@@ -37,12 +168,25 @@ c = Base [False, True]
 g = Base [True, False]
 u = Base [True, True]
 
-type Primary = Tree Base
+type Primary = [ Base ]
+
+
+eqBase b c = case b of 
+    Base xs -> case c of
+        Base ys -> eqList eqBool xs ys
+
+eqList eq xs ys = case xs of
+    [] -> case ys of
+         [] -> True
+         _  -> False
+    x:xs' -> case ys of
+         [] -> False
+         y:ys' -> eq x y && eqList eq xs' ys'
 
 
 applyB :: Base -> Tree a -> a
 applyB b t = case b of
-    Base bits -> applyI t bits
+    Base bits -> applyIU t bits
 
 cost :: Base -> Base -> Energy
 cost b1 b2 = applyB b1 (applyB b2 costT)
@@ -70,7 +214,7 @@ type Secondary = [ Paren ]
 -- * energy
 
 data Energy = MinusInfinity 
-            | Finite Nat8 --  deriving Show
+            | Finite Nat8 -- deriving Show
 
 mi = MinusInfinity
 zero = Finite (nat8 0)
@@ -140,143 +284,28 @@ times e f = case e of
 -- * compute bound energy for a given secondary str.
 
 bound :: Primary -> Secondary -> Energy
-bound p s = parse [] (elems p) s
+bound p s = parse [] p s
 
 -- | note: secondary is completely known, 
 -- thus stack height is always known
 -- length of primary is known
 parse :: [ Base ] -> [Base] -> [Paren] -> Energy
-parse stack p s = case {- known -} s of
-    [] -> case {- known -} stack of
+parse stack p s = case assertKnown s of
+    [] -> case assertKnown stack of
          [] -> zero
          _ -> mi
-    y:ys -> case {- known -} p of
+    y:ys -> case assertKnown p of
          [] -> mi
-         x:xs -> case {- known -} y of
-            Blank -> parse stack xs ys
-            Open  -> parse (x:stack) xs ys
-            Close -> case {- known -} stack of
-                [] -> mi
-                z : zs -> 
-                    times (cost z x) (parse zs xs ys)
-
-
--- | check that the given matrix is the correct ADP
--- matrix for the computation of the max. energy
-
-{-
-maxboundOk
-         :: e -- ^ semi-ring zero (= forbidden energy)
-         -> e -- ^ semi-ring one (= zero enery)
-         -> ( e -> e -> e ) -- ^ semiring plus (= max)
-         -> ( e -> e -> e ) -- ^ semiring times (= plus)
-         -> ( e -> e -> Bool ) -- ^  equality
-         -> ( Base -> Base -> e ) -- ^ energy bound by this pairing
-         -> Primary 
-         -> Matrix e
-         -> Bool
--}
-maxboundOk zero one plus times eq cost p t = 
-    foreach (indices p) ( \ start ->
-    foreach (indices p) ( \ end ->
-        eq (get t start end) 
-           (maxboundFor zero one plus times cost 
-                        p t start end)
-   ))
-
-maxboundFor zero one plus times cost p t start end =
-    case lessI end start of
-             True -> zero
-             False -> case lessI start end of
-                False -> one
-                True -> -- foldb zero plus
-                    foldr plus zero
-                    ( group times cost p t start end
-                    : splittings times p t start end)
-
-foreach :: [a] -> (a -> Bool) -> Bool
-foreach xs prop = all prop xs
-
-{-
-group :: (e -> e -> e) 
-      -> (Base -> Base -> e)
-      -> Primary
-      -> Matrix e
-      -> Index -> Index 
-      -> e
--}
-group times cost p t start end = 
-    times (cost (applyI p start) (applyI p end))
-          (get t (next p start) (previous p end))
-
-
--- | energies from all splits 
--- (in two non-empty parts)
-{-
-splittings :: (e -> e -> e) 
-      -> (Base -> Base -> e)
-      -> Primary
-      -> Matrix e
-      -> Index -> Index 
-      -> [e]
--}
-splittings times p t start end =
-    map ( \ mid -> 
-              times (get t start mid)
-                    (get t (next p mid) end)
-        ) ( between p start (previous p end ) )
-
-between :: Tree a -> Index -> Index -> [ Index ]
-between p start end = 
-    filter ( \ q -> ( lessI start q && lessI q end ))
-           ( indices p )
-
-data Maybe' a = Nothing' | Just' a
-
-incrementI :: Index -> Maybe' Index
-incrementI i = case i of
-    [] -> Nothing'
-    x : xs -> case incrementI xs of
-         Nothing' -> case x of
-              False -> Just' [ True ]
-              True -> Nothing'
-         Just' ys -> Just' (x : ys)
-
--- | return [] for overflow
-decrementI :: Index -> Maybe' Index
-decrementI i = case i of
-    [] -> Nothing'
-    x : xs -> case decrementI xs of
-         Nothing' -> case x of
-              False -> Nothing'
-              True -> Just' [False]
-         Just' ys -> Just' (x : ys)
-
-next  :: Tree a -> Index -> Index
-next t p = case incrementI p of
-    Nothing' -> undefined
-    Just' qs  -> qs ++ leftmostI ( subtree t qs )
-
-previous :: Tree a -> Index -> Index
-previous t p = case decrementI p of
-    Nothing' -> undefined
-    Just' qs  -> qs ++ rightmostI ( subtree t qs )
-
-        
--- | balanced binary fold 
-foldb :: b -> (b -> b -> b) -> [b] -> b
-foldb n f xs = case xs of
-    [] -> n
-    x : xs' -> case xs' of
-         [] -> x
-         _  -> case distribute xs of 
-                  (ys, zs) -> f (foldb n f ys) (foldb n f zs)
-
--- | create two lists of nearly equal length
-distribute :: [a] -> ( [a], [a] )
-distribute xs = case xs of
-    [] -> ( [], [] )
-    x:xs' -> case distribute xs' of (ys,zs) -> (x : zs, ys)
+         x:xs ->
+            let stack' = case assertKnown y of
+                    Blank -> stack
+                    Open  -> x : stack
+                    Close -> tail stack
+                here = case y of
+                    Blank -> zero
+                    Open  -> zero
+                    Close -> cost (head stack) x
+            in  times here ( parse stack' xs ys)
 
 
 -- * binary decision tree, 
@@ -286,64 +315,30 @@ data Tree a = Leaf a
 
 type Index = [Bool]
 
-lessI :: Index -> Index -> Bool
-lessI xs ys = case xs of
-    [] -> False
-    x:xs -> case ys of
-        [] -> False
-        y:ys -> (not x && y) 
-             || ( (x == y) && lessI xs ys )
+eqBool x y = case x of
+    False -> not y
+    True  -> y
 
-leftmost :: Tree a -> a
-leftmost t = case t of
-     Leaf x -> x
-     Branch l r -> leftmost l
-
-leftmostI :: Tree a -> Index
-leftmostI t = case t of
-     Leaf x -> []
-     Branch l r -> False : leftmostI l
-
-rightmost :: Tree a -> a
-rightmost t = case t of
-     Leaf x -> x
-     Branch l r -> rightmost r
-
-rightmostI :: Tree a -> Index
-rightmostI t = case t of
-     Leaf x -> []
-     Branch l r -> True : rightmostI r
-
-assocs :: Tree a -> [(Index,a)]
-assocs t = case t of
-    Leaf x -> [ ([], x) ]
-    Branch l r -> 
-        map ( \ (k,v) -> ((False:k),v)) (assocs l)
-     ++ map ( \ (k,v) -> ((True :k),v)) (assocs r)
-
-elems :: Tree a -> [a]
-elems t = map snd ( assocs t )
-
-indices :: Tree a -> [Index]
-indices t = map fst ( assocs t )
-
-subtree :: Tree a -> Index -> Tree a
-subtree t w = case w of
-        [] -> t
-        x:xs -> subtree ( case t of 
-            Leaf v -> undefined
-            Branch l r -> case x of
-                False -> l
-                True  -> r ) xs
-
+-- | use this if the index is statically known
 applyI :: Tree a -> Index -> a
 applyI t w = case t of
     Leaf u -> u
-    Branch l r -> case w of
+    Branch l r -> case assertKnown w of
         [] -> undefined
-        x:xs -> case {- known -} x of
+        x:xs -> case assertKnown x of
             False -> applyI l xs
             True  -> applyI r xs
+
+-- | use this if the index is not statically known
+-- (used for cost of bases)
+applyIU :: Tree a -> Index -> a
+applyIU t w = case t of
+    Leaf u -> u
+    Branch l r -> case assertKnown w of
+        [] -> undefined
+        x:xs -> applyIU (case x of
+            False -> l
+            True  -> r  ) xs
 
 get :: Tree (Tree a) -> Index -> Index -> a
 get t i j = applyI (applyI t i) j

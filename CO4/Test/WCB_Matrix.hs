@@ -8,6 +8,8 @@
 -- module CO4.Test.WCB where
 module Main where
 
+import Prelude hiding (const, init, last, sequence)
+
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
@@ -22,9 +24,10 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ ImportPrelude
-                        , DumpAll "/tmp/WCB"
+                        , DumpAll "/tmp/WCB_Matrix"
                         , Cache
                         , Profile
+                        , InstantiationDepth 20
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
 
@@ -62,19 +65,20 @@ ex0 = [ Open, Open
 
 result_for :: [Paren] -> IO ()
 result_for sec = do
+    let n = length sec
     out <- solveAndTestBooleanP 
        sec 
-       ( booleanCache  .  profile )
-       ( known 0 1 [ balanced sec ( const uBase )
-                   , uTriag [1..length sec] uEnergy
+       ( booleanCache . profile )
+       ( known 0 1 [ kList n uBase
+                   , kList (n+1) $ kList (n+1) uEnergy
                    ] )
        encConstraint
        constraint
     case out of
        Nothing -> print "Nothing"
        Just (p, m) -> do
-           print $ elems p
-           void $ forM ( elems m ) $ (print . elems)
+           print $ p
+           void $ forM m print
 
 main = do
     hSetBuffering stdout LineBuffering
