@@ -13,8 +13,7 @@ import           Data.List (transpose)
 import           Data.Maybe (catMaybes,fromJust)
 import           Data.Tree (Tree (..),drawTree)
 import           Satchmo.Core.MonadSAT (MonadSAT)
-import           Satchmo.Core.Primitive 
-  (Primitive,isConstant,evaluateConstant,constant,and)
+import           Satchmo.Core.Primitive (Primitive,constant,and)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Util (for,toBinary,bitWidth,fromBinary)
 import           CO4.EncodedAdt
@@ -50,13 +49,6 @@ instance Primitive p => EncodedAdt Overlapping p where
 
   definedness (Overlapping d _ _) = d
   definedness Bottom              = constant True
-
-  constantConstructorIndex adt = case flags adt of
-    Nothing -> error "EncodedAdt.Overlapping.constantConstructorIndex: no flags"
-    Just [] -> Just 0
-    Just fs -> if all isConstant fs
-               then Just $ fromBinary $ map (fromJust . evaluateConstant) fs
-               else Nothing
 
   caseOf adt branches | isConstantlyUndefined adt 
                      || (all isConstantlyUndefined branches) 

@@ -10,7 +10,7 @@ where
 import           Control.Monad.State.Strict
 import qualified Data.Map.Strict as M
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
-import           CO4.EncodedAdt (EncodedAdt(..),isValid)
+import           CO4.EncodedAdt (EncodedAdt(..),isValid,constantConstructorIndex)
 
 data CacheKey e = CacheCall String [e]
                 | CacheCase e [e]

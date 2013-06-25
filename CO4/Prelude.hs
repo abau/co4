@@ -19,7 +19,8 @@ import           CO4.Names
 import           CO4.Allocator.Common (constructors)
 import           CO4.PreludeNat
 import           CO4.EncEq
-import           CO4.EncodedAdt (EncodedAdt(..),isConstantlyDefined,isInvalid)
+import           CO4.EncodedAdt 
+  (EncodedAdt(..),isConstantlyDefined,isInvalid,constantConstructorIndex)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
