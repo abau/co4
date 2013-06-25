@@ -270,16 +270,20 @@ geEnergy a b = case b of
 plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (maxNat8 x y)
+    Finite y      -> Finite (maxNat8p x y)
     MinusInfinity -> Finite x
   MinusInfinity -> f
+
+maxNat8p = maxNat8
 
 times :: Energy -> Energy -> Energy
 times e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (plusNat8 x y)
+    Finite y      -> Finite (plusNat8p x y)
     MinusInfinity -> MinusInfinity
   MinusInfinity -> MinusInfinity
+
+plusNat8p = plusNat8
 
 -- * Pairs of energies
 
