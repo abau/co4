@@ -7,25 +7,42 @@ import Prelude hiding (const, init, last, sequence)
 -- * the main constraint
 
 constraint = design_simple
--- constraint = ssp
 
+{-
 ssp :: Primary -> Matrix Energy -> Bool
 ssp p m = 
        all2 eqEnergy m (grammar p m)
    &&  all2 eqEnergy m (gap1 m)
+-}
+
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)
             -> Bool
 design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
-   &&  all2 eqEnergy m (grammar p m)
-   &&  all2 eqEnergy m (gap1 m)
+   &&  all2 eqEnergy m 
+            (grammar mi zero one plus times (costM zero) p m)
+   &&  all2 eqEnergy m (gap1 mi m)
+
+design_stable :: Secondary 
+            -> (Primary, Matrix Energy2)
+            -> Bool
+design_stable s (p, m) =
+       geEnergy (bound p s) (fst (upright m))
+   &&  all2 eqEnergy2 m 
+             (grammar (lift2 mi)(lift2 zero)(lift2 one) plus2 times2 (costM2 (lift2 mi)) p m)
+   &&  all2 eqEnergy2 m (gap1 (lift2 mi) m)
 
 
-grammar p s = choice plus 
-       [ item mi zero p
+grammar :: e -> e -> e
+        -> (e -> e -> e) -> (e -> e -> e)
+        -> (Primary -> [[e]])
+        -> Primary -> Matrix e -> Matrix e
+grammar zero one unit plus times costM p s = 
+    choice plus 
+       [ item zero unit p
        , sequence plus times [s, s]
-       , pointwise times (costM p) (shift zero s)
+       , pointwise times (costM p) (shift one s)
        ]
 
 
@@ -90,16 +107,21 @@ sequence plus times ms =
     foldr (mtimes plus times) (head ms) (tail ms)
 
 
-costM p = forward ( dropY mi ( addX mi
+costM zero  p = forward zero ( dropY zero ( addX zero
          ( for p ( \ x ->
          for p ( \ y -> cost x y ) ) ) ) )
+
+costM2 zero p = forward zero ( dropY zero ( addX zero
+         ( for p ( \ x ->
+         for p ( \ y -> lift2 (cost x y) ) ) ) ) )
 
 addX zero m = map ( \ row -> zero : row ) m
 dropY zero m = m ++ [ map (const zero) (head m) ]
                 
-gap1 m = forward m 
-forward m = with_empty mi mi m
+gap1 zero m = forward zero m 
+forward zero m = with_empty zero zero m
 
+with_empty :: e -> e -> Matrix e -> Matrix e
 with_empty zero one m = case m of
     [] -> []
     row : rows -> 
@@ -255,6 +277,27 @@ times e f = case e of
     Finite y      -> Finite (plusNat8 x y)
     MinusInfinity -> MinusInfinity
   MinusInfinity -> MinusInfinity
+
+-- * Pairs of energies
+
+type Energy2 = (Energy, Energy)
+
+eqEnergy2 (f1,s1) (f2,s2) = 
+    eqEnergy f1 f2 && eqEnergy s2 s2
+
+lift2 f = (f, mi)
+
+plus2 :: Energy2 -> Energy2 -> Energy2 
+plus2 (f1,s1) (f2,s2) = 
+    ( maxEnergy f1 f2 
+    , maxEnergy (minEnergy f1 f2) (maxEnergy s1 s2)
+    )
+
+times2 :: Energy2 ->  Energy2 ->  Energy2 
+times2 (f1,s1) (f2,s2) = 
+    ( times f1 f2 
+    , maxEnergy (times f1 s2) (times f2 s1)
+    )
 
 -- * compute bound energy for a given secondary str.
 
