@@ -6,7 +6,8 @@ import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
-constraint = design_simple
+-- constraint = design_simple
+constraint = design_stable
 
 {-
 ssp :: Primary -> Matrix Energy -> Bool
@@ -21,28 +22,30 @@ design_simple :: Secondary
 design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
    &&  all2 eqEnergy m 
-            (grammar mi zero one plus times (costM zero) p m)
+            (grammar mi zero plus times (costM zero) p m)
    &&  all2 eqEnergy m (gap1 mi m)
 
 design_stable :: Secondary 
             -> (Primary, Matrix Energy2)
             -> Bool
-design_stable s (p, m) =
-       geEnergy (bound p s) (fst (upright m))
-   &&  all2 eqEnergy2 m 
-             (grammar (lift2 mi)(lift2 zero)(lift2 one) plus2 times2 (costM2 (lift2 mi)) p m)
-   &&  all2 eqEnergy2 m (gap1 (lift2 mi) m)
+design_stable s (p, m) = case upright m of
+   (best,second) -> 
+          geEnergy (bound p s) best
+      &&  gtEnergy best second
+      &&  all2 eqEnergy2 m 
+             (grammar (lift2 mi)(lift2 zero) plus2 times2 (costM2 (lift2 mi)) p m)
+      &&  all2 eqEnergy2 m (gap1 (lift2 mi) m)
+   
 
-
-grammar :: e -> e -> e
+grammar :: e -> e 
         -> (e -> e -> e) -> (e -> e -> e)
         -> (Primary -> [[e]])
         -> Primary -> Matrix e -> Matrix e
-grammar zero one unit plus times costM p s = 
+grammar zero one plus times costM p s = 
     choice plus 
-       [ item zero unit p
+       [ item zero one p
        , sequence plus times [s, s]
-       , pointwise times (costM p) (shift one s)
+       , pointwise times (costM p) (shift zero s)
        ]
 
 
@@ -283,20 +286,20 @@ times e f = case e of
 type Energy2 = (Energy, Energy)
 
 eqEnergy2 (f1,s1) (f2,s2) = 
-    eqEnergy f1 f2 && eqEnergy s2 s2
+    eqEnergy f1 f2 && eqEnergy s1 s2
 
 lift2 f = (f, mi)
 
 plus2 :: Energy2 -> Energy2 -> Energy2 
 plus2 (f1,s1) (f2,s2) = 
-    ( maxEnergy f1 f2 
-    , maxEnergy (minEnergy f1 f2) (maxEnergy s1 s2)
+    ( plus f1 f2 
+    , plus (minEnergy f1 f2) (plus s1 s2)
     )
 
 times2 :: Energy2 ->  Energy2 ->  Energy2 
 times2 (f1,s1) (f2,s2) = 
     ( times f1 f2 
-    , maxEnergy (times f1 s2) (times f2 s1)
+    , plus (times f1 s2) (times f2 s1)
     )
 
 -- * compute bound energy for a given secondary str.

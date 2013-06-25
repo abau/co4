@@ -48,6 +48,7 @@ balanced xs f = case xs of
                        ]
 
 uEnergy = constructors [ Just [] , Just [ uNat8 ]]
+uEnergy2 = known 0 1 [ uEnergy, uEnergy ]
 
 uTriag xs e = balanced xs $ \ x ->
               balanced xs $ \ y -> e
@@ -69,7 +70,7 @@ result_for sec = do
        sec 
        id -- ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
-                   , kList (n+1) $ kList (n+1) uEnergy
+                   , kList (n+1) $ kList (n+1) uEnergy2
                    ] )
        encConstraint
        constraint
