@@ -19,7 +19,7 @@ import           CO4.Algorithms.Util (eraseTypedNames,collapseApplications,colla
 import           CO4.TypesUtil
 import           CO4.Names
 import           CO4.Config (MonadConfig,Config(ImportPrelude),is)
-import           CO4.Prelude (unparsedFunctionNames)
+import           CO4.Prelude (unparsedNames)
 
 data Env = Env { -- |Bindings of higher order expressions
                  hoBindings      :: M.Map Name Expression 
@@ -141,7 +141,7 @@ freeNames exp =
   in do
     parsedToplevelNames <- liftM (mapMaybe toplevelName) $ asks notInstantiable
     toplevelNames       <- is ImportPrelude >>= \case 
-      True  -> return $ parsedToplevelNames ++ unparsedFunctionNames
+      True  -> return $ parsedToplevelNames ++ unparsedNames
       False -> return $ parsedToplevelNames
 
     instanceNames <- liftM (map boundName) $ gets instances

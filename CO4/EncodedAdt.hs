@@ -4,7 +4,7 @@
 module CO4.EncodedAdt
   ( IntermediateAdt (..), EncodedAdt (..)
   , isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined, isValid
-  , isInvalid, flags', caseOfBits)
+  , isInvalid, flags', constantConstructorIndex, primitivesToDecimal, caseOfBits)
 where
 
 import           Prelude hiding (and,undefined)
@@ -12,12 +12,12 @@ import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (forM)
 import           Data.List (transpose)
-import           Data.Maybe (fromMaybe,catMaybes)
+import           Data.Maybe (fromMaybe,catMaybes,fromJust)
 import           Satchmo.Core.Primitive (Primitive,constant,select,primitive,assert)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Decode (Decode)
 import           Satchmo.Core.MonadSAT (MonadSAT)
-import           CO4.Util (bitWidth,binaries,for)
+import           CO4.Util (bitWidth,binaries,for,fromBinary)
 
 data IntermediateAdt p = IntermediateConstructorIndex Int [p]
                        | IntermediateUndefined
@@ -36,7 +36,6 @@ class (Primitive p) => EncodedAdt e p where
 
   definedness :: e p -> p
 
-  constantConstructorIndex :: e p -> Maybe Int
 
   caseOf :: MonadSAT m => e p -> [e p] -> m (e p)
 
@@ -68,13 +67,27 @@ flags' e = case flags e of
   Nothing -> error "EncodedAdt.flags': missing flags"
   Just fs -> fs
 
+constantConstructorIndex :: (EncodedAdt e p) => e p -> Maybe Int
+constantConstructorIndex adt = case flags adt of
+  Nothing -> error "EncodedAdt.constantConstructorIndex: no flags"
+  Just [] -> Just 0
+  Just fs -> primitivesToDecimal fs
+
+primitivesToDecimal :: (Primitive p) => [p] -> Maybe Int
+primitivesToDecimal ps = 
+  if all P.isConstant ps
+  then Just $ fromBinary $ map (fromJust . P.evaluateConstant) ps
+  else Nothing
+
 caseOfBits :: (MonadSAT m, Primitive p) => [p] -> [Maybe [p]] -> m [p]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonBottomBits) 
   $ Exception.assert (length flags == bitWidth (length branchBits)) 
   $ case all equalBits (transpose branchBits') of
       True  -> return $ head $ branchBits'
-      False -> forM (transpose branchBits') mergeN 
+      False -> case primitivesToDecimal flags of
+        Nothing -> forM (transpose branchBits') mergeN 
+        Just i  -> return $ branchBits' !! i
     where
       nonBottomBits  = catMaybes branchBits
       branchBitWidth = maximum $ map length nonBottomBits 

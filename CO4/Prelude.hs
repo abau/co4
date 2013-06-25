@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 module CO4.Prelude
-  ( parsePrelude, preludeAdtDeclarations, unparsedFunctionNames, unparsedPreludeContext
+  ( parsePrelude, preludeAdtDeclarations, unparsedNames, unparsedPreludeContext
   , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
   , assertKnown, encAssertKnown, assertDefined, encAssertDefined
   , module CO4.PreludeNat
@@ -11,7 +11,7 @@ where
 import qualified Language.Haskell.Exts as HE
 import           Language.Haskell.Exts.QQ (dec)
 import           CO4.Language 
-import           CO4.Algorithms.HindleyMilner.Util (Context (..),binds,emptyContext)
+import           CO4.Algorithms.HindleyMilner.Util (Context,binds,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
 import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
 import           CO4.Unique (MonadUnique)
@@ -19,7 +19,8 @@ import           CO4.Names
 import           CO4.Allocator.Common (constructors)
 import           CO4.PreludeNat
 import           CO4.EncEq
-import           CO4.EncodedAdt (EncodedAdt(..),isConstantlyDefined,isInvalid)
+import           CO4.EncodedAdt 
+  (EncodedAdt(..),isConstantlyDefined,isInvalid,constantConstructorIndex)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -79,9 +80,6 @@ preludeAdtDeclarations = [
   where
     [a,b,c,d,e] = map UntypedName ["a","b","c","d","e"]
 
-unparsedFunctionNames :: Namelike n => [n]
-unparsedFunctionNames = [eqName]
-
 unparsedPreludeContext :: Context
 unparsedPreludeContext = binds 
   [ (eqName          , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
@@ -115,6 +113,9 @@ unparsedPreludeContext = binds
         ( tupleName i, (foldr SForall (SType type_) $ take i names) )
 
     nat8T = TCon nat8TypeName []
+
+unparsedNames :: Namelike n => [n]
+unparsedNames = map (convertName . fst) $ toList $ unparsedPreludeContext 
 
 -- * Allocators
 
