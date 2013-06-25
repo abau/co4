@@ -13,6 +13,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Prelude
+import           CO4.PreludeNat
 import           CO4.Util (toBinary,fromBinary)
 
 import qualified Data.Map as M
@@ -22,7 +23,7 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ ImportPrelude
-                        , DumpAll "/tmp/WCB"
+                        -- , DumpAll "/tmp/WCB"
                         , Cache
                         , Profile
                         ] 
@@ -34,9 +35,9 @@ kList i a = known 1 2 [ a , kList (i-1) a]
 
 main = do
     out <- solveAndTestBooleanP 
-       ( nat8 42 )
+       ( nat8 241 )
        ( booleanCache  .  profile )
-       ( kList 5 uNat8 )
+       ( kList 10 uNat8 )
        encConstraint
        constraint
     print out
