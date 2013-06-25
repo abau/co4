@@ -70,7 +70,7 @@ result_for sec = do
        sec 
        id -- booleanCache -- . profile )
        ( known 0 1 [ kList n uBase
-                   , kList (n+1) $ kList (n+1) uEnergy2
+                   , kList (n+1) $ kList (n+1) uEnergy
                    ] )
        encConstraint
        constraint

@@ -6,8 +6,8 @@ import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
--- constraint = design_simple
-constraint = design_stable
+constraint = design_simple
+-- constraint = design_stable
 
 {-
 ssp :: Primary -> Matrix Energy -> Bool
