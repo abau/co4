@@ -25,7 +25,7 @@ import System.IO
 
 $( runIO $ configurable [ ImportPrelude
                         -- , DumpAll "/tmp/WCB_Matrix"
-                        -- , Cache , Profile
+                        -- , Cache -- , Profile
                         , InstantiationDepth 20
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
@@ -68,7 +68,7 @@ result_for sec = do
     let n = length sec
     out <- solveAndTestBooleanP 
        sec 
-       id -- ( booleanCache . profile )
+       id -- booleanCache -- . profile )
        ( known 0 1 [ kList n uBase
                    , kList (n+1) $ kList (n+1) uEnergy2
                    ] )
