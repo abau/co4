@@ -6,19 +6,29 @@ import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
-constraint = simple
+constraint = design_simple
+-- constraint = ssp
 
-
-simple :: Secondary 
+ssp :: Primary -> Matrix Energy -> Bool
+ssp p m = 
+       all2 eqEnergy m (grammar p m)
+   &&  all2 eqEnergy m (gap1 m)
+design_simple :: Secondary 
             -> (Primary, Matrix Energy)
             -> Bool
-simple s (p, m) =
+design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
-   &&  all2 eqEnergy m 
-        (grammar p m)
+   &&  all2 eqEnergy m (grammar p m)
+   &&  all2 eqEnergy m (gap1 m)
 
 
--- type Matrix a = Tree (Tree a)
+grammar p s = choice plus 
+       [ item mi zero p
+       , sequence plus times [s, s]
+       , pointwise times (costM p) (shift zero s)
+       ]
+
+
 type Matrix a = [[a]]
 
 upright m = last ( head m)
@@ -37,12 +47,10 @@ init xs = case xs of
 
 const x y = x
 
--- just hypothetically:
--- m ! (i,j) == m !! i !! j
 
--- |  (shrink m) ! (i,j) ==  e ! (i+1,j-1) 
-shrink :: e -> Matrix e -> Matrix e
-shrink zero m = dropX zero (addY zero m)
+-- |  (shift m) ! (i,j) ==  e ! (i+1,j-1) 
+shift :: e -> Matrix e -> Matrix e
+shift zero m = dropX zero (addY zero m)
 
 dropX zero m = tail m ++ [ map (const zero) (head m) ]
 addY zero m = map ( \ row -> init (zero : row) ) m
@@ -81,31 +89,15 @@ choice plus ms =
 sequence plus times ms = 
     foldr (mtimes plus times) (head ms) (tail ms)
 
-grammar p s =
-    let s0 = -- choice plus [ empty mi zero p , s ]
-             with_empty mi zero s
-    in forward ( choice plus 
-       [ item mi zero p
-       , sequence plus times [s, s]
-       , pointwise times (bind p) s0
 
-{-     more grammar-like:
-       , sequence plus times 
-            [ expect a mi zero p
-            , s0
-            , expect u mi one p
-            ]
--}
-       ] )
-
-
-bind p = dropY ( addX ( forward 
+costM p = forward ( dropY mi ( addX mi
          ( for p ( \ x ->
          for p ( \ y -> cost x y ) ) ) ) )
 
-addX m = map ( \ row -> mi : row ) m
-dropY m = m ++ [ map (const mi) (head m) ]
+addX zero m = map ( \ row -> zero : row ) m
+dropY zero m = m ++ [ map (const zero) (head m) ]
                 
+gap1 m = forward m 
 forward m = with_empty mi mi m
 
 with_empty zero one m = case m of
@@ -115,22 +107,9 @@ with_empty zero one m = case m of
        : map ( \ row -> zero : row) 
              (with_empty zero one (map tail rows))
         
-
-empty :: e -> e -> Primary -> Matrix e
-empty zero one p = 
-    diag zero ( one : map (const one) p ) 
-
 item :: e -> e -> Primary -> Matrix e
-item zero one p = 
-    shift zero ( diag zero
-     (map ( const one ) p ) )
-
-expect :: Base -> e -> e -> Primary -> Matrix e
-expect base zero one p =
-    shift zero ( diag zero 
-    ( for p ( \ b -> case eqBase base b of
-          False -> zero
-          True  -> one ) ) )
+item zero one p = dropY zero (addX zero
+     ( diag zero (map ( const one ) p )) )
 
 diag :: e -> [e] -> Matrix e
 diag zero xs = case xs of
@@ -138,11 +117,6 @@ diag zero xs = case xs of
     x:xs' -> let d = diag zero xs'
              in  (x : map (const zero) d) 
                  : map (\ row -> zero : row) d 
-
-shift zero m = 
-    map (\ row -> zero : row) 
-    ( m ++ [ map (const zero) (head m) ] )
-    
 
 for xs f = map f xs
 
@@ -214,11 +188,12 @@ type Secondary = [ Paren ]
 -- * energy
 
 data Energy = MinusInfinity 
-            | Finite Nat8 -- deriving Show
+            | Finite Nat8 
+--     deriving Show
 
-mi = MinusInfinity
+mi   = MinusInfinity
 zero = Finite (nat8 0)
-one = Finite (nat8 1)
+one  = Finite (nat8 1)
 
 
 

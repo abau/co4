@@ -24,9 +24,8 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ ImportPrelude
-                        , DumpAll "/tmp/WCB_Matrix"
-                        , Cache
-                        , Profile
+                        -- , DumpAll "/tmp/WCB_Matrix"
+                        -- , Cache , Profile
                         , InstantiationDepth 20
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
@@ -68,7 +67,7 @@ result_for sec = do
     let n = length sec
     out <- solveAndTestBooleanP 
        sec 
-       ( booleanCache . profile )
+       id -- ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
                    , kList (n+1) $ kList (n+1) uEnergy
                    ] )
@@ -76,9 +75,14 @@ result_for sec = do
        constraint
     case out of
        Nothing -> print "Nothing"
-       Just (p, m) -> do
-           print $ p
+       Just (prim, m) -> do
+           print $ prim
            void $ forM m print
+           putStrLn $ map (\ s -> case s of
+              Open -> '('; Close -> ')'; Blank -> '.'
+             ) sec
+           putStrLn $ map (\ b -> applyB b (basetree 'A' 'C' 'G' 'U')) prim
+           print $ upright m
 
 main = do
     hSetBuffering stdout LineBuffering
