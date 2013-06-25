@@ -32,7 +32,7 @@ import           CO4.Allocator.Common (known)
 import           CO4.Profiling (MonadProfiling,traced)
 import           CO4.EncEq (encEq,encProfiledEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
-import           CO4.Prelude (preludeAdtDeclarations,unparsedFunctionNames) 
+import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 import           CO4.PreludeNat (encNat8)
 
 newtype AdtInstantiator u a = AdtInstantiator 
@@ -277,7 +277,7 @@ eitherize program = do
                                       else pAdts
       pToplevelNames = map boundName $ programToplevelBindings program
       toplevelNames  = if withPrelude 
-                       then pToplevelNames ++ unparsedFunctionNames
+                       then pToplevelNames ++ unparsedNames
                        else pToplevelNames
 
   decls   <- execWriterT $ runAdtInstantiator $ collect adts
