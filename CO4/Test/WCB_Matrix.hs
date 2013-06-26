@@ -50,8 +50,16 @@ balanced xs f = case xs of
 uEnergy = constructors [ Just [] , Just [ uNat8 ]]
 uEnergy2 = known 0 1 [ uEnergy, uEnergy ]
 
-uTriag xs e = balanced xs $ \ x ->
-              balanced xs $ \ y -> e
+uMatrix xs ys f =
+    let row xs g = case xs of
+            []    -> known 0 2 [] 
+            x:xs' -> known 1 2 [ g x, row xs' g ]
+    in  row xs $ \ x -> row ys $ \ y -> f x y
+
+-- upper triag finite energy
+uTriag n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
+     if i < j then known 1 2 [ uNat8 ]
+     else known 0 2 []
 
 inforna cs = map ( \ c -> case c of
     '(' -> Open ; '.' -> Blank ; ')' -> Close ) cs
@@ -70,7 +78,7 @@ result_for sec = do
        sec 
        ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
-                   , kList (n+1) $ kList (n+1) uEnergy
+                   , uTriag (n+1)
                    ] )
        encConstraint
        constraint
