@@ -208,11 +208,13 @@ fullAdder :: (Primitive p, MonadSAT m)
           => p -> p -> p -> m (p,p)
 fullAdder = fullAdder_three
 
+{-
 fullAdder_one p1 p2 p3 = do
   (r12,c12) <- halfAdder p1 p2
   (r,c3) <- halfAdder r12 p3
   c <- or [c12,c3]
   return (r, c)
+-}
 
 fullAdder_three x y z = do
     let implies xs ys = assert (map not xs ++ ys)
@@ -234,6 +236,7 @@ fullAdder_three x y z = do
     implies [ not z, not x ] [ not c ]
     return (r,c)
 
+{-
 fullAdder_two p1 p2 p3 = do
   p4 <- primitive
   p5 <- primitive
@@ -258,6 +261,7 @@ fullAdder_two p1 p2 p3 = do
   assert [p1, p2, not p3, p4]
   assert [p1, p2, p3, not p4]
   return ( p4, p5 )
+-}
 
 halfAdder :: (Primitive p, MonadSAT m) 
           => p -> p -> m (p,p)
