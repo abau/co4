@@ -6,15 +6,8 @@ import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
-constraint = design_simple
--- constraint = design_stable
-
-{-
-ssp :: Primary -> Matrix Energy -> Bool
-ssp p m = 
-       all2 eqEnergy m (grammar p m)
-   &&  all2 eqEnergy m (gap1 m)
--}
+-- constraint = design_simple
+constraint = design_stable
 
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)

@@ -61,6 +61,11 @@ uTriag n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i < j then known 1 2 [ uNat8 ]
      else known 0 2 []
 
+uTriag2 n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
+     if i < j 
+     then uEnergy2
+     else known 0 1 [ known 0 2 [], known 0 2 [] ]
+
 inforna cs = map ( \ c -> case c of
     '(' -> Open ; '.' -> Blank ; ')' -> Close ) cs
 
@@ -78,7 +83,7 @@ result_for sec = do
        sec 
        ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
-                   , uTriag (n+1)
+                   , uTriag2 (n+1)
                    ] )
        encConstraint
        constraint
