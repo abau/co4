@@ -1,20 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# language LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 
 module CO4.Cache
-  (MonadCache (..), CacheKey (..), Cache, runCache, withCache)
+  (MonadCache (..), CacheKey, Cache, runCache, withCache)
 where
 
 import           Control.Monad.State.Strict
 import qualified Data.Map.Strict as M
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
-import           CO4.EncodedAdt (EncodedAdt(..),isValid,constantConstructorIndex)
 
-data CacheKey e = CacheCall String [e]
-                | CacheCase e [e]
-                deriving (Eq,Ord)
+type CacheKey e = (String,[e])
 
 class Monad m => MonadCache e m where
   retrieve :: CacheKey e -> m (Maybe e)
@@ -22,11 +19,9 @@ class Monad m => MonadCache e m where
 
 type CacheMap e = M.Map (CacheKey e) e
 
-data CacheState e = CacheState { cacheMap      :: CacheMap e
-                               , numCallHits   :: Int
-                               , numCallMisses :: Int
-                               , numCaseHits   :: Int
-                               , numCaseMisses :: Int
+data CacheState e = CacheState { cacheMap  :: CacheMap e
+                               , numHits   :: Int
+                               , numMisses :: Int
                                }
 
 newtype Cache e m a = Cache { fromCache :: StateT (CacheState e) m a }
@@ -37,12 +32,8 @@ instance (Monad m, Ord e) => MonadCache e (Cache e m) where
       Nothing -> addMiss >> return Nothing
       Just e  -> addHit  >> return ( Just e )
     where 
-      addHit = case key of
-        CacheCall {} -> modify $ \s -> s { numCallHits = succ $ numCallHits s }
-        CacheCase {} -> modify $ \s -> s { numCaseHits = succ $ numCaseHits s }
-      addMiss = case key of
-        CacheCall {} -> modify $ \s -> s { numCallMisses = succ $ numCallMisses s }
-        CacheCase {} -> modify $ \s -> s { numCaseMisses = succ $ numCaseMisses s }
+      addHit  = modify $ \s -> s { numHits   = succ $ numHits   s }
+      addMiss = modify $ \s -> s { numMisses = succ $ numMisses s }
 
   cache key result = modify $ \s -> s { cacheMap = M.insert key result $ cacheMap s }
 
@@ -55,36 +46,20 @@ instance (MonadSAT m) => MonadSAT (Cache e m) where
 
 runCache :: (MonadIO m) => Cache e m a -> m a
 runCache c = do
-  (result,cacheState) <- runStateT (fromCache c) $ CacheState M.empty 0 0 0 0
+  (result,cacheState) <- runStateT (fromCache c) $ CacheState M.empty 0 0
 
-  let h1 = numCallHits   cacheState
-      m1 = numCallMisses cacheState
-      h2 = numCaseHits   cacheState
-      m2 = numCaseMisses cacheState
+  let h = numHits   cacheState
+      m = numMisses cacheState
 
-  when ( h1 + m1 > 0 ) $ liftIO $ putStrLn $ 
-    concat [ "Cache call hits: "  , show h1, " (", show $ (h1*100) `div` (h1+m1), "%), "
-           ,       "call misses: ", show m1, " (", show $ (m1*100) `div` (h1+m1), "%)"
-           ]
-  when ( h2 + m2 > 0 ) $ liftIO $ putStrLn $ 
-    concat [ "Cache case hits: "  , show h2, " (", show $ (h2*100) `div` (h2+m2), "%), "
-           ,       "case misses: ", show m2, " (", show $ (m2*100) `div` (h2+m2), "%)"
-           ]
+  when ( h + m > 0 ) $ liftIO $ putStrLn $ 
+    concat [ "Cache hits: ", show h, " (", show $ (h*100) `div` (h+m), "%)"]
+
   return result
 
-withCache :: (EncodedAdt e p, MonadCache (e p) m) 
-          => CacheKey (e p) -> m (e p) -> m (e p)
-withCache key f = case key of
-  CacheCase e _ -> if isValid e
-                   then case constantConstructorIndex e of
-                         Just _ -> f
-                         _      -> askCache
-                   else f
-  _ -> askCache
-  where
-    askCache = retrieve key >>= \case 
-                  Just hit -> return hit
-                  Nothing  -> do
-                    result <- f
-                    cache key result
-                    return result
+withCache :: (MonadCache (e p) m) => CacheKey (e p) -> m (e p) -> m (e p)
+withCache key f = retrieve key >>= \case 
+  Just hit -> return hit
+  Nothing  -> do
+    result <- f
+    cache key result
+    return result

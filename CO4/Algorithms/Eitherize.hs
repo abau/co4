@@ -27,7 +27,7 @@ import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
-import           CO4.Cache (MonadCache,CacheKey (..),withCache)
+import           CO4.Cache (MonadCache,withCache)
 import           CO4.Allocator.Common (known)
 import           CO4.Profiling (MonadProfiling,traced)
 import           CO4.EncEq (encEq,encProfiledEq)
@@ -107,8 +107,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
         _ | cache  -> bindAndApplyArgs (\args'' -> 
                         appsE (TH.VarE 'withCache) 
-                        [ appsE (TH.ConE 'CacheCall) [ stringE $ encodedName fName
-                                                     , TH.ListE args'']
+                        [ TH.TupE [ stringE $ encodedName fName, TH.ListE args'']
                         , appsE (varE $ encodedName fName) args''
                         ]) args'
         _         -> bindAndApplyArgs (appsE $ varE $ encodedName fName) args'
@@ -128,7 +127,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
           True  -> bindAndApplyArgs (\args'' -> 
                     appsE (TH.VarE 'withCache) 
-                    [ appsE (TH.ConE 'CacheCall) [stringE "==", TH.ListE args'']
+                    [ TH.TupE [stringE "==", TH.ListE args'']
                     , appsE (TH.VarE encName) $ typedUndefined scheme : args''
                     ]) args'
 
@@ -143,17 +142,9 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
       then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
 
       else do 
-        caseOfE <- is Cache >>= \case
-          False -> bindAndApply 
+        caseOfE <- bindAndApply 
                      (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
                      (appsE $ TH.VarE 'caseOf) ms'
-          True  -> bindAndApply 
-                    (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
-                    (\exps -> appsE (TH.VarE 'withCache)
-                                [ appsE (TH.ConE 'CacheCase) exps
-                                , appsE (TH.VarE 'caseOf) exps 
-                                ]
-                    ) ms'
 
         return $ TH.DoE [ binding, TH.NoBindS $ checkValidity e'Name $ caseOfE ]
     where 
