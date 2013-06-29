@@ -117,7 +117,7 @@ instance MonadSAT m => MonadProfiling (SimpleProfiling m) where
           ) fun
         modify $! onCurrentInner $! const nullProfileData
 
-instance MonadCache p m => MonadCache p (SimpleProfiling m) where
+instance MonadCache k v m => MonadCache k v (SimpleProfiling m) where
   retrieve = lift . retrieve
   cache k  = lift . cache k
 

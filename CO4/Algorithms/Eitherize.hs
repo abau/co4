@@ -27,7 +27,7 @@ import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
-import           CO4.Cache (MonadCache,withCache)
+import           CO4.Cache (MonadCallCache,withCache)
 import           CO4.Allocator.Common (known)
 import           CO4.Profiling (MonadProfiling,traced)
 import           CO4.EncEq (encEq,encProfiledEq)
@@ -247,7 +247,7 @@ instantiateSignature name numArgs =
     isCache   <- is Cache   
 
     return $ sigD' name $ TH.ForallT typeVars
-      (catMaybes [ if isCache   then Just $ TH.ClassP ''MonadCache [TH.AppT e p, m]
+      (catMaybes [ if isCache   then Just $ TH.ClassP ''MonadCallCache [TH.AppT e p, m]
                                 else Nothing
                  , if isProfile then Just $ TH.ClassP ''MonadProfiling [m]
                                 else Nothing
