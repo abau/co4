@@ -17,8 +17,9 @@ import CO4.Language (Name)
 
 class (Monad m) => MonadUnique m where
   newString :: String -> m String
+  newInt    :: m Int
 
-newtype UniqueT m a = UniqueT (StateT Integer m a)
+newtype UniqueT m a = UniqueT (StateT Int m a)
   deriving (Monad, Functor, Applicative, MonadTrans)
 
 newtype Unique a = Unique (UniqueT Identity a)
@@ -29,6 +30,11 @@ instance (Monad m) => MonadUnique (UniqueT m) where
     i <- get
     modify (+1) 
     return $ concat [prefix, separator:[], show i]
+
+  newInt = UniqueT $ do
+    i <- get
+    modify (+1) 
+    return i
 
 separator = '_'
 
@@ -57,15 +63,19 @@ originalName = mapName $ takeWhile (/= separator)
 
 instance (MonadUnique m) => MonadUnique (ReaderT r m) where
   newString = lift . newString 
+  newInt    = lift   newInt
 
 instance (MonadUnique m, Monoid w) => MonadUnique (WriterT w m) where
   newString = lift . newString
+  newInt    = lift   newInt
 
 instance (MonadUnique m) => MonadUnique (StateT s m) where
   newString = lift . newString
+  newInt    = lift   newInt
 
 instance (MonadUnique m, Monoid w) => MonadUnique (RWST r w s m) where
   newString = lift . newString
+  newInt    = lift   newInt
 
 instance (MonadIO m) => MonadIO (UniqueT m) where
   liftIO = lift . liftIO 
