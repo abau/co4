@@ -22,7 +22,7 @@ design_simple :: Secondary
 design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
    &&  all2 eqEnergy m 
-            (grammar mi zero plus times (costM zero) p m)
+            (grammar mi zero plus times (costM mi) p m)
    &&  all2 eqEnergy m (gap1 mi m)
 
 design_stable :: Secondary 
@@ -193,10 +193,10 @@ cost b1 b2 = applyB b1 (applyB b2 costT)
 -- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi mi mi two) -- a u
-    (basetree mi mi three mi) -- c g
-    (basetree mi three mi one) -- g c, g u
-    (basetree two mi one mi) -- u a, u g
+    (basetree mi  mi    mi    two) -- a u
+    (basetree mi  mi    three mi) -- c g
+    (basetree mi  three mi    one) -- g c, g u
+    (basetree two mi    one   mi) -- u a, u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
@@ -273,7 +273,7 @@ plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (maxNat8p x y)
-    MinusInfinity -> Finite x
+    MinusInfinity -> e
   MinusInfinity -> f
 
 maxNat8p = maxNat8
@@ -282,8 +282,8 @@ times :: Energy -> Energy -> Energy
 times e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (plusNat8p x y)
-    MinusInfinity -> MinusInfinity
-  MinusInfinity -> MinusInfinity
+    MinusInfinity -> f
+  MinusInfinity -> e
 
 plusNat8p = plusNat8
 
