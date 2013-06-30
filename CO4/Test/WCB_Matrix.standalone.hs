@@ -6,8 +6,8 @@ import Prelude hiding (const, init, last, sequence)
 
 -- * the main constraint
 
-constraint = design_simple
--- constraint = design_stable
+-- constraint = design_simple
+constraint = design_stable
 
 {-
 ssp :: Primary -> Matrix Energy -> Bool
@@ -23,7 +23,7 @@ design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
    &&  all2 eqEnergy m 
             (grammar mi zero plus times (costM mi) p m)
-   &&  all2 eqEnergy m (gap1 mi m)
+   &&  all2 eqEnergy m (gap (S Z) mi m)
 
 design_stable :: Secondary 
             -> (Primary, Matrix Energy2)
@@ -34,7 +34,7 @@ design_stable s (p, m) = case upright m of
       &&  gtEnergy best second
       &&  all2 eqEnergy2 m 
              (grammar (lift2 mi)(lift2 zero) plus2 times2 (costM2 (lift2 mi)) p m)
-      &&  all2 eqEnergy2 m (gap1 (lift2 mi) m)
+      &&  all2 eqEnergy2 m (gap (S Z) (lift2 mi) m)
    
 
 grammar :: e -> e 
@@ -45,7 +45,7 @@ grammar zero one plus times costM p s =
     choice plus 
        [ item zero one p
        , sequence plus times [s, s]
-       , pointwise times (costM p) (shift zero s)
+       , pointwise times (costM p) (shift zero (gap (S (S (S Z))) zero s))
        ]
 
 
@@ -121,8 +121,47 @@ costM2 zero p = forward zero ( dropY zero ( addX zero
 addX zero m = map ( \ row -> zero : row ) m
 dropY zero m = m ++ [ map (const zero) (head m) ]
                 
-gap1 zero m = forward zero m 
+-- gap1 zero m = forward zero m 
+gap1 zero m  = gap (S Z) zero m
+
 forward zero m = with_empty zero zero m
+
+{-
+gap delta zero m = 
+    for (zip [0..] m)   $ \ (i, row) -> 
+    for (zip [0..] row) $ \ (j, x) -> 
+    if i + delta <= j then x else zero
+-}
+
+data N = Z | S N 
+
+plusN :: N -> N -> N
+plusN x y = case x of
+    Z -> y
+    S x' -> S (plusN x' y)
+
+le :: N -> N -> Bool
+le x y = case x of 
+    Z -> True
+    S x' -> case y of
+        Z -> False
+        S y' -> le x' y'
+
+zipnats :: [a] -> [ (N,a) ]
+zipnats xs = 
+    let f n xs = case xs of
+            [] -> []
+            x : xs' -> (n, x) : f (S n) xs'
+    in  f Z xs
+
+gap delta zero m = 
+    for (zipnats m) ( \ (i,row) -> 
+    for (zipnats row) ( \ (j,x) -> 
+    case assertKnown (le (plusN i delta) j) of
+        True -> x 
+        False -> zero ))
+
+
 
 with_empty :: e -> e -> Matrix e -> Matrix e
 with_empty zero one m = case m of
@@ -214,7 +253,7 @@ type Secondary = [ Paren ]
 
 data Energy = MinusInfinity 
             | Finite Nat8 
---     deriving Show
+     deriving Show
 
 mi   = MinusInfinity
 zero = Finite (nat8 0)
