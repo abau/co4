@@ -193,10 +193,10 @@ cost b1 b2 = applyB b1 (applyB b2 costT)
 -- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi mi mi one) -- a u
-    (basetree mi mi one mi) -- c g
-    (basetree mi one mi one) -- g c, g u
-    (basetree one mi one mi) -- u a, u g
+    (basetree mi mi mi two) -- a u
+    (basetree mi mi three mi) -- c g
+    (basetree mi three mi one) -- g c, g u
+    (basetree two mi one mi) -- u a, u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
@@ -219,6 +219,8 @@ data Energy = MinusInfinity
 mi   = MinusInfinity
 zero = Finite (nat8 0)
 one  = Finite (nat8 1)
+two  = Finite (nat8 2)
+three  = Finite (nat8 3)
 
 
 
