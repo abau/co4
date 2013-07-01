@@ -67,10 +67,29 @@ init xs = case xs of
 
 const x y = x
 
+vget :: [e] -> N -> f -> (e -> f) -> f
+vget xs i nothing just = 
+    case assertKnown xs of
+        [] -> nothing
+        x : xs' -> case assertKnown i of
+            Z    -> just x
+            S i' -> vget xs' i' nothing just 
+
+mget :: Matrix e -> N -> N -> f -> (e -> f) -> f
+mget m i j nothing just = 
+    vget m i nothing ( \ row -> 
+    vget row j nothing ( \ x -> just x ))
+
+mmap :: Matrix e -> (N -> N -> e -> f) -> Matrix f
+mmap m f = for (zipnats m) ( \ (i,row) ->
+           for (zipnats row) ( \ (j,x) -> 
+                f i j x))
 
 -- |  (shift m) ! (i,j) ==  e ! (i+1,j-1) 
 shift :: e -> Matrix e -> Matrix e
-shift zero m = dropX zero (addY zero m)
+shift zero m = 
+    dropX zero (addY zero m)
+
 
 dropX zero m = tail m ++ [ map (const zero) (head m) ]
 addY zero m = map ( \ row -> init (zero : row) ) m
@@ -124,14 +143,9 @@ dropY zero m = m ++ [ map (const zero) (head m) ]
 -- gap1 zero m = forward zero m 
 gap1 zero m  = gap (S Z) zero m
 
-forward zero m = with_empty zero zero m
+-- forward zero m = with_empty zero zero m
+forward zero m = gap Z zero m 
 
-{-
-gap delta zero m = 
-    for (zip [0..] m)   $ \ (i, row) -> 
-    for (zip [0..] row) $ \ (j, x) -> 
-    if i + delta <= j then x else zero
--}
 
 data N = Z | S N 
 
@@ -153,6 +167,13 @@ zipnats xs =
             [] -> []
             x : xs' -> (n, x) : f (S n) xs'
     in  f Z xs
+
+{-
+gap delta zero m = 
+    for (zip [0..] m)   $ \ (i, row) -> 
+    for (zip [0..] row) $ \ (j, x) -> 
+    if i + delta <= j then x else zero
+-}
 
 gap delta zero m = 
     for (zipnats m) ( \ (i,row) -> 
