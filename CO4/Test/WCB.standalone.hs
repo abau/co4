@@ -26,8 +26,8 @@ data Energy = MinusInfinity | Finite Nat8 --  deriving Show
 -- the main constraint
 
 
--- constraint = main_simple
-constraint = main_with_stability
+constraint = main_simple
+-- constraint = main_with_stability
 
 
 main_simple s p = geEnergy (bound p s) (maxbound_single p)
