@@ -8,7 +8,7 @@
 -- module CO4.Test.WCB where
 module Main where
 
-import Prelude hiding (const, init, last, sequence)
+import Prelude hiding ( sequence )
 
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
