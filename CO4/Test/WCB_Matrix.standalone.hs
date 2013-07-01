@@ -8,6 +8,16 @@ import Prelude hiding (const, init, last, sequence)
 
 -- constraint = design_simple
 constraint = design_stable
+<<<<<<< HEAD
+=======
+
+{-
+ssp :: Primary -> Matrix Energy -> Bool
+ssp p m = 
+       all2 eqEnergy m (grammar p m)
+   &&  all2 eqEnergy m (gap1 m)
+-}
+>>>>>>> 9c2ea6becaa1ce5ac9fb07abe031ccbc5f444092
 
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)
@@ -15,8 +25,8 @@ design_simple :: Secondary
 design_simple s (p, m) =
        geEnergy (bound p s) (upright m)
    &&  all2 eqEnergy m 
-            (grammar mi zero plus times (costM zero) p m)
-   &&  all2 eqEnergy m (gap1 mi m)
+            (grammar mi zero plus times (costM mi) p m)
+   &&  all2 eqEnergy m (gap (S Z) mi m)
 
 design_stable :: Secondary 
             -> (Primary, Matrix Energy2)
@@ -27,7 +37,7 @@ design_stable s (p, m) = case upright m of
       &&  gtEnergy best second
       &&  all2 eqEnergy2 m 
              (grammar (lift2 mi)(lift2 zero) plus2 times2 (costM2 (lift2 mi)) p m)
-      &&  all2 eqEnergy2 m (gap1 (lift2 mi) m)
+      &&  all2 eqEnergy2 m (gap (S Z) (lift2 mi) m)
    
 
 grammar :: e -> e 
@@ -38,7 +48,7 @@ grammar zero one plus times costM p s =
     choice plus 
        [ item zero one p
        , sequence plus times [s, s]
-       , pointwise times (costM p) (shift zero s)
+       , pointwise times (costM p) (shift zero (gap (S (S (S Z))) zero s))
        ]
 
 
@@ -114,8 +124,47 @@ costM2 zero p = forward zero ( dropY zero ( addX zero
 addX zero m = map ( \ row -> zero : row ) m
 dropY zero m = m ++ [ map (const zero) (head m) ]
                 
-gap1 zero m = forward zero m 
+-- gap1 zero m = forward zero m 
+gap1 zero m  = gap (S Z) zero m
+
 forward zero m = with_empty zero zero m
+
+{-
+gap delta zero m = 
+    for (zip [0..] m)   $ \ (i, row) -> 
+    for (zip [0..] row) $ \ (j, x) -> 
+    if i + delta <= j then x else zero
+-}
+
+data N = Z | S N 
+
+plusN :: N -> N -> N
+plusN x y = case x of
+    Z -> y
+    S x' -> S (plusN x' y)
+
+le :: N -> N -> Bool
+le x y = case x of 
+    Z -> True
+    S x' -> case y of
+        Z -> False
+        S y' -> le x' y'
+
+zipnats :: [a] -> [ (N,a) ]
+zipnats xs = 
+    let f n xs = case xs of
+            [] -> []
+            x : xs' -> (n, x) : f (S n) xs'
+    in  f Z xs
+
+gap delta zero m = 
+    for (zipnats m) ( \ (i,row) -> 
+    for (zipnats row) ( \ (j,x) -> 
+    case assertKnown (le (plusN i delta) j) of
+        True -> x 
+        False -> zero ))
+
+
 
 with_empty :: e -> e -> Matrix e -> Matrix e
 with_empty zero one m = case m of
@@ -186,10 +235,10 @@ cost b1 b2 = applyB b1 (applyB b2 costT)
 -- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi mi mi one) -- a u
-    (basetree mi mi one mi) -- c g
-    (basetree mi one mi one) -- g c, g u
-    (basetree one mi one mi) -- u a, u g
+    (basetree mi  mi    mi    two) -- a u
+    (basetree mi  mi    three mi) -- c g
+    (basetree mi  three mi    one) -- g c, g u
+    (basetree two mi    one   mi) -- u a, u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
@@ -207,11 +256,13 @@ type Secondary = [ Paren ]
 
 data Energy = MinusInfinity 
             | Finite Nat8 
---     deriving Show
+     deriving Show
 
 mi   = MinusInfinity
 zero = Finite (nat8 0)
 one  = Finite (nat8 1)
+two  = Finite (nat8 2)
+three  = Finite (nat8 3)
 
 
 
@@ -264,7 +315,7 @@ plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (maxNat8p x y)
-    MinusInfinity -> Finite x
+    MinusInfinity -> e
   MinusInfinity -> f
 
 maxNat8p = maxNat8
@@ -273,8 +324,8 @@ times :: Energy -> Energy -> Energy
 times e f = case e of
   Finite x -> case f of 
     Finite y      -> Finite (plusNat8p x y)
-    MinusInfinity -> MinusInfinity
-  MinusInfinity -> MinusInfinity
+    MinusInfinity -> f
+  MinusInfinity -> e
 
 plusNat8p = plusNat8
 

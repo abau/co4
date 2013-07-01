@@ -25,7 +25,7 @@ import System.IO
 
 $( runIO $ configurable [ ImportPrelude
                         -- , DumpAll "/tmp/WCB_Matrix"
-                        , Cache , Profile
+                        -- , Cache , Profile
                         , InstantiationDepth 20
                         ] 
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
@@ -57,13 +57,20 @@ uMatrix xs ys f =
     in  row xs $ \ x -> row ys $ \ y -> f x y
 
 -- upper triag finite energy
-uTriag n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
-     if i < j then known 1 2 [ uNat8 ]
+uTriagGap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
+     if i + delta <= j 
+     then known 1 2 [ uNat8 ]
      else known 0 2 []
 
+<<<<<<< HEAD
 uTriag2 n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i < j 
      then uEnergy2
+=======
+uTriag2Gap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
+     if i + delta <= j 
+     then known 0 1 [ known 1 2 [ uNat8 ], uEnergy ]
+>>>>>>> 9c2ea6becaa1ce5ac9fb07abe031ccbc5f444092
      else known 0 1 [ known 0 2 [], known 0 2 [] ]
 
 inforna cs = map ( \ c -> case c of
@@ -81,9 +88,14 @@ result_for sec = do
     let n = length sec
     out <- solveAndTestBooleanP 
        sec 
-       ( booleanCache . profile )
+       id -- ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
+<<<<<<< HEAD
                    , uTriag2 (n+1)
+=======
+                   , uTriag2Gap 1 (n+1) 
+                   -- , uTriagGap 1 (n+1)
+>>>>>>> 9c2ea6becaa1ce5ac9fb07abe031ccbc5f444092
                    ] )
        encConstraint
        constraint
