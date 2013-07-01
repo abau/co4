@@ -35,7 +35,7 @@ grammar :: e -> e
         -> (Primary -> [[e]])
         -> Primary -> Matrix e -> Matrix e
 grammar zero one plus times costM p s =     
-    sequence plus times 
+        sequence plus times 
             [ choice plus
                [ item zero one p
                , pointwise times (costM p) 
@@ -46,6 +46,7 @@ grammar zero one plus times costM p s =
                , s
                ]
             ]
+
 
 
 type Matrix a = [[a]]
@@ -231,13 +232,12 @@ applyB b t = case b of
 cost :: Base -> Base -> Energy
 cost b1 b2 = applyB b1 (applyB b2 costT)
  
--- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi  mi    mi    two) -- a u
-    (basetree mi  mi    three mi) -- c g
-    (basetree mi  three mi    one) -- g c, g u
-    (basetree two mi    one   mi) -- u a, u g
+    (basetree mi  mi    mi    two) --              a u
+    (basetree mi  mi    three mi)  --          c g
+    (basetree mi  three mi    one) --      g c,    g u
+    (basetree two mi    one   mi)  -- u a,     u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
