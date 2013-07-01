@@ -8,16 +8,6 @@ import Prelude hiding (const, init, last, sequence)
 
 -- constraint = design_simple
 constraint = design_stable
-<<<<<<< HEAD
-=======
-
-{-
-ssp :: Primary -> Matrix Energy -> Bool
-ssp p m = 
-       all2 eqEnergy m (grammar p m)
-   &&  all2 eqEnergy m (gap1 m)
--}
->>>>>>> 9c2ea6becaa1ce5ac9fb07abe031ccbc5f444092
 
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)
@@ -44,12 +34,18 @@ grammar :: e -> e
         -> (e -> e -> e) -> (e -> e -> e)
         -> (Primary -> [[e]])
         -> Primary -> Matrix e -> Matrix e
-grammar zero one plus times costM p s = 
-    choice plus 
-       [ item zero one p
-       , sequence plus times [s, s]
-       , pointwise times (costM p) (shift zero (gap (S (S (S Z))) zero s))
-       ]
+grammar zero one plus times costM p s =     
+    sequence plus times 
+            [ choice plus
+               [ item zero one p
+               , pointwise times (costM p) 
+                (shift zero (gap (S (S (S Z))) zero s))
+               ]
+            , choice plus 
+               [ epsilon zero one (head p : p)
+               , s
+               ]
+            ]
 
 
 type Matrix a = [[a]]
@@ -178,6 +174,9 @@ item :: e -> e -> Primary -> Matrix e
 item zero one p = dropY zero (addX zero
      ( diag zero (map ( const one ) p )) )
 
+epsilon zero one p = 
+    diag zero ( map ( \ x -> one )  p )
+
 diag :: e -> [e] -> Matrix e
 diag zero xs = case xs of
     [] -> []
@@ -256,7 +255,7 @@ type Secondary = [ Paren ]
 
 data Energy = MinusInfinity 
             | Finite Nat8 
-     deriving Show
+     -- deriving Show
 
 mi   = MinusInfinity
 zero = Finite (nat8 0)
