@@ -16,11 +16,12 @@ import           CO4.TypesUtil (functionType)
 import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
-import           CO4.Allocator.Common (constructors)
+import           CO4.AllocatorData (constructors)
 import           CO4.PreludeNat
 import           CO4.EncEq
 import           CO4.EncodedAdt 
-  (EncodedAdt(..),isConstantlyDefined,isInvalid,constantConstructorIndex)
+  (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex)
+import           CO4.Monad (CO4)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -133,7 +134,7 @@ uTuple5 a b c d e = constructors [ Just [a,b,c,d,e] ]
 assertKnown :: a -> a
 assertKnown = id
 
-encAssertKnown :: (EncodedAdt e p, Monad m) => e p -> m (e p)
+encAssertKnown :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
 encAssertKnown e = case constantConstructorIndex e of 
   Nothing -> error "Prelude.encAssertKnown: assertion 'assertKnown' failed"
@@ -142,7 +143,7 @@ encAssertKnown e = case constantConstructorIndex e of
 assertDefined :: a -> a
 assertDefined = id
 
-encAssertDefined :: (EncodedAdt e p, Monad m) => e p -> m (e p)
+encAssertDefined :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e

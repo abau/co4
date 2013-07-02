@@ -4,47 +4,45 @@ where
 
 import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Core.Primitive (Primitive)
 import           CO4.Unique
 import           CO4.Language
 import           CO4.THUtil
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.Util (for)
-import           CO4.EncodedAdt (EncodedAdt)
 
 -- |Generates a @Encodeable@ instance
 --
--- > instance (Primitive p,EncodedAdt e,Encodeable v1,...) 
+-- > instance (Encodeable v1,...) 
 -- >  => Encodeable (T v1 ...) e p where
--- >    encodeConstant (Cons1 a1 ...) = encodedConstructor 0 n [ encodeConstant a1 ... ] 
--- >    encodeConstant (Cons2 a1 ...) = encodedConstructor 1 n [ encodeConstant a1 ... ] 
+-- >    encode (Cons1 a1 ...) = 
+-- >      e1 <- encode a1 
+-- >      ...
+-- >      encodedConstructor 0 n [ e1 ... ] 
+-- >    encode (Cons2 a1 ...) = ...
 encodeableInstance :: MonadUnique u => Declaration -> u TH.Dec
 encodeableInstance (DAdt name vars conss) = do
-  p        <- newName "p"
-  e        <- newName "e"
   varNames <- forM vars $ const $ newName "v"
 
-  let predicates = primitive : encAdt : encodeables
-        where
-          primitive   = TH.ClassP ''Primitive  [varT p]
-          encAdt      = TH.ClassP ''EncodedAdt [varT e, varT p]
-          encodeables = for varNames $ \v -> 
-                          TH.ClassP ''Encodeable [varT v, varT e, varT p]
-      
+  let predicates = for varNames $ \v -> TH.ClassP ''Encodeable [varT v]
       instanceHead = TH.InstanceD predicates 
-                   $ appsT (TH.ConT ''Encodeable)
-                           [ appsT (conT name) $ map varT varNames
-                           , varT e, varT p ]
+                   $ appsT (TH.ConT ''Encodeable) [appsT (conT name) $ map varT varNames]
 
       clause (i,CCon conName conArgs) = do
         patternVars <- forM conArgs $ const $ newName "a"
+        encodeVars  <- forM conArgs $ const $ newName "e"
+
         let pattern = conP conName $ map varP patternVars
-            body    = appsE (varE "encodedConstructor")
-                        [ intE i, intE $ length conss
-                        , TH.ListE $ map ( TH.AppE (TH.VarE 'encodeConstant) . varE ) 
-                                   $ patternVars
+            body    = TH.DoE $ bindings ++ [encodedCons]
+              where
+                bindings = for (zip patternVars encodeVars) $ \(a,e) -> 
+                  TH.BindS (varP e) $ TH.AppE (TH.VarE 'encode) $ varE a
+
+                encodedCons = TH.NoBindS $ appsE (varE "encodedConstructor")
+                        [ intE i
+                        , intE $ length conss
+                        , TH.ListE $ map varE encodeVars
                         ]
         return $ TH.Clause [pattern] (TH.NormalB body) []
 
   clauses <- forM (zip [0..] conss) clause
-  return $ instanceHead [funD "encodeConstant" clauses]
+  return $ instanceHead [funD "encode" clauses]

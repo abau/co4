@@ -68,6 +68,6 @@ uLoopingDerivation numSteps numSubst termDepth =
                         ]
                ]
 
-result = solveAndTestBoolean Prelude.id (uLoopingDerivation 3 2 2) encMain main
+result = solveAndTest (uLoopingDerivation 3 2 2) encMain main
 
 mainz = result

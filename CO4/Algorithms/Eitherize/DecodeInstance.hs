@@ -6,17 +6,16 @@ where
 import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
 import           Satchmo.Core.Decode (Decode,decode)
-import           Satchmo.Core.Primitive (Primitive)
-import           Satchmo.Core.SAT.Minisat (SAT)
 import           CO4.Names
 import           CO4.Unique
 import           CO4.Language
 import           CO4.THUtil
 import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAdt)
+import           CO4.Monad (SAT)
 
 -- |Generates a @Decode@ instance of an ADT
 -- 
--- > instance (Primitive p,EncodedAdt e p,Decode SAT p Bool,Decode SAT (e p) v1, ...) 
+-- > instance (Decode SAT EncodedAdt v1, ...) 
 -- >  => Decode SAT (e p) (T v1 v2 ...) where
 -- >    decode p = do
 -- >      i <- toIntermediateAdt p <#constructors of Type>
@@ -33,23 +32,15 @@ import           CO4.EncodedAdt (EncodedAdt,IntermediateAdt(..),toIntermediateAd
 -- 
 decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
 decodeInstance (DAdt name vars conss) = do
-  primitiveName    <- newName "p"
-  encAdtName       <- newName "e"
   paramName        <- newName "d"
   intermediateName <- newName "i"
 
-  let encodedAdt = TH.AppT (varT encAdtName) (varT primitiveName)
-      predicates = primitive : encAdt : decodePrimitive : decodeFreeVars
-        where
-          primitive       = TH.ClassP ''Primitive [varT primitiveName]
-          encAdt          = TH.ClassP ''EncodedAdt [varT encAdtName,varT primitiveName]
-          decodePrimitive =
-            TH.ClassP ''Decode [TH.ConT ''SAT, varT primitiveName, TH.ConT ''Bool]
-          decodeFreeVars  = 
-            map (\v -> TH.ClassP ''Decode [TH.ConT ''SAT, encodedAdt, varT v]) vars
+  let predicates = map (\v -> TH.ClassP ''Decode [ TH.ConT ''SAT
+                                                 , TH.ConT ''EncodedAdt
+                                                 , varT v]) vars
 
       instanceHead = TH.InstanceD predicates (foldl1 TH.AppT 
-                      [ TH.ConT ''Decode, TH.ConT ''SAT, encodedAdt
+                      [ TH.ConT ''Decode, TH.ConT ''SAT, TH.ConT ''EncodedAdt
                       , appsT (conT name) $ map varT vars
                       ])
       instanceDec matches = funD "decode"

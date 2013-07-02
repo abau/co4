@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module CO4.Example.Prelude
@@ -24,4 +23,4 @@ $( [d|
 
 allocator = uTuple2 uNat8 uNat8
 
-result p = solveAndTestBooleanP (nat8 p) id allocator encConstraint constraint
+result p = solveAndTestP (nat8 p) allocator encConstraint constraint

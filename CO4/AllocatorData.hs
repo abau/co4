@@ -1,4 +1,4 @@
-module CO4.Allocator.Common
+module CO4.AllocatorData
   ( Allocator (..), AllocateConstructor (..)
   , known, constructors, bottom
   )
