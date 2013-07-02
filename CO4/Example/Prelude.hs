@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module CO4.Example.Prelude
@@ -33,4 +32,4 @@ uColor i = constructors [ Just [], Just [], Just [], Just [ uList 3 (uColor (i-1
 
 allocator = uColor 1
 
-result = solveAndTestBoolean id allocator encConstraint constraint
+result = solveAndTest allocator encConstraint constraint

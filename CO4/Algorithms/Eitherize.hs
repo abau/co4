@@ -10,9 +10,7 @@ import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
 import           Data.List (find)
-import           Data.Maybe (catMaybes)
 import qualified Language.Haskell.TH as TH
-import           Satchmo.Core.MonadSAT (MonadSAT)
 import           CO4.Language
 import           CO4.Util
 import           CO4.THUtil
@@ -27,10 +25,9 @@ import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
-import           CO4.Cache (MonadCallCache,withCache)
-import           CO4.Allocator.Common (known)
-import           CO4.Profiling (MonadProfiling,traced)
-import           CO4.EncEq (encEq,encProfiledEq)
+import           CO4.Monad (CO4,withCallCache,traced)
+import           CO4.AllocatorData (known)
+import           CO4.EncEq (encEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 import           CO4.PreludeNat (encNat8)
@@ -54,13 +51,13 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
       False -> return ()
 
     where 
-      mkAllocator          = withConstructor allocatorName   id      'known
-      mkEncodedConstructor = withConstructor encodedConsName returnE 'encodedConstructor
+      mkAllocator          = withConstructor allocatorName   'known
+      mkEncodedConstructor = withConstructor encodedConsName 'encodedConstructor
 
-      withConstructor bindTo returnE callThis (i,CCon name args) = do
+      withConstructor bindTo callThis (i,CCon name args) = do
         paramNames <- forM args $ const $ newName ""
 
-        let exp = returnE $ appsE (TH.VarE callThis) 
+        let exp = appsE (TH.VarE callThis) 
                       [ intE i
                       , intE $ length $ dAdtConstructors adt
                       , TH.ListE $ map varE paramNames ]
@@ -106,29 +103,24 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
 
         _ | cache  -> bindAndApplyArgs (\args'' -> 
-                        appsE (TH.VarE 'withCache) 
+                        appsE (TH.VarE 'withCallCache) 
                         [ TH.TupE [ stringE $ encodedName fName, TH.ListE args'']
                         , appsE (varE $ encodedName fName) args''
                         ]) args'
         _         -> bindAndApplyArgs (appsE $ varE $ encodedName fName) args'
     where 
       instantiateEq args' = do
-        profile <- is Profile
-        
-
-        let encName = if profile then 'encProfiledEq else 'encEq
-
         scheme <- liftM toTH $ schemeOfExp $ head args
 
         is Cache >>= \case
-          False -> bindAndApplyArgs (\args'' -> appsE (TH.VarE encName) 
+          False -> bindAndApplyArgs (\args'' -> appsE (TH.VarE 'encEq) 
                                               $ typedUndefined scheme : args''
                                     ) args'
 
           True  -> bindAndApplyArgs (\args'' -> 
-                    appsE (TH.VarE 'withCache) 
+                    appsE (TH.VarE 'withCallCache) 
                     [ TH.TupE [stringE "==", TH.ListE args'']
-                    , appsE (TH.VarE encName) $ typedUndefined scheme : args''
+                    , appsE (TH.VarE 'encEq) $ typedUndefined scheme : args''
                     ]) args'
 
   instantiateCase (ECase e ms) = do
@@ -225,36 +217,19 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                                 $ appsE (TH.VarE 'traced) [ stringE name, exp'' ]
         _                      -> appsE (TH.VarE 'traced) [ stringE name, exp' ]
 
-    signature' <- instantiateSignature name' numArgs
-    return [ signature', valD' name' profiledExp' ]
+    return [ instantiateSignature name' numArgs, valD' name' profiledExp' ]
     where
       numArgs = case exp of
         ELam ps _ -> length ps
         _         -> 0
 
-instantiateSignature :: (MonadConfig m, Namelike n) => n -> Int -> m (TH.Dec)
+instantiateSignature :: (Namelike n) => n -> Int -> TH.Dec
 instantiateSignature name numArgs =
-  let e = TH.VarT $ TH.mkName "e"
-      m = TH.VarT $ TH.mkName "m"
-      p = TH.VarT $ TH.mkName "p"
-
-      typeVars = (map (TH.PlainTV . TH.mkName) ["e","m","p"])
-      type_    = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
-                       (TH.AppT m $ TH.AppT e p)
-                       (replicate numArgs $ TH.AppT e p)
-  in do
-    isProfile <- is Profile
-    isCache   <- is Cache   
-
-    return $ sigD' name $ TH.ForallT typeVars
-      (catMaybes [ if isCache   then Just $ TH.ClassP ''MonadCallCache [TH.AppT e p, m]
-                                else Nothing
-                 , if isProfile then Just $ TH.ClassP ''MonadProfiling [m]
-                                else Nothing
-                 , Just $ TH.ClassP ''EncodedAdt [e, p]
-                 , Just $ TH.ClassP ''MonadSAT   [m]
-                 ]
-      ) type_
+  let type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
+                    (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
+                    (replicate numArgs $ TH.ConT ''EncodedAdt)
+  in
+    sigD' name $ TH.ForallT [] [] type_
 
 -- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
 -- @prof@ enables profiling.

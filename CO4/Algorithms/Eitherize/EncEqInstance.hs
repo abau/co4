@@ -10,18 +10,18 @@ import           Satchmo.Core.Primitive (Primitive,constant,and)
 import           CO4.Unique (MonadUnique,newName)
 import           CO4.Language
 import           CO4.Names (Namelike,fromName)
-import           CO4.EncEq (EncEq (..),EncProfiledEq (..))
+import           CO4.EncEq (EncEq (..))
 import           CO4.EncodedAdt 
 import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.THUtil
 import           CO4.TypesUtil (typeOfAdt)
 import           CO4.Util (replaceAt,for)
 import           CO4.Config (MonadConfig,Config(Profile),is)
-import           CO4.Profiling (traced)
+import           CO4.Monad (traced)
 
 -- |Generates a @EncEq@ instance
 --
--- > instance (Primitive p,EncodedAdt e p,EncEq v1 e p,...) 
+-- > instance (EncEq v1,...) 
 -- >  => EncEq (T v1 ...) e p where
 -- >   encEqPrimitive _ x y | isInvalid x = return (constant False)
 -- >   encEqPrimitive _ x y | isInvalid y = return (constant False)
@@ -45,21 +45,13 @@ import           CO4.Profiling (traced)
 -- >     return (flags' r)
 encEqInstance :: (MonadUnique u, MonadConfig u) => Declaration -> u TH.Dec
 encEqInstance adt@(DAdt name vars conss) = do
-  [x,y,p,e] <- mapM newName ["x","y","p","e"]
-  profile   <- is Profile
+  [x,y]   <- mapM newName ["x","y"]
+  profile <- is Profile
 
-  let instanceName = if profile then ''EncProfiledEq else ''EncEq
-      predicates   = primitive : encAdt : encEqs
-        where 
-          encEqs       = for vars $ \v -> TH.ClassP instanceName 
-                                                    [varT v, varT e, varT p]
-          primitive    = TH.ClassP ''Primitive [varT p]
-          encAdt       = TH.ClassP ''EncodedAdt [varT e, varT p]
-      
+  let predicates   = for vars $ \v -> TH.ClassP ''EncEq [varT v]
       instanceHead = TH.InstanceD predicates 
-                   $ appsT (TH.ConT instanceName) [ appsT (conT name) $ map varT vars
-                                                  , varT e, varT p ]
-  body <- encEqBody profile x y conss 
+                   $ appsT (TH.ConT ''EncEq) [appsT (conT name) $ map varT vars]
+  body <- encEqBody x y conss 
 
   let thType            = toTH $ typeOfAdt adt
       mkClause b        = TH.Clause [typedWildcard thType, varP x, varP y] b []
@@ -74,12 +66,10 @@ encEqInstance adt@(DAdt name vars conss) = do
                False -> body
                True  -> appsE (TH.VarE 'traced) [stringE $ "==_" ++ fromName name, body]
          ]
-  if profile
-    then return $ instanceHead [funD "encProfiledEqPrimitive" clauses]
-    else return $ instanceHead [funD "encEqPrimitive" clauses]
+  return $ instanceHead [funD "encEqPrimitive" clauses]
 
-encEqBody :: (MonadUnique u,Namelike n) => Bool -> n -> n -> [Constructor] -> u TH.Exp
-encEqBody profile x y conss = do
+encEqBody :: (MonadUnique u,Namelike n) => n -> n -> [Constructor] -> u TH.Exp
+encEqBody x y conss = do
   [xFlags,yFlags,r] <- mapM newName ["xFlags","yFlags","r"]
   (eqJNames, eqIJStmts) <- liftM unzip $ zipWithM eqConstructor [0..] conss
 
@@ -128,10 +118,8 @@ encEqBody profile x y conss = do
       return (varE eqJName, encIJs ++ [eqJ])
 
     eqIJ name i j t = 
-      let encEqName = if profile then 'encProfiledEqPrimitive else 'encEqPrimitive
-      in
-        bindS' name $ appsE (TH.VarE encEqName) 
-            [ typedUndefined $ toTH t
-            , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE x]
-            , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE y]
-            ]
+      bindS' name $ appsE (TH.VarE 'encEqPrimitive) 
+          [ typedUndefined $ toTH t
+          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE x]
+          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE y]
+          ]

@@ -1,9 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 
 module CO4.Example.Simple
 where
@@ -31,4 +28,4 @@ $( [d| data Bool = False | True
 
 allocator = constructors [ M.Just [] , M.Just [] ]
 
-result = solveAndTestBooleanP True id allocator encConstraint constraint
+result = solveAndTestP True allocator encConstraint constraint

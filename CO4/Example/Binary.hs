@@ -2,7 +2,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module CO4.Example.Binary
@@ -15,7 +14,7 @@ import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
-$( runIO $ configurable [ImportPrelude,Cache] 
+$( runIO $ configurable [Cache,ImportPrelude] 
          $ compileFile "CO4/Example/Binary.standalone.hs" )
 
 bitWidth  = 8
@@ -24,8 +23,8 @@ allocator = uTuple2 uNat uNat
 
 result :: Int -> IO (Maybe (Int,Int))
 result x = do
-  solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache
-                                   allocator encConstraint constraint
+  solution <- solveAndTestP (toBinary (Just bitWidth) x) 
+                            allocator encConstraint constraint
   case solution of
     Nothing    -> return Nothing
     Just (a,b) -> return $ Just (fromBinary a, fromBinary b)

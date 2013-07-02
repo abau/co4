@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ConstraintKinds #-}
 module CO4.PreludeNat 
   (Nat8, nat8, uNat8, kNat8
   , gtNat8, geNat8, eqNat8, leNat8, ltNat8, maxNat8, minNat8, plusNat8, timesNat8
@@ -16,32 +17,26 @@ import           Control.Monad (zipWithM,forM)
 import           Data.Word (Word8)
 import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)
-import           Satchmo.Core.SAT.Minisat (SAT)
 import           Satchmo.Core.Primitive 
-  (Primitive,primitive,constant,assert,not,and,xor,or,equals)
-import           Satchmo.Core.MonadSAT (MonadSAT)
+  (primitive,constant,assert,not,and,xor,or,equals)
+import           CO4.Monad (CO4,SAT)
 import           CO4.EncodedAdt hiding (undefined)
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.Allocator.Common (Allocator,known,constructors)
-import           CO4.EncEq (EncEq(..),EncProfiledEq(..))
+import           CO4.AllocatorData (Allocator,known,constructors)
+import           CO4.EncEq (EncEq(..))
 
 type Nat8 = Word8
 
-instance (Primitive p, EncodedAdt e p) => Encodeable Nat8 e p where
-  encodeConstant i = encodedConstructor (fromIntegral i) (2^8) []
+instance Encodeable Nat8 where
+  encode i = encodedConstructor (fromIntegral i) (2^8) []
 
-  encode = undefined
-
-instance (Primitive p, EncodedAdt e p, Decode SAT p Bool) => Decode SAT (e p) Nat8 where
+instance Decode SAT EncodedAdt Nat8 where
   decode p = toIntermediateAdt p (2^8) >>= \case 
     IntermediateUndefined -> error $ "Can not decode 'undefined' to data of type 'Nat8'"
     IntermediateConstructorIndex i _ -> return $ fromIntegral i
 
-instance (Primitive p, EncodedAdt e p) => EncEq Nat8 e p where
+instance EncEq Nat8 where
   encEqPrimitive _ a b = encEqNat8 a b >>= return . head . flags'
-
-instance (Primitive p, EncodedAdt e p) => EncProfiledEq Nat8 e p where
-  encProfiledEqPrimitive _ a b = encEqNat8 a b >>= return . head . flags'
 
 uNat8 :: Allocator
 uNat8 = constructors $ replicate (2^8) $ Just []
@@ -69,36 +64,38 @@ timesNat8 = (*)
 
 -- * Encoded functions on naturals
 
-encNat8 :: (Primitive p, EncodedAdt e p, Monad m) => Int -> m (e p)
-encNat8 i = return $ encodedConstructor i (2^8) []
+encNat8 :: Int -> CO4 EncodedAdt
+encNat8 i = encodedConstructor i (2^8) []
 
 encGtNat8,encGeNat8,encEqNat8,encLeNat8,encLtNat8,encMaxNat8,encMinNat8
-  :: (Primitive p, EncodedAdt e p, MonadSAT m) => e p -> e p -> m (e p)
+  :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encGtNat8 = flip encLtNat8
 encGeNat8 = flip encLeNat8
 encEqNat8 = catchInvalid2 $ onFlags 
-  (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and >>= return . make . return)
+  (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and 
+                                                   >>= \r -> make [r] [])
 
 encLeNat8 = catchInvalid2 $ onFlags $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
-  return $ make [r]
+  make [r] []
 
 encLtNat8 = catchInvalid2 $ onFlags $ \a b -> do
   (l, _) <- encComparePrimitives a b
-  return $ make [l]
+  make [l] []
 
 encMaxNat8 = catchInvalid2 $ onFlags $ \ a b -> do
   (l, _) <- encComparePrimitives b a
-  zipWithM ( \x y -> ifthenelse l x y ) a b >>= return . make
+  r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
+  make r []
 
 encMinNat8 = catchInvalid2 $ onFlags $ \ a b -> do
   (l, _) <- encComparePrimitives a b
-  zipWithM ( \x y -> ifthenelse l x y ) a b >>= return . make
+  r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
+  make r []
 
-
-encComparePrimitives :: (Primitive p, MonadSAT m) 
-                     => [p] -> [p] -> m (p, p) -- ^ (less, equals)
+encComparePrimitives :: [Primitive] -> [Primitive] 
+                     -> CO4 (Primitive, Primitive) -- ^ (less, equals)
 encComparePrimitives a b = case (a,b) of
   ([],[]) -> return ( constant False, constant True )
   ((x:xs),(y:ys)) -> do
@@ -131,12 +128,11 @@ encComparePrimitives a b = case (a,b) of
     return ( y, not y )
 -}
 
-encPlusNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
-            => e p -> e p -> m (e p)
+encPlusNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
-  return $ make $ z : zs
+  make (z : zs) []
   where
     addWithCarry c [] [] = do
         assert [ not c ] 
@@ -146,8 +142,7 @@ encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
           zs <- addWithCarry d xs ys
           return $ z : zs
 
-encTimesNat8 :: (Primitive p, EncodedAdt e p, MonadSAT m) 
-            => e p -> e p -> m (e p)
+encTimesNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
   kzs <- product_components (Just 8) as bs
   export (Just 8) kzs
@@ -165,12 +160,12 @@ encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
     export bound kzs = do
         m <- reduce bound $ M.fromListWith (++) kzs
         case M.maxViewWithKey m of
-            Nothing -> return $ make []
+            Nothing -> make [] []
             Just ((k,_) , _) -> do
-                  return $ make $ do
-                        i <- [ 0 .. k ]
-                        let { [ b ] = m M.! i }
-                        return b
+                  make (do i <- [ 0 .. k ]
+                           let { [ b ] = m M.! i }
+                           return b
+                       ) []
 
     reduce bound m = case M.minViewWithKey m of
         Nothing -> return M.empty
@@ -195,7 +190,7 @@ encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
                            $ M.fromList [ (k, more ++ [r]), (k+1, [c]) ]
 
 
-ifthenelse ::   (Primitive p, MonadSAT m) => p -> p -> p -> m p
+ifthenelse :: Primitive -> Primitive -> Primitive -> CO4 Primitive
 ifthenelse i t e = do
     r <- primitive
     assert [ not i , not t, r ]
@@ -204,8 +199,7 @@ ifthenelse i t e = do
     assert [     i , not r, e ]
     return r
 
-fullAdder :: (Primitive p, MonadSAT m) 
-          => p -> p -> p -> m (p,p)
+fullAdder :: Primitive -> Primitive -> Primitive -> CO4 (Primitive,Primitive)
 fullAdder = fullAdder_three
 
 {-
@@ -263,20 +257,19 @@ fullAdder_two p1 p2 p3 = do
   return ( p4, p5 )
 -}
 
-halfAdder :: (Primitive p, MonadSAT m) 
-          => p -> p -> m (p,p)
+halfAdder :: Primitive -> Primitive -> CO4 (Primitive,Primitive)
 halfAdder p1 p2 = do
   c <- and [ p1, p2 ]
   r <- xor [ p1, p2 ]
   return (r,c)
 
-onFlags :: (EncodedAdt e p) => ([p] -> [p] -> m a) -> e p -> e p -> m a
+onFlags :: ([Primitive] -> [Primitive] -> CO4 a) -> EncodedAdt -> EncodedAdt -> CO4 a
 onFlags f a b = case (flags a, flags b) of
   (Just as, Just bs) -> f as bs
   _                  -> error "PreludeNat.onFlags: missing flags"
 
-catchInvalid2 :: (Monad m, EncodedAdt e p) 
-              => (e p -> e p -> m (e p)) -> e p -> e p -> m (e p)
+catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)) 
+              -> EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid2 f a b = 
   if isConstantlyUndefined a || isConstantlyUndefined b
   then return undefined

@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.46
+Version:        	0.0.47
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -12,16 +12,19 @@ Description:      Complexity concerned constraint compiler
 
 Library
   Exposed-Modules:    CO4
-                    , CO4.Allocator.Common
-                    , CO4.Allocator.Overlapping
+                    , CO4.AllocatorData
+                    , CO4.Allocator
                     , CO4.Backend
+                    , CO4.Cache
                     , CO4.Compilation
                     , CO4.Config
+                    , CO4.EncEq
                     , CO4.Encodeable
+                    , CO4.EncodedAdtData
                     , CO4.EncodedAdt
-                    , CO4.EncodedAdt.Overlapping
                     , CO4.Frontend
                     , CO4.Language
+                    , CO4.Monad
                     , CO4.Names
                     , CO4.PPrint
                     , CO4.Prelude
@@ -48,7 +51,9 @@ Library
                     , CO4.Algorithms.UniqueNames
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.Eitherize.DecodeInstance
+                    , CO4.Algorithms.Eitherize.EncEqInstance
                     , CO4.Algorithms.Eitherize.EncodeableInstance
+                    , CO4.Algorithms.Eitherize.Names
                     , CO4.Algorithms.Eitherize.Solve
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
@@ -70,22 +75,3 @@ Library
                     , haskell-src-exts-qq == 0.6.*
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
-
--- Executable co4 
---   Main-Is:          CO4/Standalone/Main.hs
---   Ghc-options:        -W -fno-warn-incomplete-patterns
---   Extensions:         LambdaCase
---   Build-Depends:      base >= 4.2 && < 5.0
---                     , template-haskell == 2.8.*
---                     , containers == 0.5.*
---                     , mtl == 2.1.*
---                     , syb == 0.3.*
---                     , pretty == 1.1.*
---                     , parsec == 3.1.*
---                     , satchmo-core == 0.0.*
---                     , haskell-src-exts == 1.13.*
---                     , haskell-src-meta == 0.6.*
---                     , transformers == 0.3.*
---                     , hint == 0.3.*
---                     , filepath == 1.3.*
---                     , directory == 1.2.*

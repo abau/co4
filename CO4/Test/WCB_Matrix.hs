@@ -80,9 +80,8 @@ ex0 = [ Open, Open
 result_for :: [Paren] -> IO ()
 result_for sec = do
     let n = length sec
-    out <- solveAndTestBooleanP 
+    out <- solveAndTestP 
        sec 
-       id -- ( booleanCache . profile )
        ( known 0 1 [ kList n uBase
                    , uTriag2Gap 1 (n+1) 
                    -- , uTriagGap 1 (n+1)
