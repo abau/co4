@@ -1,9 +1,6 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ConstraintKinds #-}
 module CO4.PreludeNat 
   (Nat8, nat8, uNat8, kNat8
   , gtNat8, geNat8, eqNat8, leNat8, ltNat8, maxNat8, minNat8, plusNat8, timesNat8
@@ -11,6 +8,7 @@ module CO4.PreludeNat
   , encMaxNat8, encMinNat8, encPlusNat8, encTimesNat8
   , encNat8Prof, encGtNat8Prof, encGeNat8Prof, encEqNat8Prof, encLeNat8Prof
   , encLtNat8Prof, encMaxNat8Prof, encMinNat8Prof, encPlusNat8Prof, encTimesNat8Prof
+  , onFlags, catchInvalid, onFlags2, catchInvalid2
   )
 where
 
@@ -79,29 +77,29 @@ encGtNat8Prof a b = traced "gtNat8" $ encGtNat8 a b
 encGeNat8 = flip encLeNat8
 encGeNat8Prof a b = traced "geNat8" $ encGeNat8 a b
 
-encEqNat8 = catchInvalid2 $ onFlags 
+encEqNat8 = catchInvalid2 $ onFlags2
   (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and 
                                                    >>= \r -> make [r] [])
 encEqNat8Prof a b = traced "eqNat8" $ encEqNat8 a b
 
-encLeNat8 = catchInvalid2 $ onFlags $ \a b -> do
+encLeNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   make [r] []
 encLeNat8Prof a b = traced "leNat8" $ encLeNat8 a b
 
-encLtNat8 = catchInvalid2 $ onFlags $ \a b -> do
+encLtNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
   make [l] []
 encLtNat8Prof a b = traced "ltNat8" $ encLtNat8 a b
 
-encMaxNat8 = catchInvalid2 $ onFlags $ \ a b -> do
+encMaxNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
   r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
   make r []
 encMaxNat8Prof a b = traced "maxNat8" $ encMaxNat8 a b
 
-encMinNat8 = catchInvalid2 $ onFlags $ \ a b -> do
+encMinNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives a b
   r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
   make r []
@@ -142,7 +140,7 @@ encComparePrimitives a b = case (a,b) of
 -}
 
 encPlusNat8,encPlusNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
+encPlusNat8 = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
   make (z : zs) []
@@ -157,7 +155,7 @@ encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
 encPlusNat8Prof a b = traced "plusNat8" $ encPlusNat8 a b
 
 encTimesNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
+encTimesNat8 = catchInvalid2 $ onFlags2 $ \as bs -> do
   kzs <- product_components (Just 8) as bs
   export (Just 8) kzs
 
@@ -277,10 +275,23 @@ halfAdder p1 p2 = do
   r <- xor [ p1, p2 ]
   return (r,c)
 
-onFlags :: ([Primitive] -> [Primitive] -> CO4 a) -> EncodedAdt -> EncodedAdt -> CO4 a
-onFlags f a b = case (flags a, flags b) of
+onFlags :: ([Primitive] -> CO4 a) -> EncodedAdt -> CO4 a
+onFlags f a = case flags a of
+  Just as -> f as 
+  _       -> error "PreludeNat.onFlags: missing flags"
+
+onFlags2 :: ([Primitive] -> [Primitive] -> CO4 a) -> EncodedAdt -> EncodedAdt -> CO4 a
+onFlags2 f a b = case (flags a, flags b) of
   (Just as, Just bs) -> f as bs
-  _                  -> error "PreludeNat.onFlags: missing flags"
+  _                  -> error "PreludeNat.onFlags2: missing flags"
+
+catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
+catchInvalid f a = 
+  if isConstantlyUndefined a 
+  then return undefined
+  else if isBottom a 
+       then return bottom
+       else f a
 
 catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)) 
               -> EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)
