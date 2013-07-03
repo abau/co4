@@ -55,4 +55,4 @@ kList i a  = kCons a (kList (i-1) a)
 
 allocator = kList 8 uBool
 
-result = solveAndTestBoolean allocator encMain main
+result = solveAndTest allocator encMain main

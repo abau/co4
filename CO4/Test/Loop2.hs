@@ -192,6 +192,6 @@ uStep  rw w = known 0 1 [ uWord w
 
 allocator rw w l = ( uList l (uStep rw w))
 
-result = solveAndTestBoolean (allocator 4 10 20)  encMain main
+result = solveAndTest (allocator 4 10 20)  encMain main
 
 

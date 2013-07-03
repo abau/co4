@@ -60,4 +60,4 @@ uStep w = known 0 1 [ uClosure w, uOverlap w ]
 
 allocator l w = ( uList l (uStep w ))
 
-result = solveAndTestBoolean (allocator 10 15 )  encMain main
+result = solveAndTest (allocator 10 15 )  encMain main

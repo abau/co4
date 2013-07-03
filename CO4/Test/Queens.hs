@@ -18,7 +18,7 @@ import System.Environment (getArgs)
 import System.IO
 
 $( runIO $ configurable [ ImportPrelude
-                        , Profiling
+                        , Profile
                         -- ,DumpAll "/tmp/WCB"
                         ] 
          $ compileFile "CO4/Test/Queens.standalone.hs")
@@ -39,7 +39,7 @@ fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
 result n = do
     hSetBuffering stdout LineBuffering
     let xs = toBin n ; w = length xs
-    solution <- solveAndTestBooleanP 
+    solution <- solveAndTestP 
        xs
        (kList n (uNat w))
        encMain main

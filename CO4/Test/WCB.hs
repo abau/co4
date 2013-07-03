@@ -42,9 +42,8 @@ ex0 = [Open,Open
 -- allocator = kList size uBase
 
 result_for sec = do
-    out <- solveAndTestBooleanP 
+    out <- solveAndTestP 
        sec 
-       ( booleanCache . profile )
        (kList (length sec) uBase) 
        encConstraint constraint
     case out of

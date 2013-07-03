@@ -101,9 +101,8 @@ solve  width height filePath = do
   let bits = length ( toBin (length sigma - 1))
       rwidth = maximum $ do
           (l,r) <- srs ; [ length l, length r ]
-  solution <- solveAndTestBooleanP 
+  solution <- solveAndTestP 
       srs 
-      ( booleanCache . profile )
       (uLoopDeriv rwidth bits width height)
       encMain main
 
