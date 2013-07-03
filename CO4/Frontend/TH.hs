@@ -47,7 +47,7 @@ parseTHDeclaration dec = case dec of
   TH.ValD (TH.VarP n) (TH.NormalB e) [] -> 
     DBind $ Binding (fromTHName n) (parseTHExpression e)
 
-  TH.DataD [] n tVars cons [] ->
+  TH.DataD [] n tVars cons _ -> -- ignores deriving statements
     let n'     = untypedName $ fromTHName n
         tVars' = map fromTHTyVarBndr tVars
         cons'  = map parseTHConstructor cons
