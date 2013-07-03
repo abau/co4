@@ -2,7 +2,8 @@
 module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedNames, unparsedPreludeContext
   , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
-  , assertKnown, encAssertKnown, assertDefined, encAssertDefined
+  , assertKnown, encAssertKnownProf, encAssertKnown
+  , assertDefined, encAssertDefined, encAssertDefinedProf
   , module CO4.PreludeNat
   , module CO4.EncEq
   )
@@ -21,7 +22,7 @@ import           CO4.PreludeNat
 import           CO4.EncEq
 import           CO4.EncodedAdt 
   (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex)
-import           CO4.Monad (CO4)
+import           CO4.Monad (CO4,traced)
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -139,18 +140,19 @@ uTuple5 a b c d e = constructors [ Just [a,b,c,d,e] ]
 assertKnown :: a -> a
 assertKnown = id
 
-encAssertKnown :: EncodedAdt -> CO4 EncodedAdt
+encAssertKnown,encAssertKnownProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
 encAssertKnown e = case constantConstructorIndex e of 
   Nothing -> error "Prelude.encAssertKnown: assertion 'assertKnown' failed"
   Just _  -> return e
+encAssertKnownProf = traced "assertDefined" . encAssertKnown
 
 assertDefined :: a -> a
 assertDefined = id
 
-encAssertDefined :: EncodedAdt -> CO4 EncodedAdt
+encAssertDefined,encAssertDefinedProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e
   else error "Prelude.encAssertDefined: assertion 'assertDefined' failed"
-
+encAssertDefinedProf = traced "assertDefined" . encAssertDefined
