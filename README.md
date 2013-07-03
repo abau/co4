@@ -66,7 +66,7 @@ using Template-Haskell:
     $( runIO $ configurable [ImportPrelude] $ compileFile "CO4/Example/Binary.standalone.hs" )
 
 Every definition `d` of the original program is compiled to an encoded
-definition `encD`, i.e. the compiled constraint system `main` is `encMain`.
+definition `encD`, i.e. the compiled constraint system is `encConstraint`.
 
 As we're using definitions of Haskell's prelude (`map`,`foldl`,etc.), 
 we pass the compiler flag `ImportPrelude`.
@@ -77,29 +77,31 @@ Allocators for types of the prelude (`uList`,`uBool`) are provided by CO4.
     bitWidth  = 8
     uNat      = uList bitWidth uBool
 
-As `main` is a constraint over a pair of naturals, the final allocator is
+As `constraint` is a constraint over a pair of naturals, the final allocator is
 
     allocator = uTuple2 uNat uNat
 
-Finally, we want to solve the compiled constraint system `encMain`.
+Finally, we want to solve the compiled constraint system `encConstraint`.
 CO4 provides several solving functions, e.g.
-`solveAndTestBooleanP :: [...] -> k -> Allocator -> ParamConstraintSystem m Boolean -> (k -> a -> b) -> IO (Maybe a)`
+`solveAndTestP :: k -> Allocator -> ParamConstraintSystem -> (k -> a -> b) -> IO (Maybe a)`
 solves a parametrized constraint system with 
 
  - `k` being the parameter
+ - `Allocator` being an allocator for values of type `a`
+ - `ParamConstraintSystem` being the parametrized constraint system
  - `(k -> a -> b)` being the original constraint system. The found solution is
  checked against this function in order to verify the solution.
 
 In the main `constraint` we seek a factorization for a given natural number `x` of
-bit-width `bitWidth` using the previously defined allocators:
+bit-width `bitWidth` using the previously defined allocator:
 
-    solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache allocator encMain main 
+    solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encMain main 
 
 If there is a factorization, we want to decode the factors to decimal numbers:
 
     result :: Int -> IO (Maybe (Int,Int))
     result x = do
-      solution <- solveAndTestBooleanP (toBinary (Just bitWidth) x) booleanCache allocator encMain main 
+      solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encMain main 
       case solution of
         Nothing    -> return Nothing
         Just (a,b) -> return $ Just (fromBinary a, fromBinary b)
@@ -109,15 +111,13 @@ We call `result` in a ghci session to find a factorization of 143:
     $ ghci CO4/Example/Binary.hs
     *CO4.Example.Binary> result 143
     Start producing CNF
-    Cache call hits: 274 (9%), call misses: 2649 (90%)
-    Cache case hits: 72 (2%), case misses: 2485 (97%)
-    Assertion: 106176
-    CNF finished (#variables: 53092, #clauses: 140028)
+    Cache hits: 264 (13%), misses: 1743 (86%)
+    CNF finished (#variables: 28141, #clauses: 85830)
     Starting solver
-    Solver finished in 0.499999 seconds (result: True)
+    Solver finished in 0.533333 seconds (result: True)
     Starting decoder
     Decoder finished
-    Solution: ([True,False,True,True,False,False,False],[True,True,False,True,False,False,False,False])
+    Solution: ([True,False,True,True,False,False],[True,True,False,True,False,False,False,False])
     Test: True
     Just (13,11)
 
