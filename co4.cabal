@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.48
+Version:        	0.0.49
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -28,6 +28,7 @@ Library
                     , CO4.Names
                     , CO4.PPrint
                     , CO4.Prelude
+                    , CO4.PreludeBool
                     , CO4.PreludeNat
                     , CO4.Profiling
                     , CO4.THUtil

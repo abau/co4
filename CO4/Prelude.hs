@@ -1,10 +1,11 @@
 {-# LANGUAGE QuasiQuotes #-}
 module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedNames, unparsedPreludeContext
-  , uBool, uList, uTuple2, uTuple3, uTuple4, uTuple5
+  , uBool, uList, kList, uTuple2, uTuple3, uTuple4, uTuple5
   , assertKnown, encAssertKnownProf, encAssertKnown
   , assertDefined, encAssertDefined, encAssertDefinedProf
   , module CO4.PreludeNat
+  , module CO4.PreludeBool
   , module CO4.EncEq
   )
 where
@@ -17,12 +18,13 @@ import           CO4.TypesUtil (functionType)
 import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
-import           CO4.AllocatorData (constructors)
+import           CO4.AllocatorData (constructors,known)
 import           CO4.PreludeNat
 import           CO4.EncEq
 import           CO4.EncodedAdt 
   (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex)
 import           CO4.Monad (CO4,traced)
+import           CO4.PreludeBool
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
@@ -53,9 +55,9 @@ preludeFunctionDeclarations = [
   , [dec| id x = x |]
   , [dec| const x y = x |]
   -- Booleans
-  , [dec| not x    = case x of { False -> True ; True -> False } |]
-  , [dec| a && b   = case a of { False -> False ; True -> b } |]
-  , [dec| a || b   = case a of { False -> b ; True -> True } |]
+  -- , [dec| not x    = case x of { False -> True ; True -> False } |]
+  -- , [dec| a && b   = case a of { False -> False ; True -> b } |]
+  -- , [dec| a || b   = case a of { False -> b ; True -> True } |]
   , [dec| and xs   = foldl (&&) True xs |]
   , [dec| or  xs   = foldl (||) False xs |]
   , [dec| all f xs = and (map f xs) |]
@@ -107,6 +109,10 @@ unparsedPreludeContext = binds
   , ("timesNat8"     , SType $ functionType [nat8T,nat8T] nat8T)
   , ("assertKnown"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("assertDefined" , SForall a $ SType $ functionType [TVar a] $ TVar a)
+  , ("&&"            , SType $ functionType [boolT,boolT] boolT)
+  , ("||"            , SType $ functionType [boolT,boolT] boolT)
+  , ("not"           , SType $ functionType [boolT] boolT)
+  , ("xor2"          , SType $ functionType [boolT,boolT] boolT)
   ] emptyContext
   where 
     names@(a:_) = map UntypedName ["a","b","c","d","e"]
@@ -129,6 +135,9 @@ unparsedNames = map (convertName . fst) $ toList $ unparsedPreludeContext
 uBool     = constructors [ Just [], Just [] ]
 uList 0 _ = constructors [ Just [], Nothing ]
 uList i a = constructors [ Just [], Just [ a, uList (i-1) a ] ]
+
+kList 0 _ = known 0 2 []
+kList i a = known 1 2 [a, kList (i-1) a]
 
 uTuple2 a b       = constructors [ Just [a,b]       ]
 uTuple3 a b c     = constructors [ Just [a,b,c]     ]
