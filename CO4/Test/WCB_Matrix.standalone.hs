@@ -273,7 +273,7 @@ type Secondary = [ Paren ]
 
 data Energy = MinusInfinity 
             | Finite Nat8 
-     -- deriving Show
+     deriving Show
 
 mi   = MinusInfinity
 zero = Finite (nat8 0)
