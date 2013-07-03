@@ -83,7 +83,9 @@ isToplevelName name = asks $ elem name . toplevelNames
 
 instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u) where
 
-  instantiateName = return . convertName . encodedName
+  instantiateName n = is Profile >>= \case 
+    False -> return $ convertName $ encodedName     n
+    True  -> return $ convertName $ encodedNameProf n
 
   instantiateVar (EVar n) = isToplevelName n >>= \case
     True  -> liftM (                            TH.VarE) $ instantiateName n 
@@ -96,18 +98,20 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
     cache <- is Cache
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
-      EVar fName -> case fromName fName of
-        n | n == eqName   -> instantiateEq args'
-        n | n == nat8Name -> case args of
-          [ECon i] -> return $ TH.AppE (TH.VarE 'encNat8) $ intE $ read $ fromName i
-          _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
+      EVar fName -> do
+        fName' <- instantiateName fName
+        case fromName fName of
+          n | n == eqName   -> instantiateEq args'
+          n | n == nat8Name -> case args of
+            [ECon i] -> return $ TH.AppE (varE fName') $ intE $ read $ fromName i
+            _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
 
-        _ | cache  -> bindAndApplyArgs (\args'' -> 
-                        appsE (TH.VarE 'withCallCache) 
-                        [ TH.TupE [ stringE $ encodedName fName, TH.ListE args'']
-                        , appsE (varE $ encodedName fName) args''
-                        ]) args'
-        _         -> bindAndApplyArgs (appsE $ varE $ encodedName fName) args'
+          _ | cache  -> bindAndApplyArgs (\args'' -> 
+                          appsE (TH.VarE 'withCallCache) 
+                          [ TH.TupE [ stringE fName', TH.ListE args'']
+                          , appsE (varE fName') args''
+                          ]) args'
+          _         -> bindAndApplyArgs (appsE $ varE fName') args'
     where 
       instantiateEq args' = do
         scheme <- liftM toTH $ schemeOfExp $ head args

@@ -9,6 +9,8 @@ module CO4.PreludeNat
   , gtNat8, geNat8, eqNat8, leNat8, ltNat8, maxNat8, minNat8, plusNat8, timesNat8
   , encNat8, encGtNat8, encGeNat8, encEqNat8, encLeNat8, encLtNat8
   , encMaxNat8, encMinNat8, encPlusNat8, encTimesNat8
+  , encNat8Prof, encGtNat8Prof, encGeNat8Prof, encEqNat8Prof, encLeNat8Prof
+  , encLtNat8Prof, encMaxNat8Prof, encMinNat8Prof, encPlusNat8Prof, encTimesNat8Prof
   )
 where
 
@@ -19,7 +21,7 @@ import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
   (primitive,constant,assert,not,and,xor,or,equals)
-import           CO4.Monad (CO4,SAT)
+import           CO4.Monad (CO4,SAT,traced)
 import           CO4.EncodedAdt hiding (undefined)
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator,known,constructors)
@@ -64,35 +66,46 @@ timesNat8 = (*)
 
 -- * Encoded functions on naturals
 
-encNat8 :: Int -> CO4 EncodedAdt
+encNat8,encNat8Prof  :: Int -> CO4 EncodedAdt
 encNat8 i = encodedConstructor i (2^8) []
+encNat8Prof = traced "nat8" . encNat8
 
 encGtNat8,encGeNat8,encEqNat8,encLeNat8,encLtNat8,encMaxNat8,encMinNat8
-  :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+  ,encGtNat8Prof,encGeNat8Prof,encEqNat8Prof,encLeNat8Prof,encLtNat8Prof
+  ,encMaxNat8Prof,encMinNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encGtNat8 = flip encLtNat8
+encGtNat8Prof a b = traced "gtNat8" $ encGtNat8 a b
+
 encGeNat8 = flip encLeNat8
+encGeNat8Prof a b = traced "geNat8" $ encGeNat8 a b
+
 encEqNat8 = catchInvalid2 $ onFlags 
   (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and 
                                                    >>= \r -> make [r] [])
+encEqNat8Prof a b = traced "eqNat8" $ encEqNat8 a b
 
 encLeNat8 = catchInvalid2 $ onFlags $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   make [r] []
+encLeNat8Prof a b = traced "leNat8" $ encLeNat8 a b
 
 encLtNat8 = catchInvalid2 $ onFlags $ \a b -> do
   (l, _) <- encComparePrimitives a b
   make [l] []
+encLtNat8Prof a b = traced "ltNat8" $ encLtNat8 a b
 
 encMaxNat8 = catchInvalid2 $ onFlags $ \ a b -> do
   (l, _) <- encComparePrimitives b a
   r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
   make r []
+encMaxNat8Prof a b = traced "maxNat8" $ encMaxNat8 a b
 
 encMinNat8 = catchInvalid2 $ onFlags $ \ a b -> do
   (l, _) <- encComparePrimitives a b
   r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
   make r []
+encMinNat8Prof a b = traced "minNat8" $ encMinNat8 a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
                      -> CO4 (Primitive, Primitive) -- ^ (less, equals)
@@ -128,7 +141,7 @@ encComparePrimitives a b = case (a,b) of
     return ( y, not y )
 -}
 
-encPlusNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encPlusNat8,encPlusNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
@@ -141,6 +154,7 @@ encPlusNat8 = catchInvalid2 $ onFlags $ \ (a:as) (b:bs) -> do
           (z,d) <- fullAdder c x y
           zs <- addWithCarry d xs ys
           return $ z : zs
+encPlusNat8Prof a b = traced "plusNat8" $ encPlusNat8 a b
 
 encTimesNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
@@ -188,7 +202,7 @@ encTimesNat8 = catchInvalid2 $ onFlags $ \as bs -> do
                     (r,c) <- fullAdder x y z
                     reduce bound $ M.unionWith (++) rest
                            $ M.fromList [ (k, more ++ [r]), (k+1, [c]) ]
-
+encTimesNat8Prof a b = traced "timesNat8" $ encTimesNat8 a b
 
 ifthenelse :: Primitive -> Primitive -> Primitive -> CO4 Primitive
 ifthenelse i t e = do
