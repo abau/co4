@@ -31,9 +31,6 @@ $( runIO $ configurable [ ImportPrelude
   $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
 
 
-kList 0 a = known 0 2 []
-kList i a = known 1 2 [ a , kList (i-1) a]
-
 -- data Base = Base [Bool]
 uBase = known 0 1 [ kList 2 uBool ]
 
