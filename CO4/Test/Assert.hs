@@ -34,9 +34,8 @@ kList 0 a = known 0 2 []
 kList i a = known 1 2 [ a , kList (i-1) a]
 
 main = do
-    out <- solveAndTestBooleanP 
+    out <- solveAndTestP 
        ( nat8 241 )
-       ( booleanCache  .  profile )
        ( kList 10 uNat8 )
        encConstraint
        constraint

@@ -147,9 +147,8 @@ solveTPDB sys = do
                        4 -- num_interpretations
                        2 -- dim for matrices
                        2 -- bits_for_numbers (in matrices)
-  solution <- solveAndTestBooleanP 
+  solution <- solveAndTestP 
       srs 
-      ( booleanCache . profile )
       alloc encMain main
 
   case solution of

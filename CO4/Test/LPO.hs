@@ -25,7 +25,7 @@ uSymbol = constructors [ M.Just [], M.Just [], M.Just [], M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]
 uList i a  = constructors [ M.Just [] , M.Just [a, uList (i-1) a ] ]
 
-result = solveAndTestBooleanP trs2 (uList 3 uSymbol) encMain main
+result = solveAndTestP trs2 (uList 3 uSymbol) encMain main
 
 trs1 = Cons (Pair (Term F (Cons (Var X) (Cons (Term E Nil) Nil)))
                   (Var X))
