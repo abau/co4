@@ -46,6 +46,11 @@ preludeFunctionDeclarations = [
   , [dec| null xs = case xs of { [] -> True; _ -> False } |]
   , [dec| head xs = case xs of { [] -> undefined; (y:_) -> y } |]
   , [dec| tail xs = case xs of { [] -> []; (_:ys) -> ys } |]
+  , [dec| last xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] ->  x ; _  -> last ys } } |]
+  , [dec| init xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] -> [] ; _  -> x : init ys } } |]
+  -- Functions
+  , [dec| id x = x |]
+  , [dec| const x y = x |]
   -- Booleans
   , [dec| not x    = case x of { False -> True ; True -> False } |]
   , [dec| a && b   = case a of { False -> False ; True -> b } |]

@@ -8,7 +8,7 @@
 -- module CO4.Test.WCB where
 module Main where
 
-import Prelude hiding (const, init, last, sequence)
+import Prelude hiding ( sequence )
 
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
@@ -61,6 +61,7 @@ uTriagGap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i + delta <= j 
      then known 1 2 [ uNat8 ]
      else known 0 2 []
+
 
 uTriag2Gap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i + delta <= j 

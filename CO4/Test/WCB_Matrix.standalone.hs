@@ -2,19 +2,12 @@ module CO4.Test.WCB_Matrix where
 
 
 import CO4.Prelude
-import Prelude hiding (const, init, last, sequence)
+import Prelude hiding ( sequence)
 
 -- * the main constraint
 
 -- constraint = design_simple
 constraint = design_stable
-
-{-
-ssp :: Primary -> Matrix Energy -> Bool
-ssp p m = 
-       all2 eqEnergy m (grammar p m)
-   &&  all2 eqEnergy m (gap1 m)
--}
 
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)
@@ -41,40 +34,44 @@ grammar :: e -> e
         -> (e -> e -> e) -> (e -> e -> e)
         -> (Primary -> [[e]])
         -> Primary -> Matrix e -> Matrix e
-grammar zero one plus times costM p s = 
-    choice plus 
-       [ item zero one p
-       , sequence plus times [s, s]
-       , pointwise times (costM p) (shift zero (gap (S (S (S Z))) zero s))
-       ]
+grammar zero one plus times costM p s =     
+        sequence plus times 
+            [ choice plus
+               [ item zero one p
+               , pointwise times (costM p) 
+                (shift zero (gap (S (S (S Z))) zero s))
+               ]
+            , choice plus 
+               [ epsilon zero one (head p : p)
+               , s
+               ]
+            ]
 
+-- * matrix operations (general)
 
-type Matrix a = [[a]]
+type Vector a = [a]
+type Matrix a = [Vector a]
 
+upright :: Matrix a -> a
 upright m = last ( head m)
 
-last xs = case xs of
-    [] -> undefined
-    x : ys -> case ys of
-        [] ->  x
-        _  -> last ys
+vget :: [e] -> N -> f -> (e -> f) -> f
+vget xs i nothing just = 
+    case assertKnown xs of
+        [] -> nothing
+        x : xs' -> case assertKnown i of
+            Z    -> just x
+            S i' -> vget xs' i' nothing just 
 
-init xs = case xs of
-    [] -> undefined
-    x : ys -> case ys of
-        [] -> []
-        _  -> x : init ys
+mget :: Matrix e -> N -> N -> f -> (e -> f) -> f
+mget m i j nothing just = 
+    vget m i nothing ( \ row -> 
+    vget row j nothing ( \ x -> just x ))
 
-const x y = x
-
-
--- |  (shift m) ! (i,j) ==  e ! (i+1,j-1) 
-shift :: e -> Matrix e -> Matrix e
-shift zero m = dropX zero (addY zero m)
-
-dropX zero m = tail m ++ [ map (const zero) (head m) ]
-addY zero m = map ( \ row -> init (zero : row) ) m
-
+mmap :: Matrix e -> (N -> N -> e -> f) -> Matrix f
+mmap m f = for (zipnats m) ( \ (i,row) ->
+           for (zipnats row) ( \ (j,x) -> 
+                f i j x))
 
 mtimes :: (e -> e -> e)
        -> (e -> e -> e)
@@ -86,9 +83,13 @@ mtimes plus times a b =
     in  for a  ( \ row -> 
         for b' ( \ col -> dot plus times row col ) )
 
+dot ::  (e -> e -> e)
+       -> (e -> e -> e)
+       -> [e]  -> [e]
+       -> e
 dot plus times xs ys = 
-              let zs = zipWith times xs ys 
-              in foldr plus (head zs) (tail zs)
+    let zs = zipWith times xs ys 
+    in foldr plus (head zs) (tail zs)
 
 transpose :: Matrix e -> Matrix e
 transpose xss = case assertKnown xss of
@@ -102,6 +103,17 @@ pointwise f a b = zipWith (zipWith f) a b
 all2 f a b = and (map and (pointwise f a b))
 
 
+-- * specific matrix operations related to grammars
+
+-- |  (shift m) ! (i,j) ==  e ! (i+1,j-1) 
+shift :: e -> Matrix e -> Matrix e
+shift zero m = 
+    -- dropX zero (addY zero m)
+    mmap m ( \ i j x -> case j of
+            Z -> zero
+            S j' -> mget m (S i) j' zero id )
+
+
 
 choice plus ms = 
     foldr (pointwise plus) (head ms) (tail ms)
@@ -110,21 +122,21 @@ sequence plus times ms =
     foldr (mtimes plus times) (head ms) (tail ms)
 
 
-costM zero  p = forward zero ( dropY zero ( addX zero
-         ( for p ( \ x ->
-         for p ( \ y -> cost x y ) ) ) ) )
+costM zero p = cost_with id zero p
+costM2 zero p = cost_with lift2 zero p
 
-costM2 zero p = forward zero ( dropY zero ( addX zero
-         ( for p ( \ x ->
-         for p ( \ y -> lift2 (cost x y) ) ) ) ) )
+cost_with f zero p = 
+    gap Z zero ( dropY zero ( addX zero
+         ( for (zipnats p) ( \ (i, x) ->
+           for (zipnats p) ( \ (j, y) -> 
+               case assertKnown (ltN i j) of
+                   False -> zero
+                   True  -> f ( cost x y ))))))
+    
+addX zero m = m ++ [ map (const zero) (head m) ]
+dropY zero m = map ( \ row -> zero : row ) m
 
-addX zero m = map ( \ row -> zero : row ) m
-dropY zero m = m ++ [ map (const zero) (head m) ]
-                
--- gap1 zero m = forward zero m 
-gap1 zero m  = gap (S Z) zero m
 
-forward zero m = with_empty zero zero m
 
 {-
 gap delta zero m = 
@@ -133,6 +145,28 @@ gap delta zero m =
     if i + delta <= j then x else zero
 -}
 
+gap delta zero m = 
+    for (zipnats m) ( \ (i,row) -> 
+    for (zipnats row) ( \ (j,x) -> 
+    case assertKnown (leN (plusN i delta) j) of
+        True -> x 
+        False -> zero ))
+      
+item :: e -> e -> Primary -> Matrix e
+item zero one p = 
+    let p' = head p : p
+    in  for (zipnats p') ( \ (i,_) ->
+        for (zipnats p') ( \ (j,_) ->
+            case eqN (S i) j of
+                False -> zero
+                True  -> one  
+                         ))
+
+epsilon zero one p = 
+    diag zero ( map ( \ x -> one )  p )
+
+-- * Peano numbers (used for indexing)
+
 data N = Z | S N 
 
 plusN :: N -> N -> N
@@ -140,12 +174,26 @@ plusN x y = case x of
     Z -> y
     S x' -> S (plusN x' y)
 
-le :: N -> N -> Bool
-le x y = case x of 
+leN :: N -> N -> Bool
+leN x y = case x of 
     Z -> True
     S x' -> case y of
         Z -> False
-        S y' -> le x' y'
+        S y' -> leN x' y'
+
+gtN :: N -> N -> Bool
+gtN x y = not (leN x y)
+
+ltN :: N -> N -> Bool
+ltN x y = gtN y x
+
+eqN x y = case x of 
+    Z -> case y of
+        Z -> True
+        S y' -> False
+    S x' -> case y of
+        Z -> False
+        S y' -> eqN x' y'
 
 zipnats :: [a] -> [ (N,a) ]
 zipnats xs = 
@@ -154,46 +202,19 @@ zipnats xs =
             x : xs' -> (n, x) : f (S n) xs'
     in  f Z xs
 
-gap delta zero m = 
-    for (zipnats m) ( \ (i,row) -> 
-    for (zipnats row) ( \ (j,x) -> 
-    case assertKnown (le (plusN i delta) j) of
-        True -> x 
-        False -> zero ))
 
-
-
-with_empty :: e -> e -> Matrix e -> Matrix e
-with_empty zero one m = case m of
-    [] -> []
-    row : rows -> 
-       (one : tail row)
-       : map ( \ row -> zero : row) 
-             (with_empty zero one (map tail rows))
-        
-item :: e -> e -> Primary -> Matrix e
-item zero one p = dropY zero (addX zero
-     ( diag zero (map ( const one ) p )) )
 
 diag :: e -> [e] -> Matrix e
-diag zero xs = case xs of
-    [] -> []
-    x:xs' -> let d = diag zero xs'
-             in  (x : map (const zero) d) 
-                 : map (\ row -> zero : row) d 
+diag zero xs = 
+    for (zipnats xs) ( \ (i,x) ->
+    for (zipnats xs) ( \ (j,y) ->
+        case assertKnown (eqN i j) of
+            False -> zero
+            True  -> x
+                     ) )
 
 for xs f = map f xs
 
-
-
-
-
-{-
-main_with_stability s p = case maxbound_double p of
-    ( first, second ) -> 
-           gtEnergy first second -- stability
-        && geEnergy (bound p s) first
--}
 
 -- * primary struct
 
@@ -229,13 +250,12 @@ applyB b t = case b of
 cost :: Base -> Base -> Energy
 cost b1 b2 = applyB b1 (applyB b2 costT)
  
--- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)
 costT = basetree
-    (basetree mi  mi    mi    two) -- a u
-    (basetree mi  mi    three mi) -- c g
-    (basetree mi  three mi    one) -- g c, g u
-    (basetree two mi    one   mi) -- u a, u g
+    (basetree mi  mi    mi    two) --              a u
+    (basetree mi  mi    three mi)  --          c g
+    (basetree mi  three mi    one) --      g c,    g u
+    (basetree two mi    one   mi)  -- u a,     u g
 
 basetree a c g u = 
     Branch (Branch (Leaf a)(Leaf c))
@@ -253,7 +273,7 @@ type Secondary = [ Paren ]
 
 data Energy = MinusInfinity 
             | Finite Nat8 
-     --deriving Show
+     -- deriving Show
 
 mi   = MinusInfinity
 zero = Finite (nat8 0)
