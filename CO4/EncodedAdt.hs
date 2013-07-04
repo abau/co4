@@ -41,8 +41,8 @@ instance Show EncodedAdt where
 
 -- * Constructors
 
-make :: [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
-make flags arguments = withAdtCache (constant True, flags, arguments)
+make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
+make definedness flags arguments = withAdtCache (definedness, flags, arguments)
 
 encUndefined :: EncodedAdt
 encUndefined = EncodedAdt (-1) (constant False) [] []
