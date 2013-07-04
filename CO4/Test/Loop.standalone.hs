@@ -12,12 +12,9 @@ type SRS = [ Rule ]
 data Looping_Derivation =
      Looping_Derivation Word [Step] Word
 
-main :: SRS -> Looping_Derivation -> Bool
-main srs ld = case ld of 
-    Looping_Derivation pre d suf -> 
-        conformant srs d
-        -- &&  isInfix (start d) (result d)
-        && eqWord (pre ++ start d ++ suf) (result d)
+constraint :: SRS -> Looping_Derivation -> Bool
+constraint srs (Looping_Derivation pre d suf) =
+  conformant srs d && eqWord (pre ++ start d ++ suf) (result d)
 
 isInfix xs ys = 
     any ( \ zs -> isPrefixOf xs zs) (tails ys)
@@ -69,8 +66,7 @@ result steps = case steps of
 
 conformant :: SRS -> Derivation -> Bool
 conformant srs steps = 
-    all ( \ step -> case step of
-          Step p u s -> elemRule u srs ) steps
+    all ( \(Step p u s) -> elemRule u srs ) steps
 
 elemRule u srs = 
     any ( \ v -> eqRule u v ) srs

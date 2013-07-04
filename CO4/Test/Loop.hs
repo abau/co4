@@ -29,7 +29,7 @@ import Control.Monad ( void, forM )
 
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
-                        --, Cache, Profile
+                        , Cache --, Profile
                         -- , DumpAll "/tmp/sl" 
                         ] 
          $ compileFile "CO4/Test/Loop.standalone.hs" )
@@ -73,7 +73,7 @@ toBin x =
 fromBin :: [Bool] -> Int
 fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
 
-mainz = do
+main = do
     [ w, h, fp ] <- getArgs
     solve (read w) (read h) fp
 
@@ -100,7 +100,7 @@ solve  width height filePath = do
   solution <- solveAndTestP 
       srs 
       (uLoopDeriv rwidth bits width height)
-      encMain main
+      encConstraint constraint
 
   case solution of
     Nothing -> return ()
