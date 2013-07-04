@@ -29,14 +29,10 @@ import Control.Monad ( void, forM )
 
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
-                        , Cache, Profile
+                        --, Cache, Profile
                         -- , DumpAll "/tmp/sl" 
                         ] 
          $ compileFile "CO4/Test/Loop.standalone.hs" )
-
-
-kList 0 _  = known 0 2 []
-kList i a  = known 1 2 [ a , kList (i-1) a ]
 
 cSymbol xs = case xs of
     [] -> known 0 2 []
