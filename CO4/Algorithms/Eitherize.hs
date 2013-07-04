@@ -23,7 +23,7 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (EncodedAdt,undefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
+  (EncodedAdt,encUndefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.AllocatorData (known)
@@ -208,7 +208,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         value' <- instantiate value
         return $ bindS' name' value'
 
-  instantiateUndefined = return $ TH.AppE (TH.VarE 'return) (TH.VarE 'undefined)
+  instantiateUndefined = return $ TH.AppE (TH.VarE 'return) (TH.VarE 'encUndefined)
 
   instantiateBind (DBind (Binding name exp)) = do
     name'        <- instantiateName name

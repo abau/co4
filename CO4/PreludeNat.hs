@@ -20,7 +20,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
   (primitive,constant,assert,not,and,xor,or,equals)
 import           CO4.Monad (CO4,SAT,traced)
-import           CO4.EncodedAdt hiding (undefined)
+import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator,known,constructors)
 import           CO4.EncEq (EncEq(..))
@@ -288,16 +288,16 @@ onFlags2 f a b = case (flags a, flags b) of
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid f a = 
   if isConstantlyUndefined a 
-  then return undefined
+  then return encUndefined
   else if isBottom a 
-       then return bottom
+       then return encBottom
        else f a
 
 catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)) 
               -> EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid2 f a b = 
   if isConstantlyUndefined a || isConstantlyUndefined b
-  then return undefined
+  then return encUndefined
   else if isBottom a || isBottom b 
-       then return bottom
+       then return encBottom
        else f a b
