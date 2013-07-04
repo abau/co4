@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module CO4.EncodedAdt
   ( Primitive, EncodedAdt, IntermediateAdt (..)
-  , make, undefined, bottom, encodedConstructor
+  , make, encUndefined, encBottom, encodedConstructor
   , isBottom, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
@@ -44,11 +44,11 @@ instance Show EncodedAdt where
 make :: [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
 make flags arguments = withAdtCache (constant True, flags, arguments)
 
-undefined :: EncodedAdt
-undefined = EncodedAdt (-1) (constant False) [] []
+encUndefined :: EncodedAdt
+encUndefined = EncodedAdt (-1) (constant False) [] []
 
-bottom :: EncodedAdt
-bottom = Bottom
+encBottom :: EncodedAdt
+encBottom = Bottom
 
 encodedConstructor :: Int -> Int -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
@@ -112,15 +112,15 @@ arguments' adt = case arguments adt of
   Just args -> args
 
 constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
-constructorArgument _ _ adt | isConstantlyUndefined adt = undefined
-constructorArgument _ _ adt | isBottom adt              = bottom
+constructorArgument _ _ adt | isConstantlyUndefined adt = encUndefined
+constructorArgument _ _ adt | isBottom adt              = encBottom
 constructorArgument i j adt = 
   case constantConstructorIndex adt of
     Nothing           -> -- Exception.assert (i < length args) $ args !! i
                          if i < length args then args !! i
-                                            else bottom
+                                            else encBottom
     Just j' | j == j' -> Exception.assert (i < length args) $ args !! i
-    Just _            -> bottom
+    Just _            -> encBottom
   where
     args = _arguments adt
 
@@ -131,7 +131,7 @@ caseOf :: EncodedAdt -> [EncodedAdt] -> CO4 EncodedAdt
 caseOf adt branches | isConstantlyUndefined adt 
                    || (all isConstantlyUndefined branches) 
                    || (all (\x -> isConstantlyUndefined x || isBottom x) branches)
-                    = return undefined
+                    = return encUndefined
 caseOf adt branches | isBottom adt || (all isBottom branches)
                     = return Bottom
 caseOf adt branches | length (fromJust $ flags adt) < bitWidth (length branches) 
