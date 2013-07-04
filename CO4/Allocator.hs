@@ -35,7 +35,7 @@ encodeOverlapping allocs = do
     [Known i n _] -> return $ map constant $ toBinary (Just $ bitWidth n) i
     _             -> sequence $ replicate (bitWidth maxConstructors) primitive
 
-  make flags args
+  make (constant True) flags args
 
   where 
     maxConstructors = maximum $ for allocs $ \case 

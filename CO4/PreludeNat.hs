@@ -77,32 +77,29 @@ encGtNat8Prof a b = traced "gtNat8" $ encGtNat8 a b
 encGeNat8 = flip encLeNat8
 encGeNat8Prof a b = traced "geNat8" $ encGeNat8 a b
 
-encEqNat8 = catchInvalid2 $ onFlags2
-  (\as bs -> zipWithM (\x y -> equals [x,y]) as bs >>= and 
-                                                   >>= \r -> make [r] [])
+encEqNat8 = catchInvalid2 $ onFlags2 $ \as bs ->
+  zipWithM (\x y -> equals [x,y]) as bs >>= and >>= \r -> return [r]
 encEqNat8Prof a b = traced "eqNat8" $ encEqNat8 a b
 
 encLeNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
-  make [r] []
+  return [r]
 encLeNat8Prof a b = traced "leNat8" $ encLeNat8 a b
 
 encLtNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
-  make [l] []
+  return [l] 
 encLtNat8Prof a b = traced "ltNat8" $ encLtNat8 a b
 
 encMaxNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
-  r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
-  make r []
+  zipWithM ( \x y -> ifthenelse l x y ) a b 
 encMaxNat8Prof a b = traced "maxNat8" $ encMaxNat8 a b
 
 encMinNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives a b
-  r      <- zipWithM ( \x y -> ifthenelse l x y ) a b 
-  make r []
+  zipWithM ( \x y -> ifthenelse l x y ) a b 
 encMinNat8Prof a b = traced "minNat8" $ encMinNat8 a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
@@ -143,7 +140,7 @@ encPlusNat8,encPlusNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlusNat8 = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
-  make (z : zs) []
+  return $ z : zs
   where
     addWithCarry c [] [] = do
         assert [ not c ] 
@@ -172,12 +169,10 @@ encTimesNat8 = catchInvalid2 $ onFlags2 $ \as bs -> do
     export bound kzs = do
         m <- reduce bound $ M.fromListWith (++) kzs
         case M.maxViewWithKey m of
-            Nothing -> make [] []
-            Just ((k,_) , _) -> do
-                  make (do i <- [ 0 .. k ]
-                           let { [ b ] = m M.! i }
-                           return b
-                       ) []
+            Nothing -> return []
+            Just ((k,_) , _) -> return $ do i <- [ 0 .. k ]
+                                            let { [ b ] = m M.! i }
+                                            return b
 
     reduce bound m = case M.minViewWithKey m of
         Nothing -> return M.empty
@@ -275,14 +270,18 @@ halfAdder p1 p2 = do
   r <- xor [ p1, p2 ]
   return (r,c)
 
-onFlags :: ([Primitive] -> CO4 a) -> EncodedAdt -> CO4 a
+onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
 onFlags f a = case flags a of
-  Just as -> f as 
+  Just as -> do flags' <- f as 
+                make (definedness a) flags' []
   _       -> error "PreludeNat.onFlags: missing flags"
 
-onFlags2 :: ([Primitive] -> [Primitive] -> CO4 a) -> EncodedAdt -> EncodedAdt -> CO4 a
+onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
+         -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 onFlags2 f a b = case (flags a, flags b) of
-  (Just as, Just bs) -> f as bs
+  (Just as, Just bs) -> do flags'       <- f as bs
+                           definedness' <- and [definedness a, definedness b]
+                           make definedness' flags' []
   _                  -> error "PreludeNat.onFlags2: missing flags"
 
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
