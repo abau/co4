@@ -234,3 +234,7 @@ isInt :: String -> Bool
 isInt s = case readEither s :: Either String Int of
   Left _  -> False
   Right _ -> True
+
+-- `mapAndUnzipM` on 3-tuple
+mapAndUnzip3M :: (Monad m) => (a -> m (b,c,d)) -> [a] -> m ([b],[c],[d])
+mapAndUnzip3M f xs =  sequence (map f xs) >>= return . unzip3

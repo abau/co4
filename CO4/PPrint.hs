@@ -99,5 +99,5 @@ instance PPrint Program where
                                     $ map pprint 
                                     $ DBind main : decs
 
-instance PPrint (Name,Type) where
-  pprint (n,t) = hsep [pprint n, text "=", pprint t]
+instance (PPrint a, PPrint b) => PPrint (a,b) where
+  pprint (a,b) = parens $ hcat [pprint a, text ",", pprint b]

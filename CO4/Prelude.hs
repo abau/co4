@@ -13,7 +13,7 @@ where
 import qualified Language.Haskell.Exts as HE
 import           Language.Haskell.Exts.QQ (dec)
 import           CO4.Language 
-import           CO4.Algorithms.HindleyMilner.Util (Context,binds,emptyContext,toList)
+import           CO4.Algorithms.HindleyMilner.Util (Context,bind,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
 import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
 import           CO4.Unique (MonadUnique)
@@ -90,7 +90,7 @@ preludeAdtDeclarations = [
     [a,b,c,d,e] = map UntypedName ["a","b","c","d","e"]
 
 unparsedPreludeContext :: Context
-unparsedPreludeContext = binds 
+unparsedPreludeContext = bind
   [ (eqName          , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
   , ("False"         ,             SType boolT)
   , ("True"          ,             SType boolT)
