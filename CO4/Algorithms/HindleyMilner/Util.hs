@@ -1,16 +1,18 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.Util
   ( Context (..), Substitution, Substitutable (..), mappend
-  , substitutes, binds, bindTypes, bindAdt, bindTypedBindings
+  , substituteN, bind, bindTypes, bindAdt, bindTypedBindings, unbind
   , generalize, generalizeAll, gamma
   , emptyContext, lookup, unsafeLookup, hasScheme, toList, instantiateSchemeApp
-  , unifyOrFail, unifyLeftOrFail, unifiesOrFail)
+  , unifyOrFail, unifyNorFail)
 where
 
 import           Prelude hiding (lookup)
 import           Control.Monad.Reader
 import           Text.PrettyPrint ((<+>),hsep,text,nest,vcat)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import           Data.List ((\\),nub)
 import           Data.Monoid (Monoid(..))
 import           CO4.Algorithms.Free (Free(..))
@@ -43,7 +45,7 @@ instance Substitutable Name where
   substitute _ name         = name
 
 instance Free Context where
-  free (Gamma c) = nub $ M.fold (\p -> (++) (free p)) [] c
+  free (Gamma c) = nub $ M.foldl' (\fs p -> fs ++ free p) [] c
 
 instance Substitutable Context where
   substitute s (Gamma c) = Gamma $ M.map (substitute s) c
@@ -88,11 +90,20 @@ instance Substitutable a => Substitutable [a] where
 instance (Substitutable a, Substitutable b) => Substitutable (a,b) where
   substitute s (a,b) = (substitute s a, substitute s b)
 
-substitutes :: Substitutable a => [Substitution] -> a -> a
-substitutes ss a = foldl (flip substitute) a ss
+substituteN :: Substitutable a => [Substitution] -> a -> a
+substituteN ss a = 
+  foldl (flip substitute) a ss'
+  {-
+  if (length ss' == length (nub $ map fst ss'))
+  then foldl (flip substitute) a ss'
+  else error $ ff ++ (show $ map (\(a,b) -> (pprint a, pprint b)) ss')
+  -}
 
-binds :: Namelike n => [(n,Scheme)] -> Context -> Context
-binds bindings context = mappend context $ gamma bindings
+  where ss' = filter (\case (n, TVar v) -> n /= v
+                            _           -> True) ss
+
+bind :: Namelike n => [(n,Scheme)] -> Context -> Context
+bind bindings context = mappend context $ gamma bindings
 
 bindTypes :: Namelike n => [(n,Type)] -> Context -> Context
 bindTypes bindings context = 
@@ -104,11 +115,15 @@ bindAdt adt context = foldr bindConstructor context $ dAdtConstructors adt
           let scheme = foldr SForall (SType $ functionType types $ typeOfAdt adt) 
                                      (dAdtTypeVariables adt)
           in
-            binds [(name, scheme)]
+            bind [(name, scheme)]
 
 bindTypedBindings :: [Binding] -> Context -> Context
-bindTypedBindings b = binds (map toContextBinding b)
+bindTypedBindings b = bind (map toContextBinding b)
   where toContextBinding (Binding (NTyped n s) _) = (UntypedName n, s)
+
+unbind :: Namelike n => [n] -> Context -> Context
+unbind names (Gamma ctxt) = 
+  Gamma $ foldl (\c n -> M.delete (untypedName n) c) ctxt names
 
 generalize :: Context -> Type -> Scheme
 generalize context t =
@@ -151,48 +166,39 @@ instantiateSchemeApp =
   in
     foldl instantiate
 
-
 -- |Unifies two types or fails if there is no substitution
-unifyOrFail, unifyLeftOrFail  :: Monad m => Type -> Type -> m [Substitution]
-unifyOrFail t1 t2 = case unify False t1 t2 of
+unifyOrFail :: Monad m => Type -> Type -> m [Substitution]
+unifyOrFail t1 t2 = case unify t1 t2 of
   Left msg -> fail msg
   Right s  -> return s
 
-unifyLeftOrFail t1 t2 = case unify True t1 t2 of
-  Left msg -> fail msg
-  Right s  -> return s
-
-unifiesOrFail :: Monad m => [Type] -> [Type] -> m [Substitution]
-unifiesOrFail ts1 ts2 = case unifies False ts1 ts2 of
+-- | Unifies a lists of types from left to right
+unifyNorFail :: Monad m => [Type] -> m [Substitution]
+unifyNorFail ts = case unifyN ts of
   Left msg -> fail msg
   Right s  -> return s
 
 -- |@unify a b@ unifies the types @a@ and @b@. 
-unify :: Bool -> Type -> Type -> Either String [Substitution]
-unify left t1 t2 = case (t1,t2) of
+unify :: Type -> Type -> Either String [Substitution]
+unify t1 t2 = case (t1,t2) of
   (TVar v, _)   -> return [(v, t2)]
-  (_  , TVar v) -> if left then Left noLeftUnifierFound
-                   else return [(v, t1)]
+  (_  , TVar v) -> return [(v, t1)]
    
   (TCon c1 ts1, TCon c2 ts2) -> 
      if c1 == c2 && (length ts1 == length ts2)
-     then unifies left ts1 ts2
+     then foldM (\s1 (t1,t2) -> do s2 <- unify (substituteN s1 t1) (substituteN s1 t2)
+                                   return $ s1 ++ s2
+                ) [] $ zip ts1 ts2
      else Left noUnifierFound
-  
-  --_ -> Left noUnifierFound
-  
   where 
     noUnifierFound = "No unifier found for '" ++ show (pprint t1) ++ "' and '" ++ show (pprint t2) ++ "'"
 
-    noLeftUnifierFound = "Provided type '" ++ show (pprint t2) ++ "' is more general than inferred type '" ++ show (pprint t1) ++ "'"
-
--- | Unifies two lists of types 
-unifies :: Bool -> [Type] -> [Type] -> Either String [Substitution]
-unifies left ts1 ts2 =
-  if (length ts1) /= (length ts2) 
-  then Left $ "Different lengths of '" ++ show (map pprint ts1) ++ "' and '" ++ show (map pprint ts2) ++ "'"
-  else 
-    foldM (\s (a,b) -> do s' <- unify left (substitutes s a) (substitutes s b)
-                          return $ s ++ s' 
-          ) [] $ zip ts1 ts2
-
+-- | Unifies a lists of types from left to right
+unifyN :: [Type] -> Either String [Substitution]
+unifyN []  = Right []
+unifyN [_] = Right []
+unifyN (t:ts) = foldM (\(s,t1) t2 -> do
+                            s' <- unify t1 (substituteN s t2) 
+                            return (s ++ s', substituteN s' t1)
+                      ) ([],t) ts
+                      >>= return . fst

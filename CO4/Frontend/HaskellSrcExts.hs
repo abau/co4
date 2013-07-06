@@ -26,3 +26,7 @@ instance ProgramFrontend HE.Module where
       p = parsePreprocessedProgram $ HM.toDecs decs
 
   parsePreprocessedProgram _ = error $ "Frontend.HaskellSrcExts.parsePreprocessedProgram: no pragmas or warning texts allowed"
+
+instance ExpressionFrontend HE.Exp where
+  parseExpression             = parseExpression . HM.toExp
+  parsePreprocessedExpression = parsePreprocessedExpression . HM.toExp

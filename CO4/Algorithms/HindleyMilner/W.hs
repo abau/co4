@@ -1,8 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.W
+  {-
   ( HMConfig (..), IntroduceTLamTApp (..) 
   , schemeOfExp, schemesConfig, schemes, withSchemes)
+  -}
 where
   
 import           Prelude hiding (lookup)
@@ -19,7 +21,7 @@ import           CO4.Algorithms.HindleyMilner.Util
 import           CO4.Algorithms.Bound (boundInScheme)
 import           CO4.PPrint
 import           CO4.Algorithms.Instantiator hiding (instantiate)
-import           CO4.Algorithms.Util (introduceTypedNames,eraseTypedNames)
+import           CO4.Algorithms.Util (eraseTypedNames)
 import           CO4.Algorithms.TopologicalSort (bindingGroups)
 import           CO4.Prelude (unparsedPreludeContext)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
@@ -67,7 +69,7 @@ schemeOfExp :: (MonadUnique u,MonadConfig u) => Expression -> u Scheme
 schemeOfExp exp = do
   context     <- initialContext
   (subst,t,_) <- runHm (HMConfig DontIntroduceTLamTApp False) $ w context exp
-  let t' = generalize (substitutes subst context) t
+  let t' = generalize (substituteN subst context) t
   return t'
 
 -- |Annotates the scheme to all named expressions/declarations 
@@ -113,11 +115,11 @@ applyInstantiatedTypeToInferredScheme instantiatedType scheme exp =
   case boundInScheme scheme of
     []            -> exp  
     boundInScheme -> 
-      let subst    = runIdentity $ unifyLeftOrFail (typeOfScheme scheme) instantiatedType
+      let subst    = runIdentity $ unifyOrFail (typeOfScheme scheme) instantiatedType
           typeApps = map (\b -> fromJust $ L.lookup (untypedName b) subst) boundInScheme
       in
         ETApp exp typeApps
-
+       
 -- |Instantiate a scheme to a new type
 instantiate :: MonadUnique u => Scheme -> HM u Type
 instantiate scheme = case scheme of
@@ -133,7 +135,7 @@ newType = newName "type" >>= return . tVar
 
 -- |Infers the type of an expression
 w :: MonadUnique u => Context -> Expression -> HM u ([Substitution], Type, Expression)
-w context exp = case exp of
+w context = \case 
   EVar name -> do scheme  <- lookupName name
                   type_   <- instantiate scheme
                   doIntro <- introduceVarTLamTApp 
@@ -150,58 +152,59 @@ w context exp = case exp of
                              else        ECon $ nTyped name scheme
                   return ([], type_, exp')
 
-  EApp f args -> do
-    (s1, tArgs, args') <- foldM (\(subst,ts,args') arg -> 
-                            do (s,t,a) <- w (substitutes subst context) arg
-                               return (subst ++ s, ts ++ [t], args' ++ [a])
-                          ) ([],[],[]) args
-    (s2, tF, f')  <- w (substitutes s1 context) f
-    u             <- newType
-    let funT      =  functionType (map (substitutes (s1 ++ s2)) tArgs) u
-    
-    s3            <- unifyOrFail funT tF 
-
-    let resultT = substitutes s3 u
-
-    return $ (s1 ++ s2 ++ s3, resultT, EApp f' args')
+  EApp e args -> do
+    (s1, argsT, args', context') <- foldM (\(s1,argsT,args',context') arg -> do
+                                      (s2,argT,arg') <- w context' arg
+                                      return ( s1    ++ s2
+                                             , argsT ++ [argT]
+                                             , args' ++ [arg']
+                                             , substituteN s2 context' )
+                                    ) ([],[],[],context) args
+    (s2, eT, e') <- w (substituteN s1 context') e
+    resultT      <- newType
+    let funT     =  functionType (map (substituteN (s1 ++ s2)) argsT) resultT
+    s3           <- unifyOrFail funT eT
+    let appT     =  substituteN s3 resultT
+    return (s1 ++ s2 ++ s3, appT, EApp e' args')
 
   ELam ns e -> do
-    us           <- forM ns $ const newType
-    let bindings =  zip ns us
-    (s,t,e')     <- w (bindTypes bindings context) e
-    let us'      =  map (substitutes s) us
-        schemes  =  map SType us'
-    return (s, functionType us' t, ELam (zipWith nTyped ns schemes) e')
+    nsT           <- forM ns $ const newType
+    let bindings  =  zip ns nsT
+    (s,eT,e')     <- w (bindTypes bindings context) e
+    let nsT'      =  map (substituteN s) nsT
+        nsSchemes =  map SType nsT'
+    return (s, functionType nsT' eT, ELam (zipWith nTyped ns nsSchemes) e')
 
   ECase e matches -> do
-    (eSubst,eType,e') <- w context e
-    u                 <- newType
-
-    (subst,resultT,matches') <-
-      foldM (\(subst,matchType,matches') match -> 
-              let context' = substitutes subst context
-                  eType'   = substitutes subst eType
-              in do 
-                (s',t',match') <- wMatch context' eType' match
-                s''            <- unifyOrFail (substitutes s' matchType) t'
-                return (subst ++ s' ++ s'', substitutes s'' t', matches' ++ [match'])
-            ) (eSubst,u,[]) matches
+    (s1, eT, e') <- w context e
+    (s2, patsT, branchesT, matches', _) <- 
+      foldM (\(s2,patsT,branchesT,matches',context') match -> do
+        (s3,patT,branchT,match') <- wMatch context' match
+        return ( s2        ++ s3
+               , patsT     ++ [patT]
+               , branchesT ++ [branchT]
+               , matches'  ++ [match']
+               , substituteN s3 context'
+               )
+      ) ([],[],[],[], substituteN s1 context) matches
     
-    return (subst,resultT,ECase e' matches')
+    resultT <- newType
+    s3      <- unifyNorFail $ substituteN (s1 ++ s2)       (eT      : patsT)
+    s4      <- unifyNorFail $ substituteN (s1 ++ s2 ++ s3) (resultT : branchesT)
 
-  ELet bindings localExp -> do
-    (subst,  bindings') <- wBindingGroup context bindings
+    let s5 = concat [s1,s2,s3,s4]
+    return (s5, substituteN s5 resultT, ECase e' matches')
 
-    let context' = bindTypedBindings bindings' context
+  ELet bindings e -> do
+    (s1,bindings') <- wBindingGroup context bindings
+    let context'   =  bindTypedBindings bindings' context
+    (s2, eT, e')   <- w context' e
 
-    (subst', expType, localExp') <- w context' localExp
-
-    return $ (subst ++ subst', expType, ELet bindings' localExp')
+    return $ (s1 ++ s2, eT, ELet bindings' e')
 
   EUndefined -> do 
     t <- newType
     return ([],t,EUndefined)
-
   where 
     lookupName name = 
       case (lookup name context, name) of
@@ -220,10 +223,10 @@ wProgram context program = do
       context'                = foldr bindAdt context typeDecls
 
   (_,_,valueDecls') <-  
-    foldM (\(s,ctxt,valueDecls') bg -> do
-              (s',bg') <- wBindingGroup ctxt bg
-              let ctxt' = bindTypedBindings bg' ctxt 
-              return (s ++ s', ctxt', bg' ++ valueDecls')
+    foldM (\(s1,context,valueDecls') bg -> do
+              (s2,bg')     <- wBindingGroup context bg
+              let context' =  bindTypedBindings bg' context
+              return (s1 ++ s2, context', valueDecls' ++ bg')
           ) ([],context',[]) bgs
 
   return $ programFromDeclarations $ typeDecls ++ (map DBind valueDecls')
@@ -232,65 +235,65 @@ wProgram context program = do
 wBindingGroup :: MonadUnique u => Context -> BindingGroup 
                                -> HM u ([Substitution], BindingGroup)
 wBindingGroup context decls = do
-  newTypes <- forM decls $ const newType
-  doIntro  <- introduceVarTLamTApp 
+  rhsTs   <- forM decls $ const newType
+  doIntro <- introduceVarTLamTApp 
 
-  let bindings        = zip (map boundName decls) newTypes
+  let names           = map boundName decls
+      bindings        = zip names rhsTs
       extendedContext = bindTypes bindings context
 
-  (subst,exps') <- 
-       foldM (\(subst,exps') (Binding _ exp, newType) -> do
-                  (s',t',exp') <- w (substitutes subst extendedContext) exp
-                  s''          <- unifyOrFail (substitutes (subst ++ s') newType) t'
-                  return (subst ++ s' ++ s'', exps' ++ [exp'])
-             ) ([],[]) $ zip decls newTypes
+  (s1,rhss',_) <- 
+       foldM (\(s1,rhss',extendedContext) (Binding _ rhs, rhsT) -> do
+                  (s2,rhsT',rhs') <- w extendedContext rhs
+                  s3              <- unifyOrFail (substituteN (s1 ++ s2) rhsT) rhsT'
+                  return ( concat [s1,s2,s3]
+                         , rhss' ++ [rhs']
+                         , substituteN (s2 ++ s3) extendedContext
+                         )
+             ) ([],[],extendedContext) 
+               (zip decls rhsTs)
 
-  let context'  = substitutes subst context 
-      bindings' = map (\(n, t) -> (n, generalize context' $ substitutes subst t)) bindings
-      decls'    = map (\((name, scheme), exp') -> 
-                    let exp'' = -- Annotate generalized schemes to recursive calls 
-                                -- in this binding group
-                                introduceTypedNames (gamma bindings') 
-                                                  $ substitutes subst exp' 
-                    in case boundInScheme scheme of
-                        [] -> Binding (nTyped name scheme) exp''
-                        bs -> if doIntro
-                              then let bs' = map untypedName bs
-                                   in
-                                    Binding (nTyped name scheme) $ ETLam bs' exp''
-                              else  Binding (nTyped name scheme)             exp''
-                  ) $ zip bindings' exps' 
+  let rhss''    = substituteN s1 rhss'
+      context'  = unbind names extendedContext
+      bindings' = map (\(n, t) -> (n, generalize context' $ substituteN s1 t)) bindings
+      decls'    = map (\((name, scheme), rhs) -> 
+                    case boundInScheme scheme of
+                      [] -> Binding (nTyped name scheme) rhs
+                      bs -> if doIntro
+                            then let bs' = map untypedName bs
+                                 in
+                                  Binding (nTyped name scheme) $ ETLam bs' rhs
+                            else  Binding (nTyped name scheme)             rhs
+                  ) $ zip bindings' rhss''
+  return (s1, decls')
 
-  return (subst, decls')
+-- |Infers two types for a match: 
+-- 1. the type of expressions the pattern is able to match on
+-- 2. the type of the match's branch
+wMatch :: MonadUnique u => Context -> Match 
+                        -> HM u ([Substitution], Type, Type, Match)
+wMatch context (Match pat exp) = do
+  (patT,bindings,pat') <- wPat context pat
+  (s,expT,exp')        <- w (bindTypes bindings context) exp
+  return (s, patT, expT, Match pat' exp')
 
--- |Infers the type of a case's match. The type of the pattern-matched expression 
--- @matchedType@ must be provided in order to restrict the pattern's type.
-wMatch :: MonadUnique u => Context -> Type -> Match -> HM u ([Substitution], Type, Match)
-wMatch context matchedType (Match pat exp) = do
-  (patType,bindings,pat') <- wPat context pat
-  s                       <- unifyOrFail patType matchedType 
-  (s',t,exp')             <- w (bindTypes (substitutes s bindings) context) exp
-  return (s ++ s', t, Match pat' exp')
-
--- |Infers the type of expressions that a given pattern matches. 
--- Also returns the bindings of names that are bound in the pattern.
+-- |Infers the type of expression a pattern is able to match on. Also returns
+-- the bindings in the pattern.
 wPat :: MonadUnique u => Context -> Pattern -> HM u (Type,[(Name,Type)],Pattern)
 wPat context pat = case pat of
   PVar var -> do t <- newType
                  return (t, [(var, t)], PVar $ nTyped var $ sType t)
 
   PCon n ps -> do
-    (bindings,ps')  <- foldM (\(bindings,ps') p -> do
-                          (_,bs,p') <- wPat context p
-                          return (bindings ++ bs, ps' ++ [p'])
-                       ) ([],[]) ps
+    (_,bindingss,ps')  <- mapAndUnzip3M (wPat context) ps
 
-    let exp = patternToExpression $ PCon n ps'
+    let bindings = concat bindingss
+        exp      = patternToExpression $ PCon n ps'
+
     (subst,type_,exp') <- withoutTLamTApp $ w (bindTypes bindings context) exp
 
-    let bindings' = map (\(n,b) -> (n, substitutes subst b)) bindings
-        pat'      = substitutes subst $ expressionToPattern exp'
+    let bindings' = map (\(n,b) -> (n, substituteN subst b)) bindings
+        pat'      = substituteN subst $ expressionToPattern exp'
     return (type_, bindings', pat')
 
   where withoutTLamTApp = local (const $ HMConfig DontIntroduceTLamTApp False)
-
