@@ -1,5 +1,8 @@
 # CO4 - complexity concerned constraint compiler
 
+CO4 enables a subset of Haskell to be used as a constraint specification language
+through transformation into a satisfiability problem in propositional logic.
+
 ## Prerequisites
 
 - [Haskell plattform] (http://www.haskell.org/platform/) with `ghc >= 7.6.1`
