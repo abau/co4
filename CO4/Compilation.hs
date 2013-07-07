@@ -25,8 +25,6 @@ import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.Eitherize (eitherize)
-import           CO4.Algorithms.HindleyMilner (schemes)
-import           CO4.Algorithms.Util (eraseTypedNames)
 
 stageParsed                 = "parsed"
 stageUniqueLocalNames       = "uniqueLocalNames"
@@ -74,10 +72,6 @@ compile a = do
 
                   >>= uniqueLocalNames 
                   >>= lift . (dumpAfterStage' stageUniqueLocalNames)
-
-                  >>= schemes
-                  >>= lift . (dumpAfterStage'   stageTypeInference)
-                  >>= return . eraseTypedNames
 
                   >>= etaExpansion
                   >>= lift . (dumpAfterStage' stageEtaExpansion)
