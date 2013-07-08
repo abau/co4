@@ -36,10 +36,7 @@ $( runIO $ configurable [ Verbose
          $ compileFile "CO4/Test/SL.standalone.hs" )
 
 
-kList 0 _  = known 0 2 []
-kList i a  = known 1 2 [ a , kList (i-1) a ]
-
-uBDT bits leaf = 
+uTree bits leaf = 
     let t depth = if depth > 0
                  then known 1 2 [ t (depth-1), t (depth-1) ]
                  else known 0 2 [ leaf ]
@@ -58,8 +55,8 @@ uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
 uSRS rules len bits = uList rules ( uRule len bits )
 
 
-uModel sym_bits model_bits = uBDT sym_bits 
-                           $ uBDT model_bits 
+uModel sym_bits model_bits = uTree sym_bits 
+                           $ uTree model_bits 
                            $ kList model_bits uBool
 
 
@@ -84,7 +81,7 @@ uMatrix dim bits =
     kList dim $ kList dim $ uArctic bits
 
 uInter bits_for_symbols dim bits_for_numbers = 
-   uBDT bits_for_symbols ( uMatrix dim bits_for_numbers )
+   uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
 
 
 toBin :: Int -> [Bool]
@@ -104,7 +101,7 @@ alphabet sys = nub $ concat
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
 
-mainz = do
+main = do
     [ f ] <- getArgs
     solve f
 
@@ -145,11 +142,11 @@ solveTPDB sys = do
 
   let alloc = uLab srs 2 -- bits_for_model
                        4 -- num_interpretations
-                       2 -- dim for matrices
-                       2 -- bits_for_numbers (in matrices)
+                       1 -- dim for matrices
+                       8 -- bits_for_numbers (in matrices)
   solution <- solveAndTestP 
       srs 
-      alloc encMain main
+      alloc encConstraintProf constraint
 
   case solution of
     Nothing -> return ()

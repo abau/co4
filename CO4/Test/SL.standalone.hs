@@ -1,5 +1,8 @@
 module CO4.Test.SL where
 
+import CO4.Prelude
+import CO4.PreludeNat
+
 -- * string rewriting:
 
 type Symbol =  [ Bool ]
@@ -9,13 +12,13 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
-type Interpretation = BDT (Matrix Arctic)
+type Interpretation = Tree (Matrix Arctic)
 data Label = Label Model [ Interpretation ] [ Bool ]
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
 -- (that is, all its labelled versions)
-main srs lab = case lab of
+constraint srs lab = case lab of
     Label mod ints remove -> 
           all ( positiveI ) ints
        && let srss = labelled srs mod
@@ -26,14 +29,14 @@ main srs lab = case lab of
 
 -- * model, labelling
 
-type Model = BDT Func
-
+type Model = Tree Func
+type Func = Tree [Bool]
     
 -- | produces semantically labelled version (one SRS for each rule)
 -- (the type is identical but the symbols have additional bits)
 -- this function raises an exception if the given structure
 -- is not a model
--- labelled :: SRS -> Model -> [SRS]
+labelled :: SRS -> Model -> [SRS]
 labelled srs mod =
     let ks = keys ( leftmost mod )
         labelRule u k = case u of 
@@ -50,22 +53,22 @@ type Value = [Bool]
 labelledW mod w k = case w of
             [] -> (k, [])
             x:xs' -> case labelledW mod xs' k of
-                (k', ys) -> let s = applyF mod x
-                            in  (applyF s k'
+                (k', ys) -> let s = get mod x
+                            in  (get s k'
                                  , (labelledW_app x k') : ys )
 
 labelledW_app x k' = x ++ k'
 
 -- | binary decision tree, used to map bitstrings to values
-data BDT a = Leaf a | Branch (BDT a) (BDT a) -- deriving Eq
-type Func = BDT [Bool]
+data Tree a = Leaf a | Branch (Tree a) (Tree a) -- deriving Eq
 
--- keys :: BDT a -> [[Bool]]
+
+-- keys :: Tree a -> [[Bool]]
 keys t = case t of
     Leaf _ -> [[]]
     Branch l r -> map (False :) (keys l) ++ map (True :) (keys r)
 
--- leftmost :: BDT a -> a
+-- leftmost :: Tree a -> a
 leftmost t = case t of
     Leaf x -> x
     Branch l r -> leftmost l
@@ -79,19 +82,20 @@ eqFunc s t = case s of
         Branch p q -> (eqFunc l p) && (eqFunc r q)
 
 -- | wrong way: first g, then f  (information goes from right to left)
--- timesF :: BDT a -> BDT [Bool] -> BDT a
+timesF :: Tree a -> Tree [Bool] -> Tree a
 timesF f g = case g of
-    Leaf w -> Leaf (applyF f w)
+    Leaf w -> Leaf (get f w)
     Branch l r -> Branch (timesF f l) (timesF f r)
 
--- applyF :: BDT a -> [Bool] -> a
-applyF f w = case f of
-    Leaf u -> u
-    Branch l r -> case w of
-        [] -> undefined
-        x:xs -> applyF (case x of
-            False -> l
-            True  -> r ) xs
+get :: Tree a -> [Bool] -> a
+get t p =  case assertKnown p of 
+    []   -> case assertKnown t of 
+         Leaf x -> x
+         Branch l r -> undefined
+    x:p' -> case assertKnown t of
+         Leaf x -> undefined 
+         Branch l r -> 
+             get (case x of False -> l ; True -> r) p'
 
 -- * lex. combination
 
@@ -126,7 +130,7 @@ comp i u = case iRule i u of
 positiveI :: Interpretation -> Bool
 positiveI i = allI ( \ m -> positiveM m ) i
 
-allI :: (a -> Bool) -> BDT a -> Bool
+allI :: (a -> Bool) -> Tree a -> Bool
 allI prop t = case t of
     Leaf x -> prop x
     Branch l r -> allI prop l && allI prop r
@@ -144,10 +148,10 @@ geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
 
 -- * interpretation:
 
--- type Interpretation = BDT (Matrix Arctic)
+-- type Interpretation = Tree (Matrix Arctic)
 
 -- iSymbol :: Interpretation -> Symbol -> Matrix Arctic
-iSymbol i s = applyF i s
+iSymbol i s = get i s
 
 
 -- following hack makes eqSymbol monomorphic
@@ -211,39 +215,26 @@ geA a b = case b of
   MinusInfinity -> True
   Finite b' -> case a of 
     MinusInfinity -> False
-    Finite a' -> ge a' b'
+    Finite a' -> geNat8 a' b'
 
 plusA :: Arctic -> Arctic -> Arctic
 plusA e f = case e of
-  Finite x -> case f of 
-    Finite y      -> Finite (maxNat x y)
-    MinusInfinity -> Finite x
   MinusInfinity -> f
+  Finite x -> Finite ( case f of 
+    MinusInfinity -> x 
+    Finite y      -> maxNat8 x y  )
 
 timesA :: Arctic -> Arctic -> Arctic
 timesA e f = case e of
-  Finite x -> case f of 
-    Finite y      -> Finite (add x y)
-    MinusInfinity -> MinusInfinity
   MinusInfinity -> MinusInfinity
+  Finite x -> case f of 
+    MinusInfinity -> MinusInfinity
+    Finite y      -> Finite (plusNat8 x y)
 
--- * Nat operations:
 
-type Bit = Bool 
-type Nat = [Bit]
 
-maxNat :: Nat8 -> Nat8 -> Nat8
-maxNat xs ys = case ge xs ys of
-              False -> ys
-              True  -> xs
 
-minNat :: Nat8 -> Nat8 -> Nat8
-minNat xs ys = case ge xs ys of
-              False -> xs
-              True  -> ys
 
-ge x y = geNat8 x y
 
-add x y = plusNat8 x y
 
 
