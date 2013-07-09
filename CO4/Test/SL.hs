@@ -29,6 +29,8 @@ import qualified TPDB.Plain.Read as TPDB
 
 import qualified Text.PrettyPrint.Leijen as PP
 
+import System.Console.GetOpt
+
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
                         -- , DumpAll "/tmp/sl" 
@@ -51,20 +53,21 @@ cSymbol xs = case xs of
                   , cSymbol xs' 
                   ]
 
-
 uModel sym_bits model_bits = uTree sym_bits 
                            $ uTree model_bits 
                            $ kList model_bits uBool
 
 
-uLab srs bits_for_model num_ints dim bits_for_numbers = 
+uLab conf srs =
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
         width = maximum $ do (l,r) <- srs; map length [l,r]
         bits_for_symbols = maximum $ map length sigma 
     in  known 0 1 
-           [ uModel bits_for_symbols bits_for_model
-           , kList num_ints $ uInter (bits_for_symbols + bits_for_model) 
-                                     dim bits_for_numbers
+           [ uModel bits_for_symbols (bits_for_model conf)
+           , kList (number_of_interpretations conf)
+                  $ uInter (bits_for_symbols + bits_for_model conf) 
+                                     (dimension_for_matrices conf) 
+                                     ( bits_for_numbers conf )
            , kList (length srs) uBool
            ]
 
@@ -98,15 +101,48 @@ alphabet sys = nub $ concat
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
 
 
+data Config =
+     Config { bits_for_model :: Int
+             , number_of_interpretations :: Int
+             , dimension_for_matrices :: Int
+             , bits_for_numbers :: Int
+             }
+    deriving Show
+
+config0 = Config
+         { bits_for_model = 1 
+         , number_of_interpretations = 2
+         , dimension_for_matrices = 1
+         , bits_for_numbers = 8
+         }
+
+options = [ Option ['m'] ["model"]
+             (ReqArg ( \ s conf -> conf { bits_for_model = read s } ) "Int")
+             "bits for model"
+          , Option ['i'] ["interpretations"]
+             (ReqArg ( \ s conf -> conf { number_of_interpretations = read s } ) "Int")
+             "number of interpretations"
+          , Option ['d'] ["dimension"]
+             (ReqArg ( \ s conf -> conf { dimension_for_matrices = read s } ) "Int")
+             "(arctic) matrix dimension"
+          ]
+
+
 main = do
-    [ f ] <- getArgs
-    solve f
+    argv <- getArgs
+    case getOpt Permute options argv of
+        (c,[f],[]) -> do
+            let conf = foldl (flip id) config0 c
+            solve conf f
+        (_,_,errs) -> 
+            ioError $ userError $ concat errs ++ usageInfo "SL" options
 
-example = case TPDB.srs "(RULES a a -> a b a)" of Right sys -> solveTPDB sys
+example = case TPDB.srs "(RULES a a -> a b a)" of 
+    Right sys -> solveTPDB config0 sys
 
-solve filePath = TPDB.get_srs filePath >>= solveTPDB
+solve conf filePath = TPDB.get_srs filePath >>= solveTPDB conf
 
-solveTPDB sys = do
+solveTPDB conf sys = do
 
   let sigma = alphabet sys
       bits_for_symbols = length $ toBin $ length sigma - 1
@@ -140,19 +176,16 @@ solveTPDB sys = do
   print srs
   print m
 
-  let alloc = uLab srs 3 -- bits_for_model
-                       8 -- num_interpretations
-                       1 -- dim for matrices
-                       8 -- bits_for_numbers (in matrices)
+  let alloc = uLab conf srs
   solution <- solveAndTestP 
       srs 
-      alloc encConstraintProf constraint
+      alloc encConstraint constraint
 
   case solution of
     Nothing -> return ()
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
-        void $ forM ints $ \ int -> print $ bdt2labelled_int  int
+        void $ forM ints $ \ int -> print $ PP.pretty $ bdt2labelled_int  int
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers

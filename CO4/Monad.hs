@@ -1,7 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Monad
-  (CO4, SAT, newId, runCO4, withCallCache, withAdtCache, traced)
+  ( CO4, SAT, newId, getStackTrace, isProfileRun, setProfileRun
+  , runCO4, withCallCache, withAdtCache, traced
+  )
 where
 
 import           Control.Monad.State.Strict
@@ -10,6 +12,7 @@ import           Satchmo.Core.MonadSAT (MonadSAT (..))
 import           CO4.EncodedAdtData (Primitive,EncodedAdt(..))
 import           CO4.Cache 
 import           CO4.Profiling
+import           CO4.Stack
 
 type SAT          = Satchmo.Core.SAT.Minisat.SAT
 type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt])
@@ -18,11 +21,16 @@ type AdtCache     = Cache AdtCacheKey  Int
 type CallCache    = Cache CallCacheKey EncodedAdt
 
 data CO4Data = CO4Data { 
-    idCounter :: ! Int
-  , adtCache  :: ! AdtCache
-  , callCache :: ! CallCache
-  , profile   :: ! Profile
+    idCounter  :: ! Int
+  , adtCache   :: ! AdtCache
+  , callCache  :: ! CallCache
+  , profile    :: ! Profile
+  , stack      :: ! Stack
+  , profileRun :: ! Bool
   }
+
+emptyData :: CO4Data
+emptyData = CO4Data 0 emptyCache emptyCache emptyProfile emptyStack False
 
 newtype CO4 a = CO4 { unCO4 :: StateT CO4Data SAT a }
   deriving (Monad, MonadState CO4Data)
@@ -51,6 +59,18 @@ onCallCache f c = c { callCache = f $ callCache c }
 setCallCache :: CallCache -> CO4Data -> CO4Data
 setCallCache = onCallCache . const
 
+onStack :: (Stack -> Stack) -> CO4Data -> CO4Data
+onStack f c = c { stack = f $ stack c }
+
+getStackTrace :: CO4 StackTrace
+getStackTrace = gets $ trace . stack
+
+isProfileRun :: CO4 Bool
+isProfileRun = gets profileRun
+
+setProfileRun :: CO4 ()
+setProfileRun = modify $! \c -> c { profileRun = True }
+
 instance MonadSAT CO4 where
   fresh = do
     modify $! onProfile $! onCurrentInner incNumVariables
@@ -66,8 +86,7 @@ instance MonadSAT CO4 where
 
 runCO4 :: CO4 a -> SAT a
 runCO4 p = do
-  (result, co4Data) <- runStateT (unCO4 p) $ CO4Data 0 emptyCache emptyCache 
-                                                     emptyProfile
+  (result, co4Data) <- runStateT (unCO4 p) emptyData
   let h = numHits   $ callCache co4Data
       m = numMisses $ callCache co4Data
 
@@ -89,19 +108,26 @@ withCallCache key action =
 
 withAdtCache :: AdtCacheKey -> CO4 EncodedAdt
 withAdtCache key@(d,fs,args) = gets (retrieve key . adtCache) >>= \case
-  (Just id, c) -> modify (setAdtCache c) >> return (EncodedAdt id d fs args)
+  (Just id, c) -> do modify (setAdtCache c) 
+                     trace <- getStackTrace
+                     return (EncodedAdt id d fs args trace)
   (Nothing, c) -> do 
-    id <- newId
+    id    <- newId
+    trace <- getStackTrace
     modify $! setAdtCache $! cache key id c
-    return $ EncodedAdt id d fs args
+    return $ EncodedAdt id d fs args trace
 
 traced :: String -> CO4 a -> CO4 a
 traced name action = do
+  setProfileRun
   previous <- gets $ currentFunction . profile
                      
   modify $! onProfile ( setCurrentFunction name 
                       . onCurrentInner incNumCalls
-                      . writeCurrentInner )
+                      . writeCurrentInner 
+                      )
+
+  modify $! onStack $! pushToStack name
 
   v1     <- numVariables
   c1     <- numClauses
@@ -111,5 +137,7 @@ traced name action = do
 
   modify $! onProfile ( incInnerUnderBy 1 (v2 - v1) (c2 - c1) name
                       . setCurrentFunction previous 
-                      . writeCurrentInner )
+                      . writeCurrentInner 
+                      )
+  modify $! onStack $! popFromStack
   return result
