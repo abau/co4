@@ -15,9 +15,10 @@ encodedName = mapName (\case "&&"   -> "encAnd2"
                              (n:ns) -> "enc" ++ (toUpper n : ns))
 
 encodedNameProf :: Namelike a => a -> a
-encodedNameProf = mapName (\case "&&"   -> "encAnd2Prof"
-                                 "||"   -> "encOr2Prof"
-                                 (n:ns) -> "enc" ++ (toUpper n : ns) ++ "Prof")
+encodedNameProf = mapName (\case 
+  n | n == mainName           -> encodedName n
+  n | n == deprecatedMainName -> encodedName n
+  n                           -> encodedName n ++ "Prof")
 
 allocatorName :: Namelike a => a -> a
 allocatorName = mapName (\(n:ns) -> "alloc" ++ (toUpper n : ns)) 

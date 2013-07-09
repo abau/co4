@@ -148,7 +148,7 @@ solveTPDB sys = do
                        8 -- bits_for_numbers (in matrices)
   solution <- solveAndTestP 
       srs 
-      alloc encConstraintProf constraint
+      alloc encConstraint constraint
 
   case solution of
     Nothing -> return ()
