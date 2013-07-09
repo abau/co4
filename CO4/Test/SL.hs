@@ -27,6 +27,8 @@ import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
 import qualified TPDB.Plain.Read as TPDB
 
+import qualified Text.PrettyPrint.Leijen as PP
+
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
                         -- , DumpAll "/tmp/sl" 
@@ -48,11 +50,6 @@ cSymbol xs = case xs of
         known 1 2 [ known (fromEnum x) 2 []
                   , cSymbol xs' 
                   ]
-
-uSymbol bits = uList bits uBool
-uWord len bits = uList len (uSymbol bits)
-uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
-uSRS rules len bits = uList rules ( uRule len bits )
 
 
 uModel sym_bits model_bits = uTree sym_bits 
@@ -133,15 +130,18 @@ solveTPDB sys = do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
 
-      
+      bdt2labelled_int t = M.fromList $ do
+          (xs, mat) <- M.toList $ bdt2map t
+          let (pre,post) = splitAt bits_for_symbols xs
+          v <- maybeToList $ M.lookup pre m'
+          return ((v, fromBin post), mat)
 
-          
   print $ TPDB.pretty sys
   print srs
   print m
 
-  let alloc = uLab srs 2 -- bits_for_model
-                       4 -- num_interpretations
+  let alloc = uLab srs 3 -- bits_for_model
+                       8 -- num_interpretations
                        1 -- dim for matrices
                        8 -- bits_for_numbers (in matrices)
   solution <- solveAndTestP 
@@ -151,10 +151,19 @@ solveTPDB sys = do
   case solution of
     Nothing -> return ()
     Just (Label mod ints remove) -> do
-        print $ bdt2int mod
-        void $ forM ints $ \ int -> print $ bdt2map  int
+        void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
+        void $ forM ints $ \ int -> print $ bdt2labelled_int  int
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
+-- * pretty printers
 
+instance PP.Pretty Arctic where
+    pretty a  = case a of
+        MinusInfinity -> PP.text "-"
+        Finite f -> PP.text $ show f
 
+instance (PP.Pretty k, PP.Pretty v) => PP.Pretty (M.Map k v) where
+    pretty m = PP.pretty $ M.toList m
+
+instance PP.Pretty TPDB.Identifier where pretty = PP.text . show
 
