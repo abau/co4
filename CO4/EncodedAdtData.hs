@@ -4,6 +4,7 @@ module CO4.EncodedAdtData
 where
 
 import           Satchmo.Core.Boolean (Boolean)
+import           CO4.Stack (StackTrace)
 
 type Primitive = Boolean
 
@@ -11,6 +12,7 @@ data EncodedAdt = EncodedAdt { _id          :: ! Int
                              , _definedness :: ! Primitive
                              , _flags       :: ! [Primitive] 
                              , _arguments   :: ! [EncodedAdt] 
+                             , _origin      :: ! StackTrace
                              }
                 | Bottom
 
