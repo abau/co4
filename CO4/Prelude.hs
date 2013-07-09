@@ -22,8 +22,8 @@ import           CO4.AllocatorData (constructors,known)
 import           CO4.PreludeNat
 import           CO4.EncEq
 import           CO4.EncodedAdt 
-  (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex)
-import           CO4.Monad (CO4,traced)
+  (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex,origin)
+import           CO4.Monad (CO4,traced,getStackTrace)
 import           CO4.PreludeBool
 
 -- |Parses prelude's function definitions
@@ -152,9 +152,9 @@ assertKnown = id
 encAssertKnown,encAssertKnownProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
 encAssertKnown e = case constantConstructorIndex e of 
-  Nothing -> error "Prelude.encAssertKnown: assertion 'assertKnown' failed"
+  Nothing -> dumpError "Prelude.encAssertKnown: assertion 'assertKnown' failed" e
   Just _  -> return e
-encAssertKnownProf = traced "assertDefined" . encAssertKnown
+encAssertKnownProf = traced "assertKnown" . encAssertKnown
 
 assertDefined :: a -> a
 assertDefined = id
@@ -163,5 +163,18 @@ encAssertDefined,encAssertDefinedProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e
-  else error "Prelude.encAssertDefined: assertion 'assertDefined' failed"
+  else dumpError "Prelude.encAssertDefined: assertion 'assertDefined' failed" e
 encAssertDefinedProf = traced "assertDefined" . encAssertDefined
+
+dumpError :: String -> EncodedAdt -> CO4 a
+dumpError msg e = do
+  trace <- getStackTrace
+  if null trace
+    then error $ unlines [msg, "no stack trace available"]
+    else error $ unlines $ concat [
+                 [msg]
+               , ["## stack trace #############"]
+               , trace  
+               , ["## origin ##################"]
+               , origin e
+               ]
