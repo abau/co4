@@ -21,11 +21,15 @@ data Label = Label Model [ Interpretation ] [ Bool ]
 constraint srs lab = case lab of
     Label mod ints remove -> 
           all ( positiveI ) ints
-       && let srss = labelled srs mod
+       && let result = labelled srs mod
+              srss = map (map snd) result
+              values = concat ( map (map fst) result )
+
               css  = map (map (comps ints)) srss
           in     not ( any (any isNone) css )
               && or remove
               && eqSymbol remove ( map ( all isGreater ) css )
+              && all (\(ltop,rtop) -> eqSymbol ltop rtop) values
 
 -- * model, labelling
 
@@ -36,28 +40,26 @@ type Func = Tree [Bool]
 -- (the type is identical but the symbols have additional bits)
 -- this function raises an exception if the given structure
 -- is not a model
-labelled :: SRS -> Model -> [SRS]
+labelled :: SRS -> Model -> [ [ ((Value,Value),Rule) ] ]
 labelled srs mod =
     let ks = keys ( leftmost mod )
         labelRule u k = case u of 
             (l,r) -> case labelledW mod l k of 
                 ( ltop, l' ) -> case labelledW mod r k of 
-                    ( rtop, r' ) -> case eqSymbol ltop rtop of
-                          True -> ( l', r' )
-                          False -> undefined
+                    ( rtop, r' ) -> ((ltop,rtop),(l',r'))
     in  map ( \ u ->  map ( \ k -> labelRule u k ) ks    ) srs 
 
 type Value = [Bool]
 
 -- labelledW :: Model -> [Symbol] -> Value -> (Value,[Symbol])
-labelledW mod w k = case w of
+labelledW mod w k = case assertKnown w of
             [] -> (k, [])
             x:xs' -> case labelledW mod xs' k of
                 (k', ys) -> let s = get mod x
                             in  (get s k'
                                  , (labelledW_app x k') : ys )
 
-labelledW_app x k' = x ++ k'
+labelledW_app x k' = x ++ assertKnown k'
 
 -- | binary decision tree, used to map bitstrings to values
 data Tree a = Leaf a | Branch (Tree a) (Tree a) -- deriving Eq
@@ -88,14 +90,15 @@ timesF f g = case g of
     Branch l r -> Branch (timesF f l) (timesF f r)
 
 get :: Tree a -> [Bool] -> a
-get t p =  case assertKnown p of 
+get t p = case assertKnown p of 
     []   -> case assertKnown t of 
          Leaf x -> x
          Branch l r -> undefined
     x:p' -> case assertKnown t of
          Leaf x -> undefined 
          Branch l r -> 
-             get (case x of False -> l ; True -> r) p'
+              get (assertKnown (case x of False -> l ; True -> r)) p'
+             {- case x of { False -> get l p' ; True  -> get r p' } -}
 
 -- * lex. combination
 
@@ -170,7 +173,7 @@ iWord i w = case w of
 
 iRule i u = case u of (l,r) -> (iWord i l, iWord i r)
 
-iSRS i s = map (iRule i) s
+--iSRS i s = map (iRule i) s
 
 -- * matrices:
 

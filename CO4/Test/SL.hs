@@ -49,10 +49,12 @@ cSymbol xs = case xs of
                   , cSymbol xs' 
                   ]
 
+{-
 uSymbol bits = uList bits uBool
 uWord len bits = uList len (uSymbol bits)
 uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
 uSRS rules len bits = uList rules ( uRule len bits )
+-}
 
 
 uModel sym_bits model_bits = uTree sym_bits 
