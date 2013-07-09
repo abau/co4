@@ -88,7 +88,7 @@ timesF f g = case g of
     Branch l r -> Branch (timesF f l) (timesF f r)
 
 get :: Tree a -> [Bool] -> a
-get t p =  case assertKnown p of 
+get t p =  case {- assertKnown -} p of 
     []   -> case assertKnown t of 
          Leaf x -> x
          Branch l r -> undefined
