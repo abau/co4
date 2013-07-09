@@ -42,14 +42,8 @@ uTree bits leaf =
                  else known 0 2 [ leaf ]
     in  t bits
 
-cSymbol xs = case xs of
-    [] -> known 0 2 []
-    x:xs' -> 
-        known 1 2 [ known (fromEnum x) 2 []
-                  , cSymbol xs' 
-                  ]
 
-uSymbol bits = uList bits uBool
+uSymbol bits = kList bits uBool
 uWord len bits = uList len (uSymbol bits)
 uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
 uSRS rules len bits = uList rules ( uRule len bits )
@@ -82,7 +76,6 @@ uMatrix dim bits =
 
 uInter bits_for_symbols dim bits_for_numbers = 
    uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
-
 
 toBin :: Int -> [Bool]
 toBin x = 
