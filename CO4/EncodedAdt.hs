@@ -28,6 +28,7 @@ import           CO4.Stack (StackTrace)
 
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
+                     | IntermediateBottom
 
 instance Show EncodedAdt where
   show = drawTree . toTree 
@@ -195,6 +196,7 @@ caseOfArguments adt branchArguments =
 
 toIntermediateAdt :: (Decode m Primitive Bool) => EncodedAdt -> Int -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
+toIntermediateAdt Bottom _                          = return IntermediateBottom
 toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 
