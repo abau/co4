@@ -101,9 +101,10 @@ get t p = case assertKnown p of
 
 -- * lex. combination
 
-data Comp = Greater | Equals | None deriving Show
+data Comp = Greater | GreaterEquals | None deriving Show
 
 isNone c = case c of { None -> True ; _ -> False }
+isGreaterEquals c = case c of { GreaterEquals -> True ; _ -> False }
 isGreater c = case c of { Greater -> True ; _ -> False }
 
 
@@ -124,10 +125,10 @@ comp qp (l,r) = case direction qp of
 
 lexi :: [Comp] -> Comp
 lexi cs = case cs of
-    [] -> Equals
+    [] -> GreaterEquals
     c : cs' -> case c of
         Greater -> Greater
-        Equals -> lexi cs'
+        GreaterEquals -> lexi cs'
         None -> None
 
 -- * path order 
@@ -145,27 +146,42 @@ compareS :: Tree Nat8 -> Preorder Symbol
 compareS t x y = 
     let qx = get t x ; qy = get t y
     in  case eqNat8 qx qy of
-            True -> Equals
+            True -> GreaterEquals
             False -> case gtNat8 qx qy of
                  True -> Greater
                  False -> None
 
 -- | this relies on memoization (else, it is inefficient)
-compareW :: Preorder s -> Preorder [s]
-compareW comp xs ys = case xs of
-    [] -> case ys of
-        [] -> Equals
-        y : ys' -> None
-    x : xs' -> case ys of
-        [] -> Greater
-        y : ys' -> case comp x y of
-             None -> None
-             Equals -> compareW comp xs' ys' 
-             Greater -> case compareW comp xs ys' of
-                 Greater -> Greater
-                 Equals -> None
-                 None -> None
 
+lpoGT :: Preorder s -> [s] -> [s] -> Bool
+lpoGT comp xs ys = case xs of
+    [] -> False
+    x : xs' -> lpoGE comp xs' ys || case ys of
+        [] -> True
+        y : ys' -> lpoGE comp xs ys' && case comp x y of
+             Greater -> True
+             GreaterEquals -> lpoGT comp xs' ys' 
+             None -> False
+
+lpoGE :: Preorder s -> [s] -> [s] -> Bool
+lpoGE comp xs ys = lpoEQ comp xs ys || lpoGT comp xs ys
+
+lpoEQ :: Preorder s -> [s] -> [s] -> Bool
+lpoEQ comp xs ys = case xs of
+    [] -> case ys of
+        [] -> True
+        y : ys' -> False
+    x : xs' -> case ys of
+        [] -> False
+        y : ys' -> isEquals (comp x y) && lpoEQ comp xs' ys'
+
+compareW :: Preorder s -> Preorder [s]
+compareW comp xs ys = 
+    case lpoGT comp xs ys of
+        True -> Greater
+        False -> case lpoGE comp xs ys of
+           True -> GreaterEquals
+           False -> None
 
 -- following hack makes eqSymbol monomorphic
 -- so it can be used as argument for elemWith
