@@ -19,6 +19,7 @@ import Data.Maybe (maybeToList)
 import qualified Data.Map as M
 import Control.Monad ( forM,void )
 import System.Environment
+import GHC.Word (Word8)
 
 import qualified TPDB.Data as TPDB
 import qualified TPDB.Input as TPDB
@@ -33,7 +34,7 @@ import System.Console.GetOpt
 $( runIO $ configurable [ Verbose
                         , ImportPrelude
                         -- , DumpAll "/tmp/sl" 
-                        , Profile
+                        -- , Profile
                         , Cache
                         ] 
          $ compileFile "CO4/Test/SLPO.standalone.hs" )
@@ -56,6 +57,8 @@ uModel sym_bits model_bits = uTree sym_bits
                            $ uTree model_bits 
                            $ kList model_bits uBool
 
+uQuasiPrec bits_for_symbols = 
+    known 0 1 [ uBool, uTree bits_for_symbols uNat8 ]
 
 uLab conf srs =
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
@@ -64,23 +67,9 @@ uLab conf srs =
     in  known 0 1 
            [ uModel bits_for_symbols (bits_for_model conf)
            , kList (number_of_interpretations conf)
-                  $ uInter (bits_for_symbols + bits_for_model conf) 
-                                     (dimension_for_matrices conf) 
-                                     ( bits_for_numbers conf )
+                  $ uQuasiPrec (bits_for_symbols + bits_for_model conf)
            , kList (length srs) uBool
            ]
-
-
-uNat bits = uNat8
-
-uArctic bits = 
-    constructors [ Just [], Just [ uNat bits] ]
-
-uMatrix dim bits = 
-    kList dim $ kList dim $ uArctic bits
-
-uInter bits_for_symbols dim bits_for_numbers = 
-   uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
 
 
 toBin :: Int -> [Bool]
@@ -161,6 +150,11 @@ solveTPDB conf sys = do
                   v <- maybeToList $ M.lookup xs m'
                   return ( v, bdt2mod w )
 
+      bdt2int' t = M.fromList $ do
+                  (xs, w) <- M.toList $ bdt2map t
+                  v <- maybeToList $ M.lookup xs m'
+                  return ( v, w )
+
       bdt2mod t = M.fromList $ do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
@@ -170,6 +164,7 @@ solveTPDB conf sys = do
           let (pre,post) = splitAt bits_for_symbols xs
           v <- maybeToList $ M.lookup pre m'
           return ((v, fromBin post), mat)
+
 
   print $ TPDB.pretty sys
   print srs
@@ -184,15 +179,14 @@ solveTPDB conf sys = do
     Nothing -> return ()
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
-        void $ forM ints $ \ int -> print $ PP.pretty $ bdt2labelled_int  int
+        void $ forM ints $ \ (QP dir tree) -> 
+            print $ PP.pretty (dir, bdt2labelled_int tree)
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers
 
-instance PP.Pretty Arctic where
-    pretty a  = case a of
-        MinusInfinity -> PP.text "-"
-        Finite f -> PP.text $ show f
+instance PP.Pretty Word8 where pretty = PP.text . show
+instance PP.Pretty Direction where pretty = PP.text . show
 
 instance (PP.Pretty k, PP.Pretty v) => PP.Pretty (M.Map k v) where
     pretty m = PP.pretty $ M.toList m
