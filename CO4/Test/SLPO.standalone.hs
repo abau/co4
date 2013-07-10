@@ -1,4 +1,4 @@
-module CO4.Test.SL where
+module CO4.Test.SLPO where
 
 import CO4.Prelude
 import CO4.PreludeNat
@@ -10,22 +10,21 @@ type Word = [ Symbol ]
 type Rule = ( Word , Word )
 type SRS = [ Rule ]
 
+
+
 -- * label, then remove, then unlabel
 
-type Interpretation = Tree (Matrix Arctic)
-data Label = Label Model [ Interpretation ] [ Bool ]
+data Label = Label Model [ QP ] [ Bool ]
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
 -- (that is, all its labelled versions)
 constraint srs lab = case lab of
-    Label mod ints remove -> 
-          all ( positiveI ) ints
-       && let result = labelled srs mod
+    Label mod qps remove -> 
+          let result = labelled srs mod
               srss = map (map snd) result
               values = concat ( map (map fst) result )
-
-              css  = map (map (comps ints)) srss
+              css  = map (map (comps qps  )) srss
           in     not ( any (any isNone) css )
               && or remove
               && eqSymbol remove ( map ( all isGreater ) css )
@@ -102,60 +101,87 @@ get t p = case assertKnown p of
 
 -- * lex. combination
 
-
--- comps :: [ Interpretation ] -> Rule -> Comp
-comps is u = lexi (map (\ i -> comp i u) is)
-
--- lexi :: [Comp] -> Comp
-lexi cs = case cs of
-    [] -> Equals
-    c : cs' -> case c of
-        Greater -> Greater
-        Equals -> lexi cs'
-        None -> None
-
--- * arctic interpretation
-
-data Comp = Greater | Equals | None
+data Comp = Greater | GreaterEquals | None deriving Show
 
 isNone c = case c of { None -> True ; _ -> False }
+isGreaterEquals c = case c of { GreaterEquals -> True ; _ -> False }
 isGreater c = case c of { Greater -> True ; _ -> False }
 
-comp :: Interpretation -> Rule -> Comp
-comp i u = case iRule i u of
-    (l,r) -> case gg0MA l r of
-        True ->  Greater
-        False -> case geMA l r of
-            True -> Equals
-            False -> None
 
 
-positiveI :: Interpretation -> Bool
-positiveI i = allI ( \ m -> positiveM m ) i
+comps :: [ QP ] -> Rule -> Comp
+comps qps u = lexi (map ( \ qp -> comp qp u) qps )
 
-allI :: (a -> Bool) -> Tree a -> Bool
-allI prop t = case t of
-    Leaf x -> prop x
-    Branch l r -> allI prop l && allI prop r
+comp_1 :: QP -> Rule -> Comp
+comp_1 qp (l,r) = 
+    let directed w = case direction qp of
+             Original -> w ; Reversed -> reverse w
+    in  compareW (compareS (tree qp)) (directed l)(directed r)
 
-positiveM :: Matrix Arctic -> Bool
-positiveM m = case m of
+comp :: QP -> Rule -> Comp
+comp qp (l,r) = case direction qp of
+    Original -> compareW (compareS (tree qp)) l r
+    Reversed -> compareW (compareS (tree qp)) (reverse l) (reverse r)
+
+lexi :: [Comp] -> Comp
+lexi cs = case cs of
+    [] -> GreaterEquals
+    c : cs' -> case c of
+        Greater -> Greater
+        GreaterEquals -> lexi cs'
+        None -> None
+
+-- * path order 
+
+data Direction = Original | Reversed
+
+data QP = QP Direction (Tree Nat8)
+
+tree qp = case qp of QP dir t -> t
+direction qp = case qp of QP dir t -> dir
+
+type Preorder s = s -> s -> Comp
+
+compareS :: Tree Nat8 -> Preorder Symbol
+compareS t x y = 
+    let qx = get t x ; qy = get t y
+    in  case eqNat8 qx qy of
+            True -> GreaterEquals
+            False -> case gtNat8 qx qy of
+                 True -> Greater
+                 False -> None
+
+-- | this relies on memoization (else, it is inefficient)
+
+lpoGT :: Preorder s -> [s] -> [s] -> Bool
+lpoGT comp xs ys = case xs of
     [] -> False
-    xs : _ -> case xs of
+    x : xs' -> lpoGE comp xs' ys || case ys of
+        [] -> True
+        y : ys' -> lpoGE comp xs ys' && case comp x y of
+             Greater -> True
+             GreaterEquals -> lpoGT comp xs' ys' 
+             None -> False
+
+lpoGE :: Preorder s -> [s] -> [s] -> Bool
+lpoGE comp xs ys = lpoEQ comp xs ys || lpoGT comp xs ys
+
+lpoEQ :: Preorder s -> [s] -> [s] -> Bool
+lpoEQ comp xs ys = case xs of
+    [] -> case ys of
+        [] -> True
+        y : ys' -> False
+    x : xs' -> case ys of
         [] -> False
-        x : _ -> finite x
+        y : ys' -> isGreaterEquals (comp x y) && lpoEQ comp xs' ys'
 
-gg0MA a b = and ( zipWith ( \ xs ys -> and (zipWith gg0A xs ys)  ) a b )
-
-geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
-
--- * interpretation:
-
--- type Interpretation = Tree (Matrix Arctic)
-
--- iSymbol :: Interpretation -> Symbol -> Matrix Arctic
-iSymbol i s = get i s
-
+compareW :: Preorder s -> Preorder [s]
+compareW comp xs ys = 
+    case lpoGT comp xs ys of
+        True -> Greater
+        False -> case lpoGE comp xs ys of
+           True -> GreaterEquals
+           False -> None
 
 -- following hack makes eqSymbol monomorphic
 -- so it can be used as argument for elemWith
@@ -163,78 +189,15 @@ eqSymbol p q = (p == q ) && case p of
     [] -> True ; x : xs -> case x of 
          True -> True ; False -> True
 
+eqWord xs ys = case xs of
+    [] -> case ys of
+        [] -> True
+        y : ys' -> False
+    x : xs' -> case ys of
+        [] -> False
+        y : ys' -> eqSymbol x y && eqWord xs' ys'
 
-iWord i w = case w of
-    [] -> undefined
-    x : xs -> let m = iSymbol i x 
-              in case xs of
-                    [] -> m
-                    _  -> timesMA m (iWord i xs)
-
-iRule i u = case u of (l,r) -> (iWord i l, iWord i r)
-
---iSRS i s = map (iRule i) s
-
--- * matrices:
-
-type Matrix a = [[a]]
-
-
-plusMA a b = zipWith (zipWith plusA) a b
-
-timesMA a b = 
-    let b' = transpose b
-    in  map ( \ row -> map ( dot row ) b' ) a
-
-transpose xss = case xss of
-    [] -> []
-    xs : xss' -> case xss' of
-        [] -> map (\ x -> [x]) xs
-        _  -> zipWith (:) xs ( transpose xss')
-
-dot :: [Arctic] -> [Arctic] -> Arctic
-dot xs ys = sumA ( zipWith timesA xs ys)
-
-sumA xs = foldr plusA MinusInfinity xs
-
--- * arctic operations:
-
-data Arctic = MinusInfinity | Finite Nat
-    -- deriving (Eq, Show)
-
-infinite a = case a of
-    MinusInfinity -> True
-    _ -> False
-
-finite a = case a of
-    MinusInfinity -> False
-    _ -> True
-
-gg0A a b = gtA a b || infinite b 
-
-gtA a b = not (geA b a)
-
-geA a b = case b of
-  MinusInfinity -> True
-  Finite b' -> case a of 
-    MinusInfinity -> False
-    Finite a' -> geNat a' b'
-
-plusA :: Arctic -> Arctic -> Arctic
-plusA e f = case e of
-  MinusInfinity -> f
-  Finite x -> Finite ( case f of 
-    MinusInfinity -> x 
-    Finite y      -> maxNat x y  )
-
-timesA :: Arctic -> Arctic -> Arctic
-timesA e f = case e of
-  MinusInfinity -> MinusInfinity
-  Finite x -> case f of 
-    MinusInfinity -> MinusInfinity
-    Finite y      -> Finite (plusNat x y)
-
-
+   
 
 
 
