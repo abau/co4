@@ -6,7 +6,7 @@ module CO4.EncodedAdt
   , isBottom, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
-  , arguments, arguments', constructorArgument
+  , arguments, arguments', constructorArgument, origin
   , caseOf, toIntermediateAdt, caseOfBits
   )
 where
@@ -24,6 +24,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,binaries,for,fromBinary,toBinary)
 import           CO4.EncodedAdtData (Primitive,EncodedAdt (..))
+import           CO4.Stack (StackTrace)
 
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
@@ -32,10 +33,12 @@ instance Show EncodedAdt where
   show = drawTree . toTree 
     where
       toTree adt | isConstantlyUndefined adt = Node "undefined" []
-      toTree (EncodedAdt id def fs conss)      = 
+      toTree (EncodedAdt id def fs conss o)      = 
         Node (concat [ "id: ", show id
                      , ", definedness: ", show def
-                     , ", flags: ", show fs]) 
+                     , ", flags: ", show fs
+                     , ", origin: ", show o]
+                     ) 
              (map toTree conss)
       toTree Bottom = Node "bottom" [] 
 
@@ -45,7 +48,7 @@ make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
 make definedness flags arguments = withAdtCache (definedness, flags, arguments)
 
 encUndefined :: EncodedAdt
-encUndefined = EncodedAdt (-1) (constant False) [] []
+encUndefined = EncodedAdt (-1) (constant False) [] [] ["undefined"]
 
 encBottom :: EncodedAdt
 encBottom = Bottom
@@ -124,6 +127,10 @@ constructorArgument i j adt =
   where
     args = _arguments adt
 
+origin :: EncodedAdt -> StackTrace
+origin Bottom = ["bottom"]
+origin adt    = _origin adt
+
 -- * Utilities
 
 -- |Case distinction between encoded ADTs
@@ -145,14 +152,35 @@ caseOf adt branches =
 
       def'        <- and [branchDef, definedness adt]
       id'         <- newId
+      origin'     <- mergeOrigins branches
 
-      let adt'    = EncodedAdt id' def' relevantFlags (fromJust $ arguments adt)
+      let adt'    = EncodedAdt id' def' relevantFlags (fromJust $ arguments adt) origin'
 
       flags'      <- caseOfBits relevantFlags $ map flags     branches
       arguments'  <- caseOfArguments adt'     $ map arguments branches
-      return $ EncodedAdt id' def' flags' arguments'
+
+      return $ EncodedAdt id' def' flags' arguments' origin'
   where
     relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
+
+mergeOrigins :: [EncodedAdt] -> CO4 StackTrace
+mergeOrigins branches =
+  isProfileRun >>= \case
+    False -> return []
+    True  -> do
+      trace <- getStackTrace
+      return $ merged trace
+      where
+        indent = map $ \x -> "    " ++ x
+        merged trace = 
+            ("merge")
+          : ("  merge-trace:\n" ++ unlines (indent trace))
+          : zipWith (\i branch -> concat ["  merge-branch "
+                                         , show i
+                                         , ":\n"
+                                         , unlines $ indent $ origin branch
+                                         ]
+                    ) [0..] branches
 
 -- |Case distinction between encoded arguments of ADTs
 caseOfArguments :: EncodedAdt -> [Maybe [EncodedAdt]] -> CO4 [EncodedAdt]
@@ -167,7 +195,7 @@ caseOfArguments adt branchArguments =
 
 toIntermediateAdt :: (Decode m Primitive Bool) => EncodedAdt -> Int -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
-toIntermediateAdt (EncodedAdt _ definedness flags args) n = 
+toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 
       False -> return IntermediateUndefined
