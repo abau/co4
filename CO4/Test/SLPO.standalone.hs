@@ -14,17 +14,17 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
-data Label = Label Model [ Precedence ] [ Bool ]
+data Label = Label Model [ QP ] [ Bool ]
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
 -- (that is, all its labelled versions)
 constraint srs lab = case lab of
-    Label mod precs remove -> 
+    Label mod qps remove -> 
           let result = labelled srs mod
               srss = map (map snd) result
               values = concat ( map (map fst) result )
-              css  = map (map (comps precs)) srss
+              css  = map (map (comps qps  )) srss
           in     not ( any (any isNone) css )
               && or remove
               && eqSymbol remove ( map ( all isGreater ) css )
@@ -101,11 +101,28 @@ get t p = case assertKnown p of
 
 -- * lex. combination
 
+data Comp = Greater | Equals | None deriving Show
 
--- comps :: [ Interpretation ] -> Rule -> Comp
-comps is u = lexi (map (\ i -> comp i u) is)
+isNone c = case c of { None -> True ; _ -> False }
+isGreater c = case c of { Greater -> True ; _ -> False }
 
--- lexi :: [Comp] -> Comp
+
+
+comps :: [ QP ] -> Rule -> Comp
+comps qps u = lexi (map ( \ qp -> comp qp u) qps )
+
+comp_1 :: QP -> Rule -> Comp
+comp_1 qp (l,r) = 
+    let directed w = case direction qp of
+             Original -> w ; Reversed -> reverse w
+    in  compareW (compareS (tree qp)) (directed l)(directed r)
+
+comp :: QP -> Rule -> Comp
+comp qp (l,r) = case direction qp of
+    Original -> compareW (compareS (tree qp)) l r
+    Reversed -> compareW (compareS (tree qp)) (reverse l) (reverse r)
+
+lexi :: [Comp] -> Comp
 lexi cs = case cs of
     [] -> Equals
     c : cs' -> case c of
@@ -115,38 +132,39 @@ lexi cs = case cs of
 
 -- * path order 
 
-type Precedence = [ Symbol ]
+data Direction = Original | Reversed
 
--- | x is greater y if we find x first in the list.
-greater :: Precedence -> Symbol -> Symbol -> Bool
-greater prec x y = case prec of
-    [] -> False
-    p : rec -> eqSymbol p x || (not (eqSymbol p y) && greater rec x y)
+data QP = QP Direction (Tree Nat8)
+
+tree qp = case qp of QP dir t -> t
+direction qp = case qp of QP dir t -> dir
+
+type Preorder s = s -> s -> Comp
+
+compareS :: Tree Nat8 -> Preorder Symbol
+compareS t x y = 
+    let qx = get t x ; qy = get t y
+    in  case eqNat8 qx qy of
+            True -> Equals
+            False -> case gtNat8 qx qy of
+                 True -> Greater
+                 False -> None
 
 -- | this relies on memoization (else, it is inefficient)
-greater_lpo :: Precedence -> Word -> Word -> Bool
-greater_lpo prec xs ys = case xs of
-    [] -> False
+compareW :: Preorder s -> Preorder [s]
+compareW comp xs ys = case xs of
+    [] -> case ys of
+        [] -> Equals
+        y : ys' -> None
     x : xs' -> case ys of
-        [] -> True
-        y : ys' -> ( greater prec x y && greater_equal_lpo prec xs ys' )
-            || (not (greater prec y x) && greater_lpo prec xs' ys' )
-
-greater_equal_lpo prec xs ys = eqWord xs ys || greater_lpo prec xs ys
-
--- * arctic interpretation
-
-data Comp = Greater | Equals | None
-
-isNone c = case c of { None -> True ; _ -> False }
-isGreater c = case c of { Greater -> True ; _ -> False }
-
-comp :: Precedence -> Rule -> Comp
-comp prec (l,r) = case greater_lpo prec l r of
-    True -> Greater
-    False -> case greater_equal_lpo prec l r of
-        True -> Equals
-        False -> None
+        [] -> Greater
+        y : ys' -> case comp x y of
+             None -> None
+             Equals -> compareW comp xs' ys' 
+             Greater -> case compareW comp xs ys' of
+                 Greater -> Greater
+                 Equals -> None
+                 None -> None
 
 
 -- following hack makes eqSymbol monomorphic
