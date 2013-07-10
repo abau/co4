@@ -173,7 +173,7 @@ lpoEQ comp xs ys = case xs of
         y : ys' -> False
     x : xs' -> case ys of
         [] -> False
-        y : ys' -> isEquals (comp x y) && lpoEQ comp xs' ys'
+        y : ys' -> isGreaterEquals (comp x y) && lpoEQ comp xs' ys'
 
 compareW :: Preorder s -> Preorder [s]
 compareW comp xs ys = 
