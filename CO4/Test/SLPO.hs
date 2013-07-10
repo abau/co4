@@ -5,7 +5,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- module CO4.Test.SL where
 module Main where
 
 import           Language.Haskell.TH (runIO)
@@ -37,7 +36,7 @@ $( runIO $ configurable [ Verbose
                         , Profile
                         , Cache
                         ] 
-         $ compileFile "CO4/Test/SL.standalone.hs" )
+         $ compileFile "CO4/Test/SLPO.standalone.hs" )
 
 
 uTree bits leaf = 
@@ -45,11 +44,6 @@ uTree bits leaf =
                  then known 1 2 [ t (depth-1), t (depth-1) ]
                  else known 0 2 [ leaf ]
     in  t bits
-
-uSymbol bits = kList bits uBool
-uWord len bits = uList len (uSymbol bits)
-uRule len bits = known 0 1 [ uWord len bits, uWord len bits ]
-uSRS rules len bits = uList rules ( uRule len bits )
 
 cSymbol xs = case xs of
     [] -> known 0 2 []
@@ -87,6 +81,7 @@ uMatrix dim bits =
 
 uInter bits_for_symbols dim bits_for_numbers = 
    uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
+
 
 toBin :: Int -> [Bool]
 toBin x = 

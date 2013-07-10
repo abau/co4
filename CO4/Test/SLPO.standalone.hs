@@ -1,4 +1,4 @@
-module CO4.Test.SL where
+module CO4.Test.SLPO where
 
 import CO4.Prelude
 import CO4.PreludeNat
@@ -10,22 +10,21 @@ type Word = [ Symbol ]
 type Rule = ( Word , Word )
 type SRS = [ Rule ]
 
+
+
 -- * label, then remove, then unlabel
 
-type Interpretation = Tree (Matrix Arctic)
-data Label = Label Model [ Interpretation ] [ Bool ]
+data Label = Label Model [ Precedence ] [ Bool ]
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
 -- (that is, all its labelled versions)
 constraint srs lab = case lab of
-    Label mod ints remove -> 
-          all ( positiveI ) ints
-       && let result = labelled srs mod
+    Label mod precs remove -> 
+          let result = labelled srs mod
               srss = map (map snd) result
               values = concat ( map (map fst) result )
-
-              css  = map (map (comps ints)) srss
+              css  = map (map (comps precs)) srss
           in     not ( any (any isNone) css )
               && or remove
               && eqSymbol remove ( map ( all isGreater ) css )
@@ -114,6 +113,27 @@ lexi cs = case cs of
         Equals -> lexi cs'
         None -> None
 
+-- * path order 
+
+type Precedence = [ Symbol ]
+
+-- | x is greater y if we find x first in the list.
+greater :: Precedence -> Symbol -> Symbol -> Bool
+greater prec x y = case prec of
+    [] -> False
+    p : rec -> eqSymbol p x || (not (eqSymbol p y) && greater rec x y)
+
+-- | this relies on memoization (else, it is inefficient)
+greater_lpo :: Precedence -> Word -> Word -> Bool
+greater_lpo prec xs ys = case xs of
+    [] -> False
+    x : xs' -> case ys of
+        [] -> True
+        y : ys' -> ( greater prec x y && greater_equal_lpo prec xs ys' )
+            || (not (greater prec y x) && greater_lpo prec xs' ys' )
+
+greater_equal_lpo prec xs ys = eqWord xs ys || greater_lpo prec xs ys
+
 -- * arctic interpretation
 
 data Comp = Greater | Equals | None
@@ -121,40 +141,12 @@ data Comp = Greater | Equals | None
 isNone c = case c of { None -> True ; _ -> False }
 isGreater c = case c of { Greater -> True ; _ -> False }
 
-comp :: Interpretation -> Rule -> Comp
-comp i u = case iRule i u of
-    (l,r) -> case gg0MA l r of
-        True ->  Greater
-        False -> case geMA l r of
-            True -> Equals
-            False -> None
-
-
-positiveI :: Interpretation -> Bool
-positiveI i = allI ( \ m -> positiveM m ) i
-
-allI :: (a -> Bool) -> Tree a -> Bool
-allI prop t = case t of
-    Leaf x -> prop x
-    Branch l r -> allI prop l && allI prop r
-
-positiveM :: Matrix Arctic -> Bool
-positiveM m = case m of
-    [] -> False
-    xs : _ -> case xs of
-        [] -> False
-        x : _ -> finite x
-
-gg0MA a b = and ( zipWith ( \ xs ys -> and (zipWith gg0A xs ys)  ) a b )
-
-geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
-
--- * interpretation:
-
--- type Interpretation = Tree (Matrix Arctic)
-
--- iSymbol :: Interpretation -> Symbol -> Matrix Arctic
-iSymbol i s = get i s
+comp :: Precedence -> Rule -> Comp
+comp prec (l,r) = case greater_lpo prec l r of
+    True -> Greater
+    False -> case greater_equal_lpo prec l r of
+        True -> Equals
+        False -> None
 
 
 -- following hack makes eqSymbol monomorphic
@@ -163,78 +155,15 @@ eqSymbol p q = (p == q ) && case p of
     [] -> True ; x : xs -> case x of 
          True -> True ; False -> True
 
+eqWord xs ys = case xs of
+    [] -> case ys of
+        [] -> True
+        y : ys' -> False
+    x : xs' -> case ys of
+        [] -> False
+        y : ys' -> eqSymbol x y && eqWord xs' ys'
 
-iWord i w = case w of
-    [] -> undefined
-    x : xs -> let m = iSymbol i x 
-              in case xs of
-                    [] -> m
-                    _  -> timesMA m (iWord i xs)
-
-iRule i u = case u of (l,r) -> (iWord i l, iWord i r)
-
---iSRS i s = map (iRule i) s
-
--- * matrices:
-
-type Matrix a = [[a]]
-
-
-plusMA a b = zipWith (zipWith plusA) a b
-
-timesMA a b = 
-    let b' = transpose b
-    in  map ( \ row -> map ( dot row ) b' ) a
-
-transpose xss = case xss of
-    [] -> []
-    xs : xss' -> case xss' of
-        [] -> map (\ x -> [x]) xs
-        _  -> zipWith (:) xs ( transpose xss')
-
-dot :: [Arctic] -> [Arctic] -> Arctic
-dot xs ys = sumA ( zipWith timesA xs ys)
-
-sumA xs = foldr plusA MinusInfinity xs
-
--- * arctic operations:
-
-data Arctic = MinusInfinity | Finite Nat8
-    -- deriving (Eq, Show)
-
-infinite a = case a of
-    MinusInfinity -> True
-    _ -> False
-
-finite a = case a of
-    MinusInfinity -> False
-    _ -> True
-
-gg0A a b = gtA a b || infinite b 
-
-gtA a b = not (geA b a)
-
-geA a b = case b of
-  MinusInfinity -> True
-  Finite b' -> case a of 
-    MinusInfinity -> False
-    Finite a' -> geNat8 a' b'
-
-plusA :: Arctic -> Arctic -> Arctic
-plusA e f = case e of
-  MinusInfinity -> f
-  Finite x -> Finite ( case f of 
-    MinusInfinity -> x 
-    Finite y      -> maxNat8 x y  )
-
-timesA :: Arctic -> Arctic -> Arctic
-timesA e f = case e of
-  MinusInfinity -> MinusInfinity
-  Finite x -> case f of 
-    MinusInfinity -> MinusInfinity
-    Finite y      -> Finite (plusNat8 x y)
-
-
+   
 
 
 
