@@ -23,7 +23,7 @@ import           CO4.PreludeNat
 import           CO4.EncEq
 import           CO4.EncodedAdt 
   (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex,origin)
-import           CO4.Monad (CO4,traced,getStackTrace)
+import           CO4.Monad (CO4,traced,abortWithTraces)
 import           CO4.PreludeBool
 
 -- |Parses prelude's function definitions
@@ -97,16 +97,16 @@ unparsedPreludeContext = bind
   , (listName        , SForall a $ SType listT)
   , (consName        , SForall a $ SType $ functionType [TVar a,listT] listT)
   , mkTuple 2        , mkTuple 3 , mkTuple 4 , mkTuple 5
-  , (nat8Name        , SType $ functionType [TCon intName []] nat8T)
-  , ("gtNat8"        , SType $ functionType [nat8T,nat8T] boolT)
-  , ("geNat8"        , SType $ functionType [nat8T,nat8T] boolT)
-  , ("eqNat8"        , SType $ functionType [nat8T,nat8T] boolT)
-  , ("leNat8"        , SType $ functionType [nat8T,nat8T] boolT)
-  , ("ltNat8"        , SType $ functionType [nat8T,nat8T] boolT)
-  , ("maxNat8"       , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("minNat8"       , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("plusNat8"      , SType $ functionType [nat8T,nat8T] nat8T)
-  , ("timesNat8"     , SType $ functionType [nat8T,nat8T] nat8T)
+  , (natName         , SType $ functionType [TCon intName [],TCon intName []] natT)
+  , ("gtNat"         , SType $ functionType [natT,natT] boolT)
+  , ("geNat"         , SType $ functionType [natT,natT] boolT)
+  , ("eqNat"         , SType $ functionType [natT,natT] boolT)
+  , ("leNat"         , SType $ functionType [natT,natT] boolT)
+  , ("ltNat"         , SType $ functionType [natT,natT] boolT)
+  , ("maxNat"        , SType $ functionType [natT,natT] natT)
+  , ("minNat"        , SType $ functionType [natT,natT] natT)
+  , ("plusNat"       , SType $ functionType [natT,natT] natT)
+  , ("timesNat"      , SType $ functionType [natT,natT] natT)
   , ("assertKnown"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("assertDefined" , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("&&"            , SType $ functionType [boolT,boolT] boolT)
@@ -125,7 +125,7 @@ unparsedPreludeContext = bind
       in
         ( tupleName i, (foldr SForall (SType type_) $ take i names) )
 
-    nat8T = TCon nat8TypeName []
+    natT = TCon natTypeName []
 
 unparsedNames :: Namelike n => [n]
 unparsedNames = map (convertName . fst) $ toList $ unparsedPreludeContext 
@@ -152,7 +152,8 @@ assertKnown = id
 encAssertKnown,encAssertKnownProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
 encAssertKnown e = case constantConstructorIndex e of 
-  Nothing -> dumpError "Prelude.encAssertKnown: assertion 'assertKnown' failed" e
+  Nothing -> abortWithTraces "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
+                             [("origin", show $ origin e)]
   Just _  -> return e
 encAssertKnownProf = traced "assertKnown" . encAssertKnown
 
@@ -163,18 +164,6 @@ encAssertDefined,encAssertDefinedProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e
-  else dumpError "Prelude.encAssertDefined: assertion 'assertDefined' failed" e
+  else abortWithTraces "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
+                       [("origin", show $ origin e)]
 encAssertDefinedProf = traced "assertDefined" . encAssertDefined
-
-dumpError :: String -> EncodedAdt -> CO4 a
-dumpError msg e = do
-  trace <- getStackTrace
-  if null trace
-    then error $ unlines [msg, "no stack trace available"]
-    else error $ unlines $ concat [
-                 [msg]
-               , ["## stack trace #############"]
-               , trace  
-               , ["## origin ##################"]
-               , origin e
-               ]

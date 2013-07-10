@@ -18,13 +18,13 @@ import           Control.Monad (forM)
 import           Data.List (transpose)
 import           Data.Maybe (fromMaybe,catMaybes,fromJust)
 import           Data.Tree (Tree (..),drawTree)
+import           Text.PrettyPrint (Doc,(<+>),vcat,int,text,nest,empty,($$))
 import           Satchmo.Core.Primitive (constant,select,primitive,assert,and)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,binaries,for,fromBinary,toBinary)
-import           CO4.EncodedAdtData (Primitive,EncodedAdt (..))
-import           CO4.Stack (StackTrace)
+import           CO4.EncodedAdtData (Primitive,EncodedAdt (..),makeWithStackTrace)
 
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
@@ -49,7 +49,7 @@ make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
 make definedness flags arguments = withAdtCache (definedness, flags, arguments)
 
 encUndefined :: EncodedAdt
-encUndefined = EncodedAdt (-1) (constant False) [] [] ["undefined"]
+encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
 
 encBottom :: EncodedAdt
 encBottom = Bottom
@@ -128,8 +128,8 @@ constructorArgument i j adt =
   where
     args = _arguments adt
 
-origin :: EncodedAdt -> StackTrace
-origin Bottom = ["bottom"]
+origin :: EncodedAdt -> Doc
+origin Bottom = text "bottom"
 origin adt    = _origin adt
 
 -- * Utilities
@@ -164,23 +164,20 @@ caseOf adt branches =
   where
     relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
 
-mergeOrigins :: [EncodedAdt] -> CO4 StackTrace
+mergeOrigins :: [EncodedAdt] -> CO4 Doc
 mergeOrigins branches =
   isProfileRun >>= \case
-    False -> return []
+    False -> return empty
     True  -> do
       trace <- getStackTrace
       return $ merged trace
       where
-        indent = map $ \x -> "    " ++ x
-        merged trace = 
-            ("merge")
-          : ("  merge-trace:\n" ++ unlines (indent trace))
-          : zipWith (\i branch -> concat ["  merge-branch "
-                                         , show i
-                                         , ":\n"
-                                         , unlines $ indent $ origin branch
-                                         ]
+        merged trace = vcat $
+            (text "merge")
+          : (nest 2 $ vcat $ (text "merge-trace") : map (nest 2 . text) trace)
+          : zipWith (\i branch -> nest 2 
+                                $ (text "merge-branch" <+> int i)
+                               $$ (nest 2 $ origin branch)
                     ) [0..] branches
 
 -- |Case distinction between encoded arguments of ADTs

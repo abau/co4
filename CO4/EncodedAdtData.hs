@@ -1,8 +1,9 @@
 -- |Separated data definition for breaking mutually recursive module cycles
 module CO4.EncodedAdtData
-  (Primitive, EncodedAdt (..))
+  (Primitive, EncodedAdt (..), makeWithStackTrace)
 where
 
+import           Text.PrettyPrint (Doc,vcat,text)
 import           Satchmo.Core.Boolean (Boolean)
 import           CO4.Stack (StackTrace)
 
@@ -12,9 +13,13 @@ data EncodedAdt = EncodedAdt { _id          :: ! Int
                              , _definedness :: ! Primitive
                              , _flags       :: ! [Primitive] 
                              , _arguments   :: ! [EncodedAdt] 
-                             , _origin      :: ! StackTrace
+                             , _origin      :: ! Doc
                              }
                 | Bottom
+
+makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> StackTrace
+                   -> EncodedAdt
+makeWithStackTrace i d f a o = EncodedAdt i d f a $ vcat $ map text o
 
 instance Eq EncodedAdt where
   Bottom == Bottom = True

@@ -24,13 +24,11 @@ $( runIO $ configurable [ ImportPrelude
                         ] 
          $ compileFile "CO4/Test/Queens.standalone.hs")
 
-uNat w = uNat8
-
 result n = do
     hSetBuffering stdout LineBuffering
     solution <- solveAndTestP 
-       (nat8 n)
-       (kList n uNat8)
+       (nat 8 n)
+       (kList n (uNat 8))
        encConstraint constraint
     case solution of
         Nothing -> putStrLn "no placement"
