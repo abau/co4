@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Monad
-  ( CO4, SAT, newId, getStackTrace, isProfileRun, setProfileRun
+  ( CO4, SAT, newId, getStackTrace, isProfileRun, setProfileRun, abortWithTraces
   , runCO4, withCallCache, withAdtCache, traced
   )
 where
@@ -9,7 +9,7 @@ where
 import           Control.Monad.State.Strict
 import qualified Satchmo.Core.SAT.Minisat 
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
-import           CO4.EncodedAdtData (Primitive,EncodedAdt(..))
+import           CO4.EncodedAdtData (Primitive,EncodedAdt(..),makeWithStackTrace)
 import           CO4.Cache 
 import           CO4.Profiling
 import           CO4.Stack
@@ -71,6 +71,20 @@ isProfileRun = gets profileRun
 setProfileRun :: CO4 ()
 setProfileRun = modify $! \c -> c { profileRun = True }
 
+abortWithTraces :: String -> [(String,String)] -> CO4 a
+abortWithTraces msg traces = do
+  stackTrace <- getStackTrace
+
+  let traces' = if null stackTrace 
+                then ("stack trace", "no stack trace available") : traces
+                else ("stack trace", unlines stackTrace) : traces
+
+  error $ unlines $ msg : map format traces'
+  where
+    format (header,trace) = 
+      concat ["## ", header, " ", replicate (20 - length header) '#', "\n"] 
+      ++ trace
+
 instance MonadSAT CO4 where
   fresh = do
     modify $! onProfile $! onCurrentInner incNumVariables
@@ -110,12 +124,12 @@ withAdtCache :: AdtCacheKey -> CO4 EncodedAdt
 withAdtCache key@(d,fs,args) = gets (retrieve key . adtCache) >>= \case
   (Just id, c) -> do modify (setAdtCache c) 
                      trace <- getStackTrace
-                     return (EncodedAdt id d fs args trace)
+                     return $ makeWithStackTrace id d fs args trace
   (Nothing, c) -> do 
     id    <- newId
     trace <- getStackTrace
     modify $! setAdtCache $! cache key id c
-    return $ EncodedAdt id d fs args trace
+    return $ makeWithStackTrace id d fs args trace
 
 traced :: String -> CO4 a -> CO4 a
 traced name action = do

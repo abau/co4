@@ -74,8 +74,6 @@ uLab srs bits_for_model num_ints dim bits_for_numbers =
            ]
 
 
-uNat bits = uNat8
-
 uArctic bits = 
     constructors [ Just [], Just [ uNat bits] ]
 

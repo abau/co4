@@ -2,105 +2,123 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  (Nat8, nat8, uNat8, kNat8
-  , gtNat8, geNat8, eqNat8, leNat8, ltNat8, maxNat8, minNat8, plusNat8, timesNat8
-  , encNat8, encGtNat8, encGeNat8, encEqNat8, encLeNat8, encLtNat8
-  , encMaxNat8, encMinNat8, encPlusNat8, encTimesNat8
-  , encNat8Prof, encGtNat8Prof, encGeNat8Prof, encEqNat8Prof, encLeNat8Prof
-  , encLtNat8Prof, encMaxNat8Prof, encMinNat8Prof, encPlusNat8Prof, encTimesNat8Prof
+  (Nat, nat, uNat, kNat
+  , gtNat, geNat, eqNat, leNat, ltNat, maxNat, minNat, plusNat, timesNat
+  , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
+  , encMaxNat, encMinNat, encPlusNat, encTimesNat
+  , encNatProf, encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf
+  , encLtNatProf, encMaxNatProf, encMinNatProf, encPlusNatProf, encTimesNatProf
   , onFlags, catchInvalid, onFlags2, catchInvalid2
   )
 where
 
 import           Prelude hiding (not,and,or)
+import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM)
-import           Data.Word (Word8)
 import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
   (primitive,constant,assert,not,and,xor,or,equals)
-import           CO4.Monad (CO4,SAT,traced)
+import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator,known,constructors)
 import           CO4.EncEq (EncEq(..))
 
-type Nat8 = Word8
+data Nat = Nat { width :: Int
+               , value :: Int
+               }
 
-instance Encodeable Nat8 where
-  encode i = encodedConstructor (fromIntegral i) (2^8) []
+instance Eq Nat where
+  (==) = eqNat
 
-instance Decode SAT EncodedAdt Nat8 where
-  decode p = toIntermediateAdt p (2^8) >>= \case 
-    IntermediateUndefined -> error $ "Can not decode 'undefined' to data of type 'Nat8'"
-    IntermediateConstructorIndex i _ -> return $ fromIntegral i
+instance Show Nat where
+  show = show . value
 
-instance EncEq Nat8 where
-  encEqPrimitive _ a b = encEqNat8 a b >>= return . head . flags'
+instance Encodeable Nat where
+  encode n = encodedConstructor (value n) (2^(width n)) []
 
-uNat8 :: Allocator
-uNat8 = constructors $ replicate (2^8) $ Just []
+instance Decode SAT EncodedAdt Nat where
+  decode p = case fmap length (flags p) of
+    Just n -> toIntermediateAdt p (2^n) >>= \case 
+      IntermediateUndefined -> error $ "Can not decode 'undefined' to data of type 'Nat'"
+      IntermediateBottom    -> error $ "Can not decode 'bottom' to data of type 'Nat'"
+      IntermediateConstructorIndex i _ -> return $ Nat n i
+    Nothing -> error "Missing flags while decoding 'Nat'"
 
-kNat8 :: Int -> Allocator
-kNat8 i = known i (2^8) []
+instance EncEq Nat where
+  encEqPrimitive _ a b = encEqNat a b >>= return . head . flags'
+
+uNat :: Int -> Allocator
+uNat w = constructors $ replicate (2^w) $ Just []
+
+kNat :: Int -> Int -> Allocator
+kNat w i = known i (2^w) []
 
 -- * Plain functions on naturals
 
-nat8 :: Int -> Nat8
-nat8 = fromIntegral
+nat :: Int -> Int -> Nat
+nat = Nat
 
-gtNat8,geNat8,eqNat8,leNat8,ltNat8 :: Nat8 -> Nat8 -> Bool
-gtNat8 = (>)
-geNat8 = (>=)
-eqNat8 = (==)
-leNat8 = (<=)
-ltNat8 = (<)
+gtNat,geNat,eqNat,leNat,ltNat :: Nat -> Nat -> Bool
+gtNat = onValue (>)
+geNat = onValue (>=)
+eqNat = onValue (==)
+leNat = onValue (<=)
+ltNat = onValue (<)
 
-maxNat8,minNat8,plusNat8,timesNat8 :: Nat8 -> Nat8 -> Nat8
-maxNat8   = max
-minNat8   = min
-plusNat8  = (+)
-timesNat8 = (*)
+maxNat,minNat,plusNat,timesNat :: Nat -> Nat -> Nat
+maxNat   = onValue' max
+minNat   = onValue' min
+plusNat  = onValue' (+)
+timesNat = onValue' (*)
+
+onValue :: (Int -> Int -> a) -> Nat -> Nat -> a
+onValue f a b = Exception.assert (width a == width b) $ f (value a) (value b)
+
+onValue' :: (Int -> Int -> Int) -> Nat -> Nat -> Nat
+onValue' f a b = Exception.assert (width a == width b) 
+               $ Nat (width a) $ f (value a) (value b)
 
 -- * Encoded functions on naturals
 
-encNat8,encNat8Prof  :: Int -> CO4 EncodedAdt
-encNat8 i = encodedConstructor i (2^8) []
-encNat8Prof = traced "nat8" . encNat8
+encNat,encNatProf :: Int -> Int -> CO4 EncodedAdt
+encNat     w i = encodedConstructor i (2^w) []
+encNatProf w i = traced "nat" $ encNat w i
 
-encGtNat8,encGeNat8,encEqNat8,encLeNat8,encLtNat8,encMaxNat8,encMinNat8
-  ,encGtNat8Prof,encGeNat8Prof,encEqNat8Prof,encLeNat8Prof,encLtNat8Prof
-  ,encMaxNat8Prof,encMinNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encGtNat8 = flip encLtNat8
-encGtNat8Prof a b = traced "gtNat8" $ encGtNat8 a b
+encGtNat,encGeNat,encEqNat,encLeNat,encLtNat,encMaxNat,encMinNat
+  ,encGtNatProf,encGeNatProf,encEqNatProf,encLeNatProf,encLtNatProf
+  ,encMaxNatProf,encMinNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encGtNat         = flip encLtNat
+encGtNatProf a b = traced "gtNat" $ encGtNat a b
 
-encGeNat8 = flip encLeNat8
-encGeNat8Prof a b = traced "geNat8" $ encGeNat8 a b
+encGeNat         = flip encLeNat
+encGeNatProf a b = traced "geNat" $ encGeNat a b
 
-encEqNat8 = catchInvalid2 $ onFlags2 $ \as bs ->
+encEqNat = catchInvalid2 $ onFlags2 $ \as bs ->
   zipWithM (\x y -> equals [x,y]) as bs >>= and >>= \r -> return [r]
-encEqNat8Prof a b = traced "eqNat8" $ encEqNat8 a b
+encEqNatProf a b = traced "eqNat" $ encEqNat a b
 
-encLeNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
+encLeNat = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   return [r]
-encLeNat8Prof a b = traced "leNat8" $ encLeNat8 a b
+encLeNatProf a b = traced "leNat" $ encLeNat a b
 
-encLtNat8 = catchInvalid2 $ onFlags2 $ \a b -> do
+encLtNat = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return [l] 
-encLtNat8Prof a b = traced "ltNat8" $ encLtNat8 a b
+encLtNatProf a b = traced "ltNat" $ encLtNat a b
 
-encMaxNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
+encMaxNat = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
   zipWithM ( \x y -> ifthenelse l x y ) a b 
-encMaxNat8Prof a b = traced "maxNat8" $ encMaxNat8 a b
+encMaxNatProf a b = traced "maxNat" $ encMaxNat a b
 
-encMinNat8 = catchInvalid2 $ onFlags2 $ \ a b -> do
+encMinNat = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives a b
   zipWithM ( \x y -> ifthenelse l x y ) a b 
-encMinNat8Prof a b = traced "minNat8" $ encMinNat8 a b
+encMinNatProf a b = traced "minNat" $ encMinNat a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
                      -> CO4 (Primitive, Primitive) -- ^ (less, equals)
@@ -136,8 +154,8 @@ encComparePrimitives a b = case (a,b) of
     return ( y, not y )
 -}
 
-encPlusNat8,encPlusNat8Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat8 = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
+encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encPlusNat = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
   return $ z : zs
@@ -149,12 +167,12 @@ encPlusNat8 = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
           (z,d) <- fullAdder c x y
           zs <- addWithCarry d xs ys
           return $ z : zs
-encPlusNat8Prof a b = traced "plusNat8" $ encPlusNat8 a b
+encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
-encTimesNat8 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat8 = catchInvalid2 $ onFlags2 $ \as bs -> do
-  kzs <- product_components (Just 8) as bs
-  export (Just 8) kzs
+encTimesNat :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encTimesNat = catchInvalid2 $ onFlags2 $ \as bs -> do
+  kzs <- product_components (Just $ length as) as bs
+  export (Just $ length as) kzs
 
   where
     product_components bound as bs = sequence $ do
@@ -185,7 +203,7 @@ encTimesNat8 = catchInvalid2 $ onFlags2 $ \as bs -> do
                 [] -> reduce bound rest
                 [x] -> do
                     m' <- reduce bound rest
-                    return $ M.unionWith (error "PreludeNat.encTimesNat8: huh") m'
+                    return $ M.unionWith (error "PreludeNat.encTimesNat: huh") m'
                            $ M.fromList [(k,[x])]
                 [x,y] -> do
                     (r,c) <- halfAdder x y
@@ -195,7 +213,7 @@ encTimesNat8 = catchInvalid2 $ onFlags2 $ \as bs -> do
                     (r,c) <- fullAdder x y z
                     reduce bound $ M.unionWith (++) rest
                            $ M.fromList [ (k, more ++ [r]), (k+1, [c]) ]
-encTimesNat8Prof a b = traced "timesNat8" $ encTimesNat8 a b
+encTimesNatProf a b = traced "timesNat" $ encTimesNat a b
 
 ifthenelse :: Primitive -> Primitive -> Primitive -> CO4 Primitive
 ifthenelse i t e = do
@@ -274,15 +292,18 @@ onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
 onFlags f a = case flags a of
   Just as -> do flags' <- f as 
                 make (definedness a) flags' []
-  _       -> error "PreludeNat.onFlags: missing flags"
+  _       -> abortWithTraces "PreludeNat.onFlags: missing flags" []
 
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
          -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 onFlags2 f a b = case (flags a, flags b) of
-  (Just as, Just bs) -> do flags'       <- f as bs
-                           definedness' <- and [definedness a, definedness b]
-                           make definedness' flags' []
-  _                  -> error "PreludeNat.onFlags2: missing flags"
+  (Just as, Just bs) -> 
+    if length as == length bs
+    then do flags'       <- f as bs
+            definedness' <- and [definedness a, definedness b]
+            make definedness' flags' []
+    else abortWithTraces "PreludeNat.onFlags2: diverging number of flags" []
+  _ -> abortWithTraces "PreludeNat.onFlags2: missing flags" []
 
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid f a = 

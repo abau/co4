@@ -100,10 +100,12 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
       EVar fName -> do
         fName' <- instantiateName fName
         case fromName fName of
-          n | n == eqName   -> instantiateEq args'
-          n | n == nat8Name -> case args of
-            [ECon i] -> return $ TH.AppE (varE fName') $ intE $ read $ fromName i
-            _        -> error $ "Algorithms.Eitherize.instantiateApp: nat8"
+          n | n == eqName  -> instantiateEq args'
+          n | n == natName -> case args of
+            [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
+              where
+                nameToIntE = intE . read . fromName
+            _        -> error $ "Algorithms.Eitherize.instantiateApp: nat"
 
           _ | cache  -> bindAndApplyArgs (\args'' -> 
                           appsE (TH.VarE 'withCallCache) 

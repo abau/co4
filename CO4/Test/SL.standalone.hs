@@ -199,7 +199,7 @@ sumA xs = foldr plusA MinusInfinity xs
 
 -- * arctic operations:
 
-data Arctic = MinusInfinity | Finite Nat8
+data Arctic = MinusInfinity | Finite Nat
     -- deriving (Eq, Show)
 
 infinite a = case a of
@@ -218,21 +218,21 @@ geA a b = case b of
   MinusInfinity -> True
   Finite b' -> case a of 
     MinusInfinity -> False
-    Finite a' -> geNat8 a' b'
+    Finite a' -> geNat a' b'
 
 plusA :: Arctic -> Arctic -> Arctic
 plusA e f = case e of
   MinusInfinity -> f
   Finite x -> Finite ( case f of 
     MinusInfinity -> x 
-    Finite y      -> maxNat8 x y  )
+    Finite y      -> maxNat x y  )
 
 timesA :: Arctic -> Arctic -> Arctic
 timesA e f = case e of
   MinusInfinity -> MinusInfinity
   Finite x -> case f of 
     MinusInfinity -> MinusInfinity
-    Finite y      -> Finite (plusNat8 x y)
+    Finite y      -> Finite (plusNat x y)
 
 
 
