@@ -46,6 +46,7 @@ preludeFunctionDeclarations = [
   , [dec| foldr n c xs = case xs of { [] -> c ; y : ys -> n y (foldr n c ys) } |]
   , [dec| foldl n c xs = case xs of { [] -> c ; y : ys -> foldl n (n c y) ys } |]
   , [dec| a ++ b = foldr (:) b a |]
+  , [dec| reverse xs = foldl (flip (:)) [] xs |]
   , [dec| null xs = case xs of { [] -> True; _ -> False } |]
   , [dec| head xs = case xs of { [] -> undefined; (y:_) -> y } |]
   , [dec| tail xs = case xs of { [] -> []; (_:ys) -> ys } |]
@@ -54,6 +55,7 @@ preludeFunctionDeclarations = [
   -- Functions
   , [dec| id x = x |]
   , [dec| const x y = x |]
+  , [dec| flip f x y = f y x |]
   -- Booleans
   -- , [dec| not x    = case x of { False -> True ; True -> False } |]
   -- , [dec| a && b   = case a of { False -> False ; True -> b } |]
