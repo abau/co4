@@ -58,7 +58,7 @@ uModel sym_bits model_bits = uTree sym_bits
                            $ kList model_bits uBool
 
 uQuasiPrec bits_for_symbols = 
-    known 0 1 [ uBool, uTree bits_for_symbols uNat8 ]
+    known 0 1 [ uBool, uTree bits_for_symbols $ uNat bits_for_symbols ]
 
 uLab conf srs =
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
@@ -167,8 +167,9 @@ solveTPDB conf sys = do
 
 
   print $ TPDB.pretty sys
-  print srs
-  print m
+  print conf
+  -- print srs
+  -- print m
 
   let alloc = uLab conf srs
   solution <- solveAndTestP 
@@ -185,7 +186,8 @@ solveTPDB conf sys = do
         
 -- * pretty printers
 
-instance PP.Pretty Word8 where pretty = PP.text . show
+instance PP.Pretty Nat where pretty = PP.text . show 
+
 instance PP.Pretty Direction where pretty = PP.text . show
 
 instance (PP.Pretty k, PP.Pretty v) => PP.Pretty (M.Map k v) where
