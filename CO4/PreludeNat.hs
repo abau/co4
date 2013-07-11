@@ -4,6 +4,7 @@
 module CO4.PreludeNat 
   (Nat, nat, uNat, kNat
   , gtNat, geNat, eqNat, leNat, ltNat, maxNat, minNat, plusNat, timesNat
+  , isZeroNat, encIsZeroNat, encIsZeroNatProf
   , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
   , encMaxNat, encMinNat, encPlusNat, encTimesNat
   , encNatProf, encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf
@@ -67,6 +68,9 @@ eqNat = onValue (==)
 leNat = onValue (<=)
 ltNat = onValue (<)
 
+isZeroNat :: Nat -> Bool
+isZeroNat n = 0 == value n
+
 maxNat,minNat,plusNat,timesNat :: Nat -> Nat -> Nat
 maxNat   = onValue' max
 minNat   = onValue' min
@@ -109,6 +113,11 @@ encLtNat = catchInvalid2 $ onFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return [l] 
 encLtNatProf a b = traced "ltNat" $ encLtNat a b
+
+encIsZeroNat = catchInvalid $ onFlags $ \a -> do
+  nonzero <- or a
+  return [ not nonzero ]
+encIsZeroNatProf a = traced "isZeroNat" $ encIsZeroNat a
 
 encMaxNat = catchInvalid2 $ onFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
