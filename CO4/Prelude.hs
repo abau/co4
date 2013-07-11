@@ -105,6 +105,7 @@ unparsedPreludeContext = bind
   , ("eqNat"         , SType $ functionType [natT,natT] boolT)
   , ("leNat"         , SType $ functionType [natT,natT] boolT)
   , ("ltNat"         , SType $ functionType [natT,natT] boolT)
+  , ("isZeroNat"         , SType $ functionType [natT] boolT)
   , ("maxNat"        , SType $ functionType [natT,natT] natT)
   , ("minNat"        , SType $ functionType [natT,natT] natT)
   , ("plusNat"       , SType $ functionType [natT,natT] natT)
