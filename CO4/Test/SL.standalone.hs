@@ -12,8 +12,14 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
+data Interpretation_Tag = Arctic_Tag | Natural_Tag
+    deriving Show
+
 data Interpretation 
-     = Arctic_Interpretation (Tree (Matrix Arctic))
+   = Interpretation Interpretation_Tag
+         (Tree (Matrix Arctic))
+         (Tree (Matrix    Nat))
+    deriving Show
 
 data Label = Label Model [ Interpretation ] [ Bool ]
 
@@ -64,7 +70,8 @@ labelledW mod w k = case assertKnown w of
 labelledW_app x k' = x ++ assertKnown k'
 
 -- | binary decision tree, used to map bitstrings to values
-data Tree a = Leaf a | Branch (Tree a) (Tree a) -- deriving Eq
+data Tree a = Leaf a | Branch (Tree a) (Tree a) 
+    deriving (Show, Eq)
 
 
 keys :: Tree a -> [[Bool]]
@@ -118,41 +125,56 @@ lexi cs = case cs of
 
 -- * arctic interpretation
 
-data Comp = Greater | Equals | None
+data Comp = Greater | Equals | None 
+    deriving Show
 
 isNone c = case c of { None -> True ; _ -> False }
 isGreater c = case c of { Greater -> True ; _ -> False }
 
 comp :: Interpretation -> Rule -> Comp
 comp i u = case i of
-    Arctic_Interpretation ai -> 
-        case iRuleA ai u of
-        (l,r) -> case gg0MA l r of
-            True ->  Greater
-            False -> case geMA l r of
-                True -> Equals
+    Interpretation tag ai ni -> case tag of
+        Natural_Tag -> case iRuleN ni u of
+            (l,r) -> case geMN l r of
                 False -> None
-
+                True ->  case gtMN l r of
+                    True -> Greater
+                    False -> Equals
+        Arctic_Tag -> case iRuleA ai u of
+            (l,r) -> case geMA l r of
+                False -> None
+                True ->  case gtMA l r of
+                    True -> Greater
+                    False -> Equals
 
 positiveI :: Interpretation -> Bool
 positiveI i = case i of
-    Arctic_Interpretation ai -> allI ( \ m -> positiveM m ) ai
+    Interpretation tag ai ni -> case tag of
+        Natural_Tag -> allI positiveMN ni
+        Arctic_Tag  -> allI positiveMA ai
 
 allI :: (a -> Bool) -> Tree a -> Bool
 allI prop t = case t of
     Leaf x -> prop x
     Branch l r -> allI prop l && allI prop r
 
-positiveM :: Matrix Arctic -> Bool
-positiveM m = case m of
+positiveMA :: Matrix Arctic -> Bool
+positiveMA m = case m of
     [] -> False
     xs : _ -> case xs of
         [] -> False
         x : _ -> finite x
 
-gg0MA a b = and ( zipWith ( \ xs ys -> and (zipWith gg0A xs ys)  ) a b )
+positiveMN :: Matrix Nat -> Bool
+positiveMN m = 
+       not (isZeroNat (head (head m))) 
+    && not (isZeroNat (last (last m))) 
 
+gtMA a b = and ( zipWith ( \ xs ys -> and (zipWith gg0A xs ys)  ) a b )
 geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
+
+geMN a b = and ( zipWith ( \ xs ys -> and (zipWith geNat xs ys)  ) a b )
+gtMN a b = gtNat (last (head a)) (last(head b))
 
 -- * interpretation:
 
@@ -169,14 +191,18 @@ eqSymbol p q = (p == q ) && case p of
          True -> True ; False -> True
 
 
-iWordA i w = case w of
+iWord timesM i w = case w of
     [] -> undefined
     x : xs -> let m = iSymbol i x 
               in case xs of
                     [] -> m
-                    _  -> timesMA m (iWordA i xs)
+                    _  -> timesM m (iWord timesM i xs)
 
-iRuleA i u = case u of (l,r) -> (iWordA i l, iWordA i r)
+iRule timesM i u = case u of (l,r) -> (iWord timesM i l, iWord timesM i r)
+
+iRuleA i u = iRule (timesM plusA timesA) i u
+iRuleN i u = iRule (timesM plusNat timesNat) i u
+
 
 --iSRS i s = map (iRule i) s
 
@@ -185,11 +211,11 @@ iRuleA i u = case u of (l,r) -> (iWordA i l, iWordA i r)
 type Matrix a = [[a]]
 
 
-plusMA a b = zipWith (zipWith plusA) a b
+plusM plus a b = zipWith (zipWith plus) a b
 
-timesMA a b = 
+timesM plus times a b = 
     let b' = transpose b
-    in  map ( \ row -> map ( dot row ) b' ) a
+    in  map ( \ row -> map ( dot plus times row ) b' ) a
 
 transpose xss = case xss of
     [] -> []
@@ -197,16 +223,14 @@ transpose xss = case xss of
         [] -> map (\ x -> [x]) xs
         _  -> zipWith (:) xs ( transpose xss')
 
-dot :: [Arctic] -> [Arctic] -> Arctic
-dot xs ys = sumA ( zipWith timesA xs ys)
-
-sumA xs = foldr plusA MinusInfinity xs
-
+dot plus times xs ys = 
+    let sum xs = foldr plus (head xs) (tail xs)
+    in  sum ( zipWith times xs ys)
 
 -- * arctic operations:
 
 data Arctic = MinusInfinity | Finite Nat
-    -- deriving (Eq, Show)
+    deriving (Eq, Show)
 
 infinite a = case a of
     MinusInfinity -> True
