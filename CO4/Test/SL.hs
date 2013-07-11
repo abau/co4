@@ -34,7 +34,7 @@ import System.Console.GetOpt
 $( runIO $ configurable [ ImportPrelude
                         -- , DumpAll "/tmp/sl" 
                         -- , Verbose
-                        -- , Profile
+                        , Profile
                         , Cache
                         ] 
          $ compileFile "CO4/Test/SL.standalone.hs" )
@@ -63,6 +63,19 @@ uModel sym_bits model_bits = uTree sym_bits
                            $ kList model_bits uBool
 
 
+
+uArctic bits = 
+    constructors [ Just [], Just [ uNat bits] ]
+
+uMatrix dim elem = 
+    kList dim $ kList dim $ elem 
+
+uInter bits_for_symbols dim bfn = known 0 1
+    [ constructors [ Just [], Just [] ]
+    , uTree bits_for_symbols ( uMatrix dim $ uArctic bfn ) 
+    , uTree bits_for_symbols ( uMatrix dim $ uNat    bfn ) 
+    ]
+
 uLab conf srs =
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
         width = maximum $ do (l,r) <- srs; map length [l,r]
@@ -76,16 +89,6 @@ uLab conf srs =
            , kList (length srs) uBool
            ]
 
-
-uArctic bits = 
-    constructors [ Just [], Just [ uNat bits] ]
-
-uMatrix dim bits = 
-    kList dim $ kList dim $ uArctic bits
-
-uInter bits_for_symbols dim bits_for_numbers = 
-    known 0 1 [ uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
-              ]
 
 toBin :: Int -> [Bool]
 toBin x = 
@@ -102,6 +105,8 @@ fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
 alphabet :: TPDB.SRS TPDB.Identifier -> [ TPDB.Identifier ]
 alphabet sys = nub $ concat 
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys 
+
+
 
 
 data Config =
@@ -172,9 +177,9 @@ solveTPDB conf sys = do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
 
+      
       bdt2labelled_int i = M.fromList $ do
-          (xs, mat) <- M.toList $ bdt2map $ case i of
-               Arctic_Interpretation ai -> ai
+          (xs, mat) <- M.toList $ bdt2map i
           let (pre,post) = splitAt bits_for_symbols xs
           v <- maybeToList $ M.lookup pre m'
           return ((v, fromBin post), mat)
@@ -193,10 +198,14 @@ solveTPDB conf sys = do
     Nothing -> return ()
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
-        void $ forM ints $ \ int -> print $ PP.pretty $ bdt2labelled_int  int
+        void $ forM ints $ \ (Interpretation tag ai ni) -> print $ case tag of
+            Arctic_Tag  -> PP.pretty $ bdt2labelled_int ai
+            Natural_Tag -> PP.pretty $ bdt2labelled_int ni
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers
+
+instance PP.Pretty Nat where pretty = PP.text . show 
 
 instance PP.Pretty Arctic where
     pretty a  = case a of
