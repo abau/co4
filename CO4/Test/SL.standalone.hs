@@ -12,6 +12,16 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
+data Label = Label Model [ Interpretation ] [ Bool ]
+
+
+-- * interpretations:
+
+-- | Note: we would want to write:
+-- data Interpretation = Arctic_Int (Tree (Matrix Arctic))
+--                     | Natural_Int (Tree (Matrix Natural))
+-- but then we would get more unknowns when accessing the tree.
+
 data Interpretation_Tag = Arctic_Tag | Natural_Tag
     deriving Show
 
@@ -21,7 +31,7 @@ data Interpretation
          (Tree (Matrix    Nat))
     deriving Show
 
-data Label = Label Model [ Interpretation ] [ Bool ]
+
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
@@ -170,7 +180,7 @@ positiveMN m =
        not (isZeroNat (head (head m))) 
     && not (isZeroNat (last (last m))) 
 
-gtMA a b = and ( zipWith ( \ xs ys -> and (zipWith gg0A xs ys)  ) a b )
+gtMA a b = and ( zipWith ( \ xs ys -> and (zipWith ggA xs ys)  ) a b )
 geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
 
 geMN a b = and ( zipWith ( \ xs ys -> and (zipWith geNat xs ys)  ) a b )
@@ -200,7 +210,7 @@ iWord timesM i w = case w of
 
 iRule timesM i u = case u of (l,r) -> (iWord timesM i l, iWord timesM i r)
 
-iRuleA i u = iRule (timesM plusA timesA) i u
+iRuleA i u = iRule (timesM   plusA   timesA) i u
 iRuleN i u = iRule (timesM plusNat timesNat) i u
 
 
@@ -240,7 +250,7 @@ finite a = case a of
     MinusInfinity -> False
     _ -> True
 
-gg0A a b = gtA a b || infinite b 
+ggA a b = gtA a b || infinite b 
 
 gtA a b = not (geA b a)
 
