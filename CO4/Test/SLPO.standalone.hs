@@ -135,19 +135,19 @@ lexi cs = case cs of
 
 data Direction = Original | Reversed
 
-data QP = QP Direction (Tree Nat8)
+data QP = QP Direction (Tree Nat)
 
 tree qp = case qp of QP dir t -> t
 direction qp = case qp of QP dir t -> dir
 
 type Preorder s = s -> s -> Comp
 
-compareS :: Tree Nat8 -> Preorder Symbol
+compareS :: Tree Nat -> Preorder Symbol
 compareS t x y = 
     let qx = get t x ; qy = get t y
-    in  case eqNat8 qx qy of
+    in  case eqNat qx qy of
             True -> GreaterEquals
-            False -> case gtNat8 qx qy of
+            False -> case gtNat qx qy of
                  True -> Greater
                  False -> None
 
@@ -158,7 +158,7 @@ lpoGT comp xs ys = case xs of
     [] -> False
     x : xs' -> lpoGE comp xs' ys || case ys of
         [] -> True
-        y : ys' -> lpoGE comp xs ys' && case comp x y of
+        y : ys' -> lpoGT comp xs ys' && case comp x y of
              Greater -> True
              GreaterEquals -> lpoGT comp xs' ys' 
              None -> False
