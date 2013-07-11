@@ -31,10 +31,10 @@ import qualified Text.PrettyPrint.Leijen as PP
 
 import System.Console.GetOpt
 
-$( runIO $ configurable [ Verbose
-                        , ImportPrelude
+$( runIO $ configurable [ ImportPrelude
                         -- , DumpAll "/tmp/sl" 
-                        , Profile
+                        -- , Verbose
+                        -- , Profile
                         , Cache
                         ] 
          $ compileFile "CO4/Test/SL.standalone.hs" )
@@ -115,7 +115,7 @@ config0 = Config
          { bits_for_model = 1 
          , number_of_interpretations = 2
          , dimension_for_matrices = 1
-         , bits_for_numbers = 8
+         , bits_for_numbers = 4
          }
 
 options = [ Option ['m'] ["model"]
@@ -127,6 +127,9 @@ options = [ Option ['m'] ["model"]
           , Option ['d'] ["dimension"]
              (ReqArg ( \ s conf -> conf { dimension_for_matrices = read s } ) "Int")
              "(arctic) matrix dimension"
+          , Option ['b'] ["bits"]
+             (ReqArg ( \ s conf -> conf { bits_for_numbers = read s } ) "Int")
+             "bits for numbers"
           ]
 
 
@@ -174,9 +177,10 @@ solveTPDB conf sys = do
           v <- maybeToList $ M.lookup pre m'
           return ((v, fromBin post), mat)
 
+  print conf
   print $ TPDB.pretty sys
-  print srs
-  print m
+  -- print srs
+  -- print m
 
   let alloc = uLab conf srs
   solution <- solveAndTestP 
