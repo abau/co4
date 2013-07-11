@@ -84,7 +84,8 @@ uMatrix dim bits =
     kList dim $ kList dim $ uArctic bits
 
 uInter bits_for_symbols dim bits_for_numbers = 
-   uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
+    known 0 1 [ uTree bits_for_symbols ( uMatrix dim bits_for_numbers )
+              ]
 
 toBin :: Int -> [Bool]
 toBin x = 
@@ -171,8 +172,9 @@ solveTPDB conf sys = do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
 
-      bdt2labelled_int t = M.fromList $ do
-          (xs, mat) <- M.toList $ bdt2map t
+      bdt2labelled_int i = M.fromList $ do
+          (xs, mat) <- M.toList $ bdt2map $ case i of
+               Arctic_Interpretation ai -> ai
           let (pre,post) = splitAt bits_for_symbols xs
           v <- maybeToList $ M.lookup pre m'
           return ((v, fromBin post), mat)
