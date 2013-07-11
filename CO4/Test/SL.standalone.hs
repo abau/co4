@@ -12,7 +12,9 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
-type Interpretation = Tree (Matrix Arctic)
+data Interpretation 
+     = Arctic_Interpretation (Tree (Matrix Arctic))
+
 data Label = Label Model [ Interpretation ] [ Bool ]
 
 
@@ -51,7 +53,7 @@ labelled srs mod =
 
 type Value = [Bool]
 
--- labelledW :: Model -> [Symbol] -> Value -> (Value,[Symbol])
+labelledW :: Model -> [Symbol] -> Value -> (Value,[Symbol])
 labelledW mod w k = case assertKnown w of
             [] -> (k, [])
             x:xs' -> case labelledW mod xs' k of
@@ -65,12 +67,12 @@ labelledW_app x k' = x ++ assertKnown k'
 data Tree a = Leaf a | Branch (Tree a) (Tree a) -- deriving Eq
 
 
--- keys :: Tree a -> [[Bool]]
+keys :: Tree a -> [[Bool]]
 keys t = case t of
     Leaf _ -> [[]]
     Branch l r -> map (False :) (keys l) ++ map (True :) (keys r)
 
--- leftmost :: Tree a -> a
+leftmost :: Tree a -> a
 leftmost t = case t of
     Leaf x -> x
     Branch l r -> leftmost l
@@ -103,10 +105,10 @@ get t p = case assertKnown p of
 -- * lex. combination
 
 
--- comps :: [ Interpretation ] -> Rule -> Comp
+comps :: [ Interpretation ] -> Rule -> Comp
 comps is u = lexi (map (\ i -> comp i u) is)
 
--- lexi :: [Comp] -> Comp
+lexi :: [Comp] -> Comp
 lexi cs = case cs of
     [] -> Equals
     c : cs' -> case c of
@@ -122,16 +124,19 @@ isNone c = case c of { None -> True ; _ -> False }
 isGreater c = case c of { Greater -> True ; _ -> False }
 
 comp :: Interpretation -> Rule -> Comp
-comp i u = case iRule i u of
-    (l,r) -> case gg0MA l r of
-        True ->  Greater
-        False -> case geMA l r of
-            True -> Equals
-            False -> None
+comp i u = case i of
+    Arctic_Interpretation ai -> 
+        case iRuleA ai u of
+        (l,r) -> case gg0MA l r of
+            True ->  Greater
+            False -> case geMA l r of
+                True -> Equals
+                False -> None
 
 
 positiveI :: Interpretation -> Bool
-positiveI i = allI ( \ m -> positiveM m ) i
+positiveI i = case i of
+    Arctic_Interpretation ai -> allI ( \ m -> positiveM m ) ai
 
 allI :: (a -> Bool) -> Tree a -> Bool
 allI prop t = case t of
@@ -164,14 +169,14 @@ eqSymbol p q = (p == q ) && case p of
          True -> True ; False -> True
 
 
-iWord i w = case w of
+iWordA i w = case w of
     [] -> undefined
     x : xs -> let m = iSymbol i x 
               in case xs of
                     [] -> m
-                    _  -> timesMA m (iWord i xs)
+                    _  -> timesMA m (iWordA i xs)
 
-iRule i u = case u of (l,r) -> (iWord i l, iWord i r)
+iRuleA i u = case u of (l,r) -> (iWordA i l, iWordA i r)
 
 --iSRS i s = map (iRule i) s
 
@@ -196,6 +201,7 @@ dot :: [Arctic] -> [Arctic] -> Arctic
 dot xs ys = sumA ( zipWith timesA xs ys)
 
 sumA xs = foldr plusA MinusInfinity xs
+
 
 -- * arctic operations:
 
