@@ -198,9 +198,11 @@ solveTPDB conf sys = do
     Nothing -> return ()
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
-        void $ forM ints $ \ (Interpretation tag ai ni) -> print $ case tag of
-            Arctic_Tag  -> PP.pretty $ bdt2labelled_int ai
-            Natural_Tag -> PP.pretty $ bdt2labelled_int ni
+        void $ forM ints $ \ (Interpretation tag ai ni) -> do
+            print (tag,  case tag of
+                Arctic_Tag  -> PP.pretty $ bdt2labelled_int ai
+                Natural_Tag -> PP.pretty $ bdt2labelled_int ni
+                  )
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers
