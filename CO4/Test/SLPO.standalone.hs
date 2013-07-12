@@ -112,16 +112,17 @@ isGreater c = case c of { Greater -> True ; _ -> False }
 comps :: [ QP ] -> Rule -> Comp
 comps qps u = lexi (map ( \ qp -> comp qp u) qps )
 
+-- | this is inefficient (merging creates unknown tree nodes)
 comp_1 :: QP -> Rule -> Comp
 comp_1 qp (l,r) = 
     let directed w = case direction qp of
              Original -> w ; Reversed -> reverse w
-    in  compareW (compareS (tree qp)) (directed l)(directed r)
+    in  compareW (compareS (order qp)) (directed l)(directed r)
 
 comp :: QP -> Rule -> Comp
 comp qp (l,r) = case direction qp of
-    Original -> compareW (compareS (tree qp)) l r
-    Reversed -> compareW (compareS (tree qp)) (reverse l) (reverse r)
+    Original -> compareW (compareS (order qp)) l r
+    Reversed -> compareW (compareS (order qp)) (reverse l) (reverse r)
 
 lexi :: [Comp] -> Comp
 lexi cs = case cs of
@@ -135,10 +136,15 @@ lexi cs = case cs of
 
 data Direction = Original | Reversed
 
-data QP = QP Direction (Tree Nat)
+data QP = 
+     QP Direction 
+        (Tree Bool) -- ^ False: delete symbol
+        (Tree Nat) -- ^  height in the precedence
 
-tree qp = case qp of QP dir t -> t
-direction qp = case qp of QP dir t -> dir
+
+direction qp = case qp of QP dir del ord -> dir
+delete    qp = case qp of QP dir del ord -> del
+order     qp = case qp of QP dir del ord -> ord
 
 type Preorder s = s -> s -> Comp
 
