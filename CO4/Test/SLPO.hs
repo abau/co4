@@ -202,12 +202,22 @@ for = flip map
 
 data Qup s = Qup Direction (M.Map s Bool) (M.Map s Nat)
 
-instance PP.Pretty s => PP.Pretty (Qup s) where
-    pretty (Qup dir del ord) = PP.vcat 
+instance (Ord s, PP.Pretty s ) => PP.Pretty (Qup s) where
+    pretty (Qup dir del ord) = 
+        let deleted = M.keys $ M.filter id del
+            ord' = M.filterWithKey ( \ k v -> not $ del M.! k ) ord
+            levels = reverse $ map snd $ M.toAscList
+                   $ M.fromListWith (++) $ map ( \ (k,v) -> (v,[k]) ) $ M.toList ord'
+            plevels = PP.hsep $ PP.punctuate ( PP.text " >" ) 
+                    $ for levels $ \ xs -> 
+                      PP.hsep $ PP.punctuate ( PP.text " =" )
+                    $ for xs PP.pretty
+        in  PP.text "LPO" PP.</> PP.nest 4 ( PP.vcat 
                 [ PP.text "direction:" PP.<+> PP.pretty dir
-                , PP.text "delete:" PP.<+> PP.pretty del
-                , PP.text "heights:" PP.<+> PP.pretty ord
-                ]
+                -- , PP.text "heights:" PP.<+> PP.pretty ord'
+                , PP.text "delete symbols:" PP.<+> PP.hsep (map PP.pretty deleted)
+                , PP.text "precedence:" PP.<+> plevels
+                ] )
 
 data Labelled s = Labelled { symbol :: s, label :: [ Bool ] }
     deriving (Eq, Ord)
