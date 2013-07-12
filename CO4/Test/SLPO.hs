@@ -58,7 +58,10 @@ uModel sym_bits model_bits = uTree sym_bits
                            $ kList model_bits uBool
 
 uQuasiPrec bits_for_symbols = 
-    known 0 1 [ uBool, uTree bits_for_symbols $ uNat bits_for_symbols ]
+    known 0 1 [ uBool
+              , uTree bits_for_symbols $ uBool
+              , uTree bits_for_symbols $ uNat bits_for_symbols 
+              ]
 
 uLab conf srs =
     let sigma = nub $ do (l,r) <- srs ;  l ++ r
@@ -180,8 +183,9 @@ solveTPDB conf sys = do
     Nothing -> return ()
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
-        void $ forM ints $ \ (QP dir tree) -> 
-            print $ PP.pretty (dir, bdt2labelled_int tree)
+        void $ forM ints $ \ (QP dir del ord) -> 
+            print $ PP.pretty (dir, bdt2labelled_int del
+                                  , bdt2labelled_int ord )
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers
