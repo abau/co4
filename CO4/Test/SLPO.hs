@@ -162,12 +162,14 @@ solveTPDB conf sys = do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
 
+      mklab xs = 
+          let (pre,post) = splitAt bits_for_symbols xs
+              v = M.findWithDefault (TPDB.mkunary "?") pre m' 
+          in  Labelled { symbol = v, label = post }
+
       bdt2labelled_int t = M.fromList $ do
           (xs, mat) <- M.toList $ bdt2map t
-          let (pre,post) = splitAt bits_for_symbols xs
-          v <- maybeToList $ M.lookup pre m'
-          return ((v, fromBin post), mat)
-
+          return (mklab xs, mat)
 
   print $ TPDB.pretty sys
   print conf
@@ -182,16 +184,37 @@ solveTPDB conf sys = do
   case solution of
     Nothing -> return ()
     Just (Label mod ints remove) -> do
-        void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
+        print $ PP.text "model" PP.<+> PP.pretty ( M.toList $ bdt2int mod )
+        let srs' = labelled srs mod
+        print $ ( PP.text "labelled system" PP.</> ) $ 
+            PP.vcat $ for (labelled srs mod) $ \ subsrs -> 
+                PP.vcat $ for subsrs $ \ ((lval,rval),(lhs,rhs)) -> 
+                    PP.hsep $  map ( PP.pretty . mklab ) lhs
+                            ++ [ PP.text "->" ]
+                            ++ map ( PP.pretty . mklab ) rhs
         void $ forM ints $ \ (QP dir del ord) -> 
-            print $ PP.vcat 
-                [ PP.text "direction:" PP.<+> PP.pretty dir
-                , PP.text "delete:" PP.<+> PP.pretty (bdt2labelled_int del)
-                , PP.text "heights:" PP.<+> PP.pretty (bdt2labelled_int ord )
-                ]
+            print $ PP.pretty $ Qup dir (bdt2labelled_int del) ( bdt2labelled_int ord )
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
+for = flip map
+
 -- * pretty printers
+
+data Qup s = Qup Direction (M.Map s Bool) (M.Map s Nat)
+
+instance PP.Pretty s => PP.Pretty (Qup s) where
+    pretty (Qup dir del ord) = PP.vcat 
+                [ PP.text "direction:" PP.<+> PP.pretty dir
+                , PP.text "delete:" PP.<+> PP.pretty del
+                , PP.text "heights:" PP.<+> PP.pretty ord
+                ]
+
+data Labelled s = Labelled { symbol :: s, label :: [ Bool ] }
+    deriving (Eq, Ord)
+
+instance PP.Pretty s => PP.Pretty (Labelled s) where
+    pretty ls = PP.pretty (symbol ls) PP.<> PP.pretty (fromBin $ label ls)
+
 
 instance PP.Pretty Nat where pretty = PP.text . show 
 
