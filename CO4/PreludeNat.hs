@@ -16,6 +16,7 @@ where
 import           Prelude hiding (not,and,or)
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM)
+import Data.Function (on)
 import qualified Data.Map as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
@@ -32,6 +33,9 @@ data Nat = Nat { width :: Int
 
 instance Eq Nat where
   (==) = eqNat
+
+instance Ord Nat where
+  compare = compare `on` value
 
 instance Show Nat where
   show = show . value
