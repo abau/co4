@@ -117,12 +117,15 @@ comp_1 :: QP -> Rule -> Comp
 comp_1 qp (l,r) = 
     let directed w = case direction qp of
              Original -> w ; Reversed -> reverse w
-    in  compareW (compareS (order qp)) (directed l)(directed r)
+    in  compareW (\ x -> get (delete qp) x)
+                 (compareS (order qp)) (directed l)(directed r)
 
 comp :: QP -> Rule -> Comp
 comp qp (l,r) = case direction qp of
-    Original -> compareW (compareS (order qp)) l r
-    Reversed -> compareW (compareS (order qp)) (reverse l) (reverse r)
+    Original -> compareW (\ x -> get (delete qp) x)
+                         (compareS (order qp)) l r
+    Reversed -> compareW (\ x -> get (delete qp) x)
+                         (compareS (order qp)) (reverse l) (reverse r)
 
 lexi :: [Comp] -> Comp
 lexi cs = case cs of
@@ -157,35 +160,48 @@ compareS t x y =
                  True -> Greater
                  False -> None
 
+type Delete s = s -> Bool
+
 -- | this relies on memoization (else, it is inefficient)
 
-lpoGT :: Preorder s -> [s] -> [s] -> Bool
-lpoGT comp xs ys = case xs of
+lpoGT :: Delete s -> Preorder s -> [s] -> [s] -> Bool
+lpoGT del comp xs ys = case xs of
     [] -> False
-    x : xs' -> lpoGE comp xs' ys || case ys of
-        [] -> True
-        y : ys' -> lpoGT comp xs ys' && case comp x y of
-             Greater -> True
-             GreaterEquals -> lpoGT comp xs' ys' 
-             None -> False
+    x : xs' -> case del x of
+       True -> lpoGT del comp xs' ys
+       False -> lpoGE del comp xs' ys || case ys of
+          [] -> True
+          y : ys' -> case del y of
+              True -> lpoGT del comp (x:xs') ys'
+              False -> lpoGT del comp xs ys' && case comp x y of
+                  Greater -> True
+                  GreaterEquals -> lpoGT del comp xs' ys' 
+                  None -> False
 
-lpoGE :: Preorder s -> [s] -> [s] -> Bool
-lpoGE comp xs ys = lpoEQ comp xs ys || lpoGT comp xs ys
+lpoGE :: Delete s -> Preorder s -> [s] -> [s] -> Bool
+lpoGE del comp xs ys = lpoEQ del comp xs ys || lpoGT del comp xs ys
 
-lpoEQ :: Preorder s -> [s] -> [s] -> Bool
-lpoEQ comp xs ys = case xs of
+lpoEQ :: Delete s -> Preorder s -> [s] -> [s] -> Bool
+lpoEQ del comp xs ys = case xs of
     [] -> case ys of
         [] -> True
-        y : ys' -> False
-    x : xs' -> case ys of
-        [] -> False
-        y : ys' -> isGreaterEquals (comp x y) && lpoEQ comp xs' ys'
+        y : ys' -> case del y of
+           True -> lpoEQ del comp xs ys'
+           False -> False
+    x : xs' -> case del x of
+        True -> lpoEQ del comp xs' ys
+        False -> case ys of
+            [] -> False
+            y : ys' -> case del y of
+                True -> lpoEQ del comp (x:xs') ys'
+                False -> isGreaterEquals (comp x y) 
+                      && lpoEQ del comp xs' ys'
 
-compareW :: Preorder s -> Preorder [s]
-compareW comp xs ys = 
-    case lpoGT comp xs ys of
+compareW :: Delete s -> Preorder s -> Preorder [s]
+compareW del comp xs ys = 
+    case lpoGT del comp xs ys of
         True -> Greater
-        False -> case lpoGE comp xs ys of
+        False -> case lpoGE del comp xs ys of
            True -> GreaterEquals
            False -> None
 
