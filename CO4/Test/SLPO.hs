@@ -184,8 +184,11 @@ solveTPDB conf sys = do
     Just (Label mod ints remove) -> do
         void $ forM (M.toList $ bdt2int mod) (print . PP.pretty)
         void $ forM ints $ \ (QP dir del ord) -> 
-            print $ PP.pretty (dir, bdt2labelled_int del
-                                  , bdt2labelled_int ord )
+            print $ PP.vcat 
+                [ PP.text "direction:" PP.<+> PP.pretty dir
+                , PP.text "delete:" PP.<+> PP.pretty (bdt2labelled_int del)
+                , PP.text "heights:" PP.<+> PP.pretty (bdt2labelled_int ord )
+                ]
         print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
         
 -- * pretty printers
