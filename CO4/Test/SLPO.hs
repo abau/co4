@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# language OverloadedStrings #-}
 
 module Main where
 
@@ -27,8 +28,8 @@ import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
 import qualified TPDB.Plain.Read as TPDB
 
-import qualified Text.PrettyPrint.Leijen as PP
-
+import qualified Text.PrettyPrint.Leijen.Text as PP
+import Data.Text.Lazy (pack)
 import System.Console.GetOpt
 
 $( runIO $ configurable [ Verbose
@@ -131,7 +132,19 @@ main = do
 example = case TPDB.srs "(RULES a a -> a b a)" of 
     Right sys -> solveTPDB config0 sys
 
-solve conf filePath = TPDB.get_srs filePath >>= solveTPDB conf
+solve conf filePath = TPDB.get_srs filePath >>= solve_completely conf
+
+solve_completely conf sys = do
+    print $ TPDB.text "input" PP.<+> TPDB.pretty sys
+    if null $ TPDB.rules sys
+       then do
+           print $ PP.text "is terminating since it is empty"
+       else do
+           print conf
+           out <- solveTPDB conf sys
+           case out of
+               Nothing -> print $ PP.text "giving up"
+               Just sys' -> solve_completely conf sys'
 
 solveTPDB conf sys = do
 
@@ -162,14 +175,16 @@ solveTPDB conf sys = do
                   (k,v) <- M.toList $ bdt2map t
                   return ( fromBin k, fromBin v )
 
-      mklab xs = 
+      mklab xs = do
           let (pre,post) = splitAt bits_for_symbols xs
-              v = M.findWithDefault (TPDB.mkunary "?") pre m' 
-          in  Labelled { symbol = v, label = post }
+          case M.lookup pre m'  of
+              Nothing -> []
+              Just v  -> return $ Labelled { symbol = v, label = post }
 
       bdt2labelled_int t = M.fromList $ do
           (xs, mat) <- M.toList $ bdt2map t
-          return (mklab xs, mat)
+          l <- mklab xs
+          return (l, mat)
 
   print $ TPDB.pretty sys
   print conf
@@ -182,19 +197,28 @@ solveTPDB conf sys = do
       alloc encConstraint constraint
 
   case solution of
-    Nothing -> return ()
+    Nothing -> return Nothing
     Just (Label mod ints remove) -> do
-        print $ PP.text "model" PP.<+> PP.pretty ( M.toList $ bdt2int mod )
+        print $ TPDB.pretty sys
+        print $ "model:" PP.<$> PP.indent 4 ( PP.vcat
+              $ for  ( M.toList $ bdt2int mod ) $ \ (k, v) -> 
+                PP.hsep $ for (M.toList v ) $ \ (from,to) -> 
+                    PP.hcat [ PP.pretty to, PP.pretty k, PP.pretty from ] 
+              )
         let srs' = labelled srs mod
-        print $ ( PP.text "labelled system" PP.</> ) $ 
+        print $ ( "labelled system:" PP.<$> ) $ PP.indent 4 $ 
             PP.vcat $ for (labelled srs mod) $ \ subsrs -> 
                 PP.vcat $ for subsrs $ \ ((lval,rval),(lhs,rhs)) -> 
-                    PP.hsep $  map ( PP.pretty . mklab ) lhs
-                            ++ [ PP.text "->" ]
-                            ++ map ( PP.pretty . mklab ) rhs
+                    PP.hsep $  map ( PP.pretty . head . mklab ) lhs
+                            ++ [ "->" ]
+                            ++ map ( PP.pretty . head . mklab ) rhs
         void $ forM ints $ \ (QP dir del ord) -> 
-            print $ PP.pretty $ Qup dir (bdt2labelled_int del) ( bdt2labelled_int ord )
-        print $ TPDB.pretty ( zip (TPDB.rules sys) remove )
+            print $ PP.pretty $ Qup dir (bdt2labelled_int del) 
+                                        (bdt2labelled_int ord )
+        let annotated = zip (TPDB.rules sys) remove 
+            remaining = TPDB.with_rules sys $ map fst $ filter (not . snd) annotated
+        print $ TPDB.pretty annotated
+        return $ Just remaining
         
 for = flip map
 
@@ -208,15 +232,15 @@ instance (Ord s, PP.Pretty s ) => PP.Pretty (Qup s) where
             ord' = M.filterWithKey ( \ k v -> not $ del M.! k ) ord
             levels = reverse $ map snd $ M.toAscList
                    $ M.fromListWith (++) $ map ( \ (k,v) -> (v,[k]) ) $ M.toList ord'
-            plevels = PP.hsep $ PP.punctuate ( PP.text " >" ) 
+            plevels = PP.hsep $ PP.punctuate ( " >" ) 
                     $ for levels $ \ xs -> 
-                      PP.hsep $ PP.punctuate ( PP.text " =" )
+                      PP.hsep $ PP.punctuate ( " =" )
                     $ for xs PP.pretty
-        in  PP.text "LPO" PP.</> PP.nest 4 ( PP.vcat 
-                [ PP.text "direction:" PP.<+> PP.pretty dir
-                -- , PP.text "heights:" PP.<+> PP.pretty ord'
-                , PP.text "delete symbols:" PP.<+> PP.hsep (map PP.pretty deleted)
-                , PP.text "precedence:" PP.<+> plevels
+        in  "LPO" PP.<$> PP.indent 4 ( PP.vcat 
+                [ "direction:" PP.<+> PP.pretty dir
+                -- , "heights:" PP.<+> PP.pretty ord'
+                , "delete symbols:" PP.<+> PP.hsep (map PP.pretty deleted)
+                , "precedence:" PP.<+> plevels
                 ] )
 
 data Labelled s = Labelled { symbol :: s, label :: [ Bool ] }
@@ -226,12 +250,10 @@ instance PP.Pretty s => PP.Pretty (Labelled s) where
     pretty ls = PP.pretty (symbol ls) PP.<> PP.pretty (fromBin $ label ls)
 
 
-instance PP.Pretty Nat where pretty = PP.text . show 
+instance PP.Pretty Nat where pretty = PP.text . pack . show 
 
-instance PP.Pretty Direction where pretty = PP.text . show
+instance PP.Pretty Direction where pretty = PP.text . pack . show
 
 instance (PP.Pretty k, PP.Pretty v) => PP.Pretty (M.Map k v) where
     pretty m = PP.pretty $ M.toList m
-
-instance PP.Pretty TPDB.Identifier where pretty = PP.text . show
 
