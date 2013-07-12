@@ -71,7 +71,8 @@ uMatrix dim elem =
     kList dim $ kList dim $ elem 
 
 uInter bits_for_symbols dim bfn = known 0 1
-    [ constructors [ Just [], Just [] ]
+    [ known 1 1 [] -- just natural
+      -- constructors [ Just [], Just [] ]
     , uTree bits_for_symbols ( uMatrix dim $ uArctic bfn ) 
     , uTree bits_for_symbols ( uMatrix dim $ uNat    bfn ) 
     ]
@@ -184,8 +185,8 @@ solveTPDB conf sys = do
           v <- maybeToList $ M.lookup pre m'
           return ((v, fromBin post), mat)
 
-  print conf
   print $ TPDB.pretty sys
+  print conf
   -- print srs
   -- print m
 
@@ -194,6 +195,8 @@ solveTPDB conf sys = do
       srs 
       alloc encConstraint constraint
 
+  print $ TPDB.pretty sys
+  print conf
   case solution of
     Nothing -> return ()
     Just (Label mod ints remove) -> do
