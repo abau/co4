@@ -1,6 +1,6 @@
 module WCB where
 
-import CO4.Test.WCB_Nat8
+-- import CO4.Test.WCB_Nat8
 
 -- | explicit binary encoding for bases
 data Base = Base [Bool] -- of length 2
@@ -20,7 +20,7 @@ type Secondary = [Paren]
 
 
 
-data Energy = MinusInfinity | Finite Nat8 --  deriving Show
+data Energy = MinusInfinity | Finite Nat --  deriving Show
 
 
 -- the main constraint
@@ -38,14 +38,14 @@ main_with_stability s p = case maxbound_double p of
 
 -- | result: the maximum possible energy that can be bound here
 maxbound_single :: Primary -> Energy
-maxbound_single p = maxbound MinusInfinity (Finite (nat8 0)) plus times cost p
+maxbound_single p = maxbound MinusInfinity (Finite (nat 8 0)) plus times cost p
 
 -- | result (first, second) best bound energy
 maxbound_double :: Primary 
                 -> (Energy, Energy) 
 maxbound_double p = maxbound
     ( MinusInfinity, MinusInfinity )
-    ( Finite (nat8 0), MinusInfinity )
+    ( Finite (nat 8 0), MinusInfinity )
     ( \ (f1, s1) (f2, s2) -> ( maxEnergy f1 f2
                              , maxEnergy ( minEnergy f1 f2 )
                                  (maxEnergy s2 s2 ) ) )
@@ -68,19 +68,19 @@ geEnergy a b = case b of
   MinusInfinity -> True
   Finite b' -> case a of 
     MinusInfinity -> False
-    Finite a' -> geNat8 a' b'
+    Finite a' -> geNat a' b'
 
 plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (maxNat8 x y)
+    Finite y      -> Finite (maxNat x y)
     MinusInfinity -> e
   MinusInfinity -> f
 
 times :: Energy -> Energy -> Energy
 times e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (plusNat8 x y)
+    Finite y      -> Finite (plusNat x y)
     MinusInfinity -> MinusInfinity
   MinusInfinity -> MinusInfinity
 
@@ -90,7 +90,7 @@ bound p s = parse [] p s
 parse :: [ Base ] -> Primary -> Secondary -> Energy
 parse stack p s = case s of
     [] -> case stack of
-         [] -> Finite (nat8 0)
+         [] -> Finite (nat 8 0)
          _ -> MinusInfinity
     y:ys -> case p of
          [] -> MinusInfinity
@@ -166,7 +166,7 @@ cost :: Base -> Base -> Energy
 cost b1 b2 = applyB b2 ( applyB b1 costT )
 
 mi = MinusInfinity
-one = Finite (nat8 1)
+one = Finite (nat 8 1)
  
 -- | FIXME: unit cost model (each base pair binds 1)
 costT :: Tree (Tree Energy)

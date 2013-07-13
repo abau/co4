@@ -26,9 +26,6 @@ $( runIO $ configurable [ImportPrelude
 -- uBase = constructors [ Just [], Just [], Just [], Just []]
 uBase = known 0 1 [ kList 2 uBool ]
 
-kList 0 a = known 0 2 []
-kList i a = known 1 2 [ a , kList (i-1) a]
-
 inforna cs = map ( \ c -> case c of
     '(' -> Open ; '.' -> Blank ; ')' -> Close ) cs
 
