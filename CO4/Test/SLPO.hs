@@ -27,6 +27,8 @@ import qualified TPDB.Input as TPDB
 import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
 import qualified TPDB.Plain.Read as TPDB
+import TPDB.DP (dp)
+import TPDB.Convert (srs2trs, trs2srs)
 
 import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Text.Lazy (pack)
@@ -115,7 +117,8 @@ alphabet sys = nub $ concat
 
 
 data Config =
-     Config { bits_for_model :: Int
+     Config { use_dp_transform :: Bool
+             , bits_for_model :: Int
              , number_of_interpretations :: Int
              , dimension_for_matrices :: Int
              , bits_for_numbers :: Int
@@ -123,13 +126,17 @@ data Config =
     deriving Show
 
 config0 = Config
-         { bits_for_model = 1 
+         { use_dp_transform = False
+         , bits_for_model = 1 
          , number_of_interpretations = 2
          , dimension_for_matrices = 2
          , bits_for_numbers = 4
          }
 
-options = [ Option ['m'] ["model"]
+options = [ Option [] ["dp" ] 
+             (NoArg ( \ conf -> conf { use_dp_transform = True } ) )
+             "use dependency pairs transformation"
+          , Option ['m'] ["model"]
              (ReqArg ( \ s conf -> conf { bits_for_model = read s } ) "Int")
              "bits for model"
           , Option ['i'] ["interpretations"]
@@ -156,8 +163,15 @@ main = do
 example = case TPDB.srs "(RULES a a -> a b a)" of 
     Right sys -> solveTPDB config0 sys
 
-solve conf filePath = TPDB.get_srs filePath >>= solve_completely conf
+solve conf filePath = do
+    sys <- TPDB.get_srs filePath 
+    case use_dp_transform conf of
+            False -> solve_completely conf sys
+            True  -> solve_completely conf
+                     $ maybe (error "huh") id $ trs2srs $ dp $ srs2trs sys
 
+solve_completely :: ( Ord i, PP.Pretty i )
+                 => Main.Config -> TPDB.SRS i -> IO ()
 solve_completely conf sys = do
     print $ TPDB.text "input" PP.<+> TPDB.pretty sys
     if null $ TPDB.strict_rules sys
@@ -170,9 +184,11 @@ solve_completely conf sys = do
                Nothing -> print $ PP.text "giving up"
                Just sys' -> solve_completely conf sys'
 
+solveTPDB :: (Ord i, PP.Pretty i ) 
+          => Main.Config -> TPDB.SRS i -> IO (Maybe (TPDB.SRS i))
 solveTPDB conf sys = do
 
-  let sigma = alphabet sys
+  let sigma = nub $ do u <- TPDB.rules sys ; TPDB.lhs u ++ TPDB.rhs u
       bits_for_symbols = length $ toBin $ length sigma - 1
       m = M.fromList $ zip sigma $ map (toBin' bits_for_symbols) [ 0 .. ]
       m' = M.fromList $ zip (map (toBin' bits_for_symbols) [0..]) sigma
