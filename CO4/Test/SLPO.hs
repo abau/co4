@@ -65,8 +65,8 @@ uQuasiPrec bits_for_symbols =
               ]
 
 uLab conf srs =
-    let sigma = nub $ do (l,r) <- srs ;  l ++ r
-        width = maximum $ do (l,r) <- srs; map length [l,r]
+    let sigma = nub $ do u <- srs ;  lhs u ++ rhs u
+        width = maximum $ do u <- srs; map length [lhs u,rhs u]
         bits_for_symbols = maximum $ map length sigma 
     in  known 0 1 
            [ uModel bits_for_symbols (bits_for_model conf)
@@ -136,9 +136,9 @@ solve conf filePath = TPDB.get_srs filePath >>= solve_completely conf
 
 solve_completely conf sys = do
     print $ TPDB.text "input" PP.<+> TPDB.pretty sys
-    if null $ TPDB.rules sys
+    if null $ TPDB.strict_rules sys
        then do
-           print $ PP.text "is terminating since it is empty"
+           print $ PP.text "is (relatively) terminating since there are no (strict) rules"
        else do
            print conf
            out <- solveTPDB conf sys
@@ -153,8 +153,10 @@ solveTPDB conf sys = do
       m = M.fromList $ zip sigma $ map (toBin' bits_for_symbols) [ 0 .. ]
       m' = M.fromList $ zip (map (toBin' bits_for_symbols) [0..]) sigma
       f xs = map (m M.!) xs ; f' xs = map (m' M.!) xs
-      srs = map 
-        ( \ u -> ( f $ TPDB.lhs u, f $ TPDB.rhs u ) ) $ TPDB.rules sys
+      srs = for ( TPDB.rules sys ) $ \ u -> 
+          let mode = case TPDB.relation u of 
+                  TPDB.Strict -> Strict ; TPDB.Weak -> Weak
+          in  Rule mode ( f $ TPDB.lhs u ) ( f $ TPDB.rhs u ) 
 
       bdt2map t = let h t xs = case t of
                           Leaf y -> [(xs, y)]
@@ -206,12 +208,16 @@ solveTPDB conf sys = do
                     PP.hcat [ PP.pretty to, PP.pretty k, PP.pretty from ] 
               )
         let srs' = labelled srs mod
+            mkrule (Rule m l r) = TPDB.Rule { TPDB.relation = case m of
+                                         Strict -> TPDB.Strict ; Weak -> TPDB.Strict
+                                 , TPDB.lhs = map (head . mklab) l 
+                                 , TPDB.rhs = map (head . mklab) r
+                                 , TPDB.top = False -- ??
+                                 } 
         print $ ( "labelled system:" PP.<$> ) $ PP.indent 4 $ 
             PP.vcat $ for (labelled srs mod) $ \ subsrs -> 
-                PP.vcat $ for subsrs $ \ ((lval,rval),(lhs,rhs)) -> 
-                    PP.hsep $  map ( PP.pretty . head . mklab ) lhs
-                            ++ [ "->" ]
-                            ++ map ( PP.pretty . head . mklab ) rhs
+                PP.vcat $ for subsrs $ \ ((lval,rval), u ) -> 
+                    TPDB.pretty $ mkrule u
         void $ forM ints $ \ (QP dir del ord) -> 
             print $ PP.pretty $ Qup dir (bdt2labelled_int del) 
                                         (bdt2labelled_int ord )
@@ -221,6 +227,11 @@ solveTPDB conf sys = do
         return $ Just remaining
         
 for = flip map
+
+rulemap :: (a -> b) -> TPDB.Rule [a] -> TPDB.Rule [b]
+rulemap f u = u { TPDB.lhs = map f $ TPDB.lhs u
+                , TPDB.rhs = map f $ TPDB.rhs u
+                }
 
 -- * pretty printers
 

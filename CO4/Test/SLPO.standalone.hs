@@ -7,7 +7,13 @@ import CO4.PreludeNat
 
 type Symbol =  [ Bool ]
 type Word = [ Symbol ]
-type Rule = ( Word , Word )
+
+data Mode = Strict | Weak deriving ( Eq, Show )
+data Rule = Rule Mode Word Word deriving ( Eq, Show )
+mode :: Rule -> Mode ; mode (Rule m l r) = m
+lhs :: Rule -> Word ; lhs (Rule m l r) = l
+rhs :: Rule -> Word ; rhs (Rule m l r) = r
+
 type SRS = [ Rule ]
 
 
@@ -42,10 +48,9 @@ type Func = Tree [Bool]
 labelled :: SRS -> Model -> [ [ ((Value,Value),Rule) ] ]
 labelled srs mod =
     let ks = keys ( leftmost mod )
-        labelRule u k = case u of 
-            (l,r) -> case labelledW mod l k of 
-                ( ltop, l' ) -> case labelledW mod r k of 
-                    ( rtop, r' ) -> ((ltop,rtop),(l',r'))
+        labelRule u k = case labelledW mod (lhs u) k of 
+                ( ltop, l' ) -> case labelledW mod (rhs u) k of 
+                    ( rtop, r' ) -> ((ltop,rtop),Rule (mode u) l' r')
     in  map ( \ u ->  map ( \ k -> labelRule u k ) ks    ) srs 
 
 type Value = [Bool]
@@ -114,18 +119,18 @@ comps qps u = lexi (map ( \ qp -> comp qp u) qps )
 
 -- | this is inefficient (merging creates unknown tree nodes)
 comp_1 :: QP -> Rule -> Comp
-comp_1 qp (l,r) = 
+comp_1 qp u = 
     let directed w = case direction qp of
              Original -> w ; Reversed -> reverse w
     in  compareW (\ x -> get (delete qp) x)
-                 (compareS (order qp)) (directed l)(directed r)
+                 (compareS (order qp)) (directed (lhs u)) (directed (rhs u))
 
 comp :: QP -> Rule -> Comp
-comp qp (l,r) = case direction qp of
+comp qp u = case direction qp of
     Original -> compareW (\ x -> get (delete qp) x)
-                         (compareS (order qp)) l r
+                         (compareS (order qp)) (lhs u) (rhs u)
     Reversed -> compareW (\ x -> get (delete qp) x)
-                         (compareS (order qp)) (reverse l) (reverse r)
+                         (compareS (order qp)) (reverse (lhs u)) (reverse (rhs u))
 
 lexi :: [Comp] -> Comp
 lexi cs = case cs of
