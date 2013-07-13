@@ -3,6 +3,7 @@
 -- |Namelike definitions
 module CO4.Names 
   ( Namelike (..), convertName, funName, listName, consName, eqName, tupleName
+  , maybeName, eitherName, orderingName
   , natName, natTypeName, intName, boolName, mainName, deprecatedMainName
   )
 where
@@ -54,6 +55,15 @@ listName = readName "[]"
 
 consName :: Namelike n => n
 consName = readName ":"
+
+maybeName :: Namelike n => n
+maybeName = readName "Maybe"
+
+eitherName :: Namelike n => n
+eitherName = readName "Either"
+
+orderingName :: Namelike n => n
+orderingName = readName "Ordering"
 
 eqName :: Namelike n => n
 eqName = readName "=="

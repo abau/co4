@@ -52,25 +52,29 @@ preludeFunctionDeclarations = [
   , [dec| tail xs = case xs of { [] -> []; (_:ys) -> ys } |]
   , [dec| last xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] ->  x ; _  -> last ys } } |]
   , [dec| init xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] -> [] ; _  -> x : init ys } } |]
+  , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
+  , [dec| concat = foldr (++) [] |]
   -- Functions
   , [dec| id x = x |]
   , [dec| const x y = x |]
   , [dec| flip f x y = f y x |]
-  -- Booleans
+  -- Booleans (are built-in)
   -- , [dec| not x    = case x of { False -> True ; True -> False } |]
   -- , [dec| a && b   = case a of { False -> False ; True -> b } |]
   -- , [dec| a || b   = case a of { False -> b ; True -> True } |]
+  -- Tuples
+  , [dec| fst (x,_) = x |]
+  , [dec| snd (_,y) = y |]
+  -- maybe, either
+  , [dec| maybe nothing just m = case m of { Nothing -> nothing ; Just x -> just x } |]
+  , [dec| either left right e = case e of { Left x -> left x ; Right y -> right y } |]
+  -- more Lists
   , [dec| and xs   = foldl (&&) True xs |]
   , [dec| or  xs   = foldl (||) False xs |]
   , [dec| all f xs = and (map f xs) |]
   , [dec| any f xs = or  (map f xs) |]
-  -- Tuples
-  , [dec| fst (x,_) = x |]
-  , [dec| snd (_,y) = y |]
   , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
   , [dec| zipWith f xs ys = map (\(x,y) -> f x y) (zip xs ys) |]
-  , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
-  , [dec| concat = foldr (++) [] |]
   ]
 
 -- These declarations are not parsed by CO4.
@@ -87,6 +91,17 @@ preludeAdtDeclarations = [
   , DAdt (tupleName 3) [a,b,c]     [ CCon (tupleName 3) $ map TVar [a,b,c]     ]
   , DAdt (tupleName 4) [a,b,c,d]   [ CCon (tupleName 4) $ map TVar [a,b,c,d]   ]
   , DAdt (tupleName 5) [a,b,c,d,e] [ CCon (tupleName 5) $ map TVar [a,b,c,d,e] ]
+
+  , DAdt maybeName [a] [ CCon ( readName "Nothing") []
+                       , CCon ( readName "Just") $ map TVar [a]
+                       ]
+  , DAdt eitherName [a, b] [ CCon ( readName "Left") [ TVar a ]
+                       , CCon ( readName "Right") [ TVar b]
+                       ]
+  , DAdt orderingName [] [ CCon (readName "LT") []
+                         , CCon (readName "EQ") []
+                         , CCon (readName "GT") [] 
+                         ] 
   ]
   where
     [a,b,c,d,e] = map UntypedName ["a","b","c","d","e"]
@@ -99,6 +114,12 @@ unparsedPreludeContext = bind
   , (listName        , SForall a $ SType listT)
   , (consName        , SForall a $ SType $ functionType [TVar a,listT] listT)
   , mkTuple 2        , mkTuple 3 , mkTuple 4 , mkTuple 5
+  , ( maybeName      , SForall a $ SType maybeT )
+  , ("Nothing"       , SForall a $ SType maybeT )
+  , ("Just"          , SForall a $ SType $ functionType [TVar a] maybeT)
+  , ( eitherName     , SForall a $ SForall b $ SType eitherT )
+  , ("Left"          , SForall a $ SForall b $ SType $ functionType [ TVar a ] eitherT )
+  , ("Right"         , SForall a $ SForall b $ SType $ functionType [ TVar b ] eitherT )
   , (natName         , SType $ functionType [TCon intName [],TCon intName []] natT)
   , ("gtNat"         , SType $ functionType [natT,natT] boolT)
   , ("geNat"         , SType $ functionType [natT,natT] boolT)
@@ -118,9 +139,13 @@ unparsedPreludeContext = bind
   , ("xor2"          , SType $ functionType [boolT,boolT] boolT)
   ] emptyContext
   where 
-    names@(a:_) = map UntypedName ["a","b","c","d","e"]
+    names@(a:b:_) = map UntypedName ["a","b","c","d","e"]
     boolT       = TCon boolName []
     listT       = TCon listName [TVar a]
+
+    maybeT      = TCon maybeName [TVar a]
+    eitherT     = TCon eitherName [ TVar a, TVar b ]
+    orderingT   = TCon orderingName []
 
     mkTuple i = 
       let type_ = functionType (map TVar $ take i names) 
