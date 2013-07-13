@@ -125,8 +125,8 @@ data Config =
 config0 = Config
          { bits_for_model = 1 
          , number_of_interpretations = 2
-         , dimension_for_matrices = 1
-         , bits_for_numbers = 8
+         , dimension_for_matrices = 2
+         , bits_for_numbers = 4
          }
 
 options = [ Option ['m'] ["model"]
@@ -137,7 +137,10 @@ options = [ Option ['m'] ["model"]
              "number of interpretations"
           , Option ['d'] ["dimension"]
              (ReqArg ( \ s conf -> conf { dimension_for_matrices = read s } ) "Int")
-             "(arctic) matrix dimension"
+             "matrix dimension"
+          , Option ['b'] ["bits"]
+             (ReqArg ( \ s conf -> conf { bits_for_numbers = read s } ) "Int")
+             "bits for numbers"
           ]
 
 
