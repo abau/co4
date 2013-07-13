@@ -20,7 +20,22 @@ type SRS = [ Rule ]
 
 -- * label, then remove, then unlabel
 
-data Label = Label Model [ QP ] [ Bool ]
+data Label = Label Model [ Remove ] [ Bool ]
+
+
+-- | we want 
+-- data Remove = Remove_LPO QP | Remove_Interpretation Interpretation
+-- but see https://github.com/apunktbau/co4/issues/35
+
+data Remove_Tag = Remove_LPO | Remove_Interpretation
+    deriving ( Eq, Show )
+
+data Remove = Remove Remove_Tag QP Interpretation
+    deriving ( Show )
+
+tag (Remove t qp i) = t
+precedence (Remove t qp i) = qp
+interpretation (Remove t qp i) = i
 
 
 -- | lex. comb. of  interpretations removes one original rule completely 
@@ -31,10 +46,11 @@ constraint srs lab = case lab of
               srss = map (map snd) result
               values = concat ( map (map fst) result )
               css  = map (map (comps qps  )) srss
-          in     not ( any (any isNone) css )
-              && or remove
-              && eqSymbol remove ( map ( all isGreater ) css )
-              && all (\(ltop,rtop) -> eqSymbol ltop rtop) values
+          in     not ( any (any isNone) css ) -- ^ all are compatible at least weakly
+              && or remove -- ^ at least one strictly
+              && eqSymbol remove ( map ( all isGreater ) css ) -- ^ we guessed correctly
+              && all (\(ltop,rtop) -> eqSymbol ltop rtop) values -- ^ we have a model
+              && all ( \ rem -> case rem of Remove tag qp int -> positiveI int ) qps
 
 -- * model, labelling
 
@@ -66,7 +82,8 @@ labelledW mod w k = case assertKnown w of
 labelledW_app x k' = x ++ assertKnown k'
 
 -- | binary decision tree, used to map bitstrings to values
-data Tree a = Leaf a | Branch (Tree a) (Tree a) -- deriving Eq
+data Tree a = Leaf a | Branch (Tree a) (Tree a) 
+     deriving Show
 
 
 -- keys :: Tree a -> [[Bool]]
@@ -114,23 +131,9 @@ isGreater c = case c of { Greater -> True ; _ -> False }
 
 
 
-comps :: [ QP ] -> Rule -> Comp
-comps qps u = lexi (map ( \ qp -> comp qp u) qps )
+comps :: [ Remove ] -> Rule -> Comp
+comps rs u = lexi (map ( \ r -> comp r u) rs )
 
--- | this is inefficient (merging creates unknown tree nodes)
-comp_1 :: QP -> Rule -> Comp
-comp_1 qp u = 
-    let directed w = case direction qp of
-             Original -> w ; Reversed -> reverse w
-    in  compareW (\ x -> get (delete qp) x)
-                 (compareS (order qp)) (directed (lhs u)) (directed (rhs u))
-
-comp :: QP -> Rule -> Comp
-comp qp u = case direction qp of
-    Original -> compareW (\ x -> get (delete qp) x)
-                         (compareS (order qp)) (lhs u) (rhs u)
-    Reversed -> compareW (\ x -> get (delete qp) x)
-                         (compareS (order qp)) (reverse (lhs u)) (reverse (rhs u))
 
 lexi :: [Comp] -> Comp
 lexi cs = case cs of
@@ -140,15 +143,27 @@ lexi cs = case cs of
         GreaterEquals -> lexi cs'
         None -> None
 
--- * path order 
+comp :: Remove -> Rule -> Comp
+comp r u = case tag r of
+    Remove_LPO -> comp_lpo (precedence r) u
+    Remove_Interpretation -> comp_interpretation (interpretation r) u
 
-data Direction = Original | Reversed
+
+-- * path order (with deletion of symbols)
+
+comp_lpo qp u = case direction qp of
+                Original -> compareW (\ x -> get (delete qp) x)
+                         (compareS (order qp)) (lhs u) (rhs u)
+                Reversed -> compareW (\ x -> get (delete qp) x)
+                         (compareS (order qp)) (reverse (lhs u)) (reverse (rhs u))
+
+data Direction = Original | Reversed deriving Show
 
 data QP = 
      QP Direction 
         (Tree Bool) -- ^ False: delete symbol
         (Tree Nat) -- ^  height in the precedence
-
+    deriving Show
 
 direction qp = case qp of QP dir del ord -> dir
 delete    qp = case qp of QP dir del ord -> del
@@ -224,7 +239,136 @@ eqWord xs ys = case xs of
         [] -> False
         y : ys' -> eqSymbol x y && eqWord xs' ys'
 
-   
+-- * matrix interpretations
+
+data Interpretation_Tag = Arctic_Tag | Natural_Tag
+    deriving Show
+
+data Interpretation 
+   = Interpretation Interpretation_Tag
+         (Tree (Matrix Arctic))
+         (Tree (Matrix    Nat))
+    deriving Show
+
+comp_interpretation :: Interpretation -> Rule -> Comp
+comp_interpretation i u = case i of
+    Interpretation tag ai ni -> case tag of
+        Natural_Tag -> case iRuleN ni u of
+            (l,r) -> case geMN l r of
+                False -> None
+                True ->  case gtMN l r of
+                    True -> Greater
+                    False -> GreaterEquals
+        Arctic_Tag -> case iRuleA ai u of
+            (l,r) -> case geMA l r of
+                False -> None
+                True ->  case gtMA l r of
+                    True -> Greater
+                    False -> GreaterEquals
+
+positiveI :: Interpretation -> Bool
+positiveI i = case i of
+    Interpretation tag ai ni -> case tag of
+        Natural_Tag -> allI positiveMN ni
+        Arctic_Tag  -> allI positiveMA ai
+
+allI :: (a -> Bool) -> Tree a -> Bool
+allI prop t = case t of
+    Leaf x -> prop x
+    Branch l r -> allI prop l && allI prop r
+
+positiveMA :: Matrix Arctic -> Bool
+positiveMA m = case m of
+    [] -> False
+    xs : _ -> case xs of
+        [] -> False
+        x : _ -> finite x
+
+positiveMN :: Matrix Nat -> Bool
+positiveMN m = 
+       not (isZeroNat (head (head m))) 
+    && not (isZeroNat (last (last m))) 
+
+gtMA a b = and ( zipWith ( \ xs ys -> and (zipWith ggA xs ys)  ) a b )
+geMA a b = and ( zipWith ( \ xs ys -> and (zipWith geA xs ys)  ) a b )
+
+geMN a b = and ( zipWith ( \ xs ys -> and (zipWith geNat xs ys)  ) a b )
+gtMN a b = gtNat (last (head a)) (last(head b))
+
+
+
+iSymbol i s = get i s
+
+iWord timesM i w = case w of
+    [] -> undefined
+    x : xs -> let m = iSymbol i x 
+              in case xs of
+                    [] -> m
+                    _  -> timesM m (iWord timesM i xs)
+
+iRule timesM i u = (iWord timesM i (lhs u), iWord timesM i (rhs u))
+
+iRuleA i u = iRule (timesM   plusA   timesA) i u
+iRuleN i u = iRule (timesM plusNat timesNat) i u
+
+
+-- * matrices:
+
+type Matrix a = [[a]]
+
+
+plusM plus a b = zipWith (zipWith plus) a b
+
+timesM plus times a b = 
+    let b' = transpose b
+    in  map ( \ row -> map ( dot plus times row ) b' ) a
+
+transpose xss = case xss of
+    [] -> []
+    xs : xss' -> case xss' of
+        [] -> map (\ x -> [x]) xs
+        _  -> zipWith (:) xs ( transpose xss')
+
+dot plus times xs ys = 
+    let sum xs = foldr plus (head xs) (tail xs)
+    in  sum ( zipWith times xs ys)
+
+-- * arctic operations:
+
+data Arctic = MinusInfinity | Finite Nat
+    deriving (Eq, Show)
+
+infinite a = case a of
+    MinusInfinity -> True
+    _ -> False
+
+finite a = case a of
+    MinusInfinity -> False
+    _ -> True
+
+ggA a b = gtA a b || infinite b 
+
+gtA a b = not (geA b a)
+
+geA a b = case b of
+  MinusInfinity -> True
+  Finite b' -> case a of 
+    MinusInfinity -> False
+    Finite a' -> geNat a' b'
+
+plusA :: Arctic -> Arctic -> Arctic
+plusA e f = case e of
+  MinusInfinity -> f
+  Finite x -> Finite ( case f of 
+    MinusInfinity -> x 
+    Finite y      -> maxNat x y  )
+
+timesA :: Arctic -> Arctic -> Arctic
+timesA e f = case e of
+  MinusInfinity -> MinusInfinity
+  Finite x -> case f of 
+    MinusInfinity -> MinusInfinity
+    Finite y      -> Finite (plusNat x y)
 
 
 

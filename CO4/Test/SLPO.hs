@@ -64,6 +64,26 @@ uQuasiPrec bits_for_symbols =
               , uTree bits_for_symbols $ uNat bits_for_symbols 
               ]
 
+
+uArctic bits = 
+    constructors [ Just [], Just [ uNat bits] ]
+
+uMatrix dim elem = 
+    kList dim $ kList dim $ elem 
+
+uInter bits_for_symbols dim bfn = known 0 1
+    [ -- known 1 1 [] -- just natural
+      constructors [ Just [], Just [] ] -- arctic or natural
+    , uTree bits_for_symbols ( uMatrix dim $ uArctic bfn ) 
+    , uTree bits_for_symbols ( uMatrix dim $ uNat    bfn ) 
+    ]
+
+uRemove bits_for_symbols dim bfn = known 0 1
+    [ constructors [ Just [], Just [] ] -- LPO or Intepretation
+    , uQuasiPrec bits_for_symbols
+    , uInter bits_for_symbols dim bfn
+    ]
+
 uLab conf srs =
     let sigma = nub $ do u <- srs ;  lhs u ++ rhs u
         width = maximum $ do u <- srs; map length [lhs u,rhs u]
@@ -71,7 +91,8 @@ uLab conf srs =
     in  known 0 1 
            [ uModel bits_for_symbols (bits_for_model conf)
            , kList (number_of_interpretations conf)
-                  $ uQuasiPrec (bits_for_symbols + bits_for_model conf)
+                  $ uRemove (bits_for_symbols + bits_for_model conf)
+                            (dimension_for_matrices conf) (bits_for_numbers conf)
            , kList (length srs) uBool
            ]
 
@@ -218,9 +239,18 @@ solveTPDB conf sys = do
             PP.vcat $ for (labelled srs mod) $ \ subsrs -> 
                 PP.vcat $ for subsrs $ \ ((lval,rval), u ) -> 
                     TPDB.pretty $ mkrule u
-        void $ forM ints $ \ (QP dir del ord) -> 
-            print $ PP.pretty $ Qup dir (bdt2labelled_int del) 
+        void $ forM ints $ \ (Remove tag qp int) -> case tag of
+            Remove_LPO -> case qp of 
+              QP dir del ord -> do
+                print $ PP.pretty $ Qup dir (bdt2labelled_int del) 
                                         (bdt2labelled_int ord )
+            Remove_Interpretation -> case int of 
+              Interpretation tag ai ni -> do
+                print $ PP.pretty tag PP.<$> ( PP.indent 4 $ case tag of
+                    Arctic_Tag  -> PP.pretty $ bdt2labelled_int ai
+                    Natural_Tag -> PP.pretty $ bdt2labelled_int ni
+                                             )                  
+
         let annotated = zip (TPDB.rules sys) remove 
             remaining = TPDB.with_rules sys $ map fst $ filter (not . snd) annotated
         print $ TPDB.pretty annotated
@@ -261,7 +291,15 @@ instance PP.Pretty s => PP.Pretty (Labelled s) where
     pretty ls = PP.pretty (symbol ls) PP.<> PP.pretty (fromBin $ label ls)
 
 
+instance PP.Pretty Interpretation_Tag where pretty = PP.text . pack . show
+
 instance PP.Pretty Nat where pretty = PP.text . pack . show 
+
+instance PP.Pretty Arctic where
+    pretty a  = case a of
+        MinusInfinity -> "-"
+        Finite f -> PP.text $ pack $ show f
+
 
 instance PP.Pretty Direction where pretty = PP.text . pack . show
 
