@@ -54,7 +54,7 @@ encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
 encBottom :: EncodedAdt
 encBottom = Bottom
 
-encodedConstructor :: Int -> Int -> [EncodedAdt] -> CO4 EncodedAdt
+encodedConstructor :: Integral i => i -> i -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
                             $ withAdtCache (constant True,flags,args)
   where

@@ -192,7 +192,7 @@ expressionToPattern exp = case exp of
 
 -- |@toBinary n i@ converts @i@ to its binary representation using @n@ bits.
 -- Least significant bit is result's head.
-toBinary :: Maybe Int -> Int -> [Bool]
+toBinary :: Integral i => Maybe Int -> i -> [Bool]
 toBinary numBits i = case numBits of
   Nothing -> result
   Just n  -> assert (length result <= n) 
@@ -207,7 +207,7 @@ toBinary numBits i = case numBits of
 
 -- |@fromBinary i@ converts @i@ from its binary representation to an @Int@.
 -- Least significant bit is expecteted as @i@'s head.
-fromBinary :: [Bool] -> Int
+fromBinary :: Integral i => [Bool] -> i
 fromBinary = go 0
   where
     go _ []         = error "Util.fromBinary: empty list"
@@ -226,7 +226,7 @@ binaries i = do
   return $ x : y
 
 -- |@bitWidth n@ returns the number of bits needed to encode @n@ different states
-bitWidth :: Int -> Int
+bitWidth :: Integral i => i -> Int
 bitWidth = ceiling . logBase 2 . fromIntegral 
 
 -- |Checks whether a string represents an integer
