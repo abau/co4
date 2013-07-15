@@ -175,9 +175,9 @@ encComparePrimitives a b = case (a,b) of
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlusNat = catchInvalid2 $ onFlags2 $ \ as bs -> do
     case length as of
-        3 -> call Opt.plus3 as bs 
-        4 -> call Opt.plus4 as bs
-        5 -> call Opt.plus5 as bs
+        -- 3 -> call Opt.plus3 as bs 
+        -- 4 -> call Opt.plus4 as bs
+        -- 5 -> call Opt.plus5 as bs
         _ -> ripple_carry_adder as bs
 
 ripple_carry_adder (a:as) (b:bs) = do
@@ -237,9 +237,9 @@ call o as bs = do
 encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> 
     case length as of
-        3 -> call Opt.times3 as bs 
-        4 -> call Opt.times4 as bs
-        5 -> call Opt.times5 as bs
+        -- 3 -> call Opt.times3 as bs 
+        -- 4 -> call Opt.times4 as bs
+        -- 5 -> call Opt.times5 as bs
         _ -> wallace_multiplier as bs
 
 wallace_multiplier as bs = do
