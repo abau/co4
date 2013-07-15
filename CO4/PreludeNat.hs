@@ -174,18 +174,47 @@ encPlusNat = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
   return $ z : zs
-  where
-    addWithCarry c [] [] = do
+
+encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
+
+addWithCarry c [] [] = do
         assert [ not c ] 
         return []
-    addWithCarry c ( x : xs) ( y:ys ) = do
+addWithCarry c ( x : xs) ( y:ys ) = do
           (z,d) <- fullAdder c x y
           zs <- addWithCarry d xs ys
           return $ z : zs
-encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
-encTimesNat :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat = catchInvalid2 $ onFlags2 $ \as bs -> do
+addWithCarryW w c xs ys | w <= 0 = do
+     forM (c : xs ++ ys) $ \ c -> assert [ not c ]
+     return []
+addWithCarryW w c ( x : xs) ( y:ys ) = do
+          (z,d) <- fullAdder c x y
+          zs <- addWithCarryW (w-1) d xs ys
+          return $ z : zs
+
+encTimesNat = encTimesNat_0
+
+encTimesNat_0 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encTimesNat_0 = catchInvalid2 $ onFlags2 $ \ as bs -> do
+     let clamp w xs = do
+             let (pre, post) = splitAt w xs
+             forM post $ \ p -> assert [ not p ]
+             return pre
+         mul w (a:as) bs = do
+             c : cs <- forM bs $ \ b -> and [a,b]
+             ds <- clamp (w-1) cs
+             case as of
+                 [] -> return $ c : ds
+                 _ -> do
+                     asbs <- mul (w-1) as bs
+                     es <- addWithCarryW (w-1) (constant False) ds asbs
+                     return $ c : es
+     mul (length as) as bs           
+  
+
+encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> do
   kzs <- product_components (Just $ length as) as bs
   export (Just $ length as) kzs
 
