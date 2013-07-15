@@ -12,40 +12,30 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Prelude
+import           CO4.PreludeNat
 import           CO4.Util (toBinary,fromBinary)
 
 import System.Environment (getArgs)
 import System.IO
 
-$( runIO $ configurable [ ImportPrelude
-                        , Profile
-                        -- ,DumpAll "/tmp/WCB"
+w = 24
+
+$( [d| constraint p (x,y) = 
+         gtNat x (nat 24 1) && gtNat y (nat 24 1) && eqNat p ( timesNat x y)
+   |] >>= runIO . configurable [ ImportPrelude
+                         , Profile, Cache
                         ] 
-         $ compileFile "CO4/Test/Factor.standalone.hs")
+         . compile )
 
-kList 0 a = known 0 2 []
-kList i a = known 1 2 [ a , kList (i-1) a]
-
-uNat w = kList w uBool
-
-toBin :: Int -> [Bool]
-toBin x = 
-    if x == 0 then [] 
-    else let (d,m) = divMod x 2 in odd m : toBin d
-
-fromBin :: [Bool] -> Int
-fromBin xs = foldr ( \ x y -> fromEnum x + 2*y ) 0 xs
+-- uNat w = kList w uBool
 
 result x = do
-    hSetBuffering stdout LineBuffering
-    let xs = toBin x ; w = length xs
+    -- let xs = toBin x ; w = length xs
     solution <- solveAndTestP 
-       xs
-       (uTuple2 (uNat w) (uNat w))
-       encMain main
-    case solution of
-        Nothing -> putStrLn "no factors"
-        Just (a,b) -> print (fromBin a, fromBin b)
+       (nat w x)
+       ( known 0 1 [ uNat w, uNat w] )
+       encConstraint constraint
+    print solution
 
 mainz = do
     [ s ] <- getArgs
