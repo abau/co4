@@ -193,7 +193,8 @@ addWithCarryW w c ( x : xs) ( y:ys ) = do
           zs <- addWithCarryW (w-1) d xs ys
           return $ z : zs
 
-encTimesNat = encTimesNat_0
+-- formula sizes are similar but encTimesNat_1 is much (?) better for solver
+encTimesNat = encTimesNat_1
 
 encTimesNat_0 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encTimesNat_0 = catchInvalid2 $ onFlags2 $ \ as bs -> do
