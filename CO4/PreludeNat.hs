@@ -14,10 +14,11 @@ module CO4.PreludeNat
 where
 
 import           Prelude hiding (not,and,or)
+import qualified Prelude
 import qualified Control.Exception as Exception
-import           Control.Monad (zipWithM,forM)
+import           Control.Monad (zipWithM,forM, when)
 import Data.Function (on)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
   (primitive,constant,assert,not,and,xor,or,equals)
@@ -26,6 +27,9 @@ import           CO4.EncodedAdt
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator,known,constructors)
 import           CO4.EncEq (EncEq(..))
+
+import Debug.Trace
+
 
 type Should_Be_Integer = Int
 
@@ -193,7 +197,12 @@ addWithCarryW w c ( x : xs) ( y:ys ) = do
           zs <- addWithCarryW (w-1) d xs ys
           return $ z : zs
 
--- formula sizes are similar but encTimesNat_1 is much (?) better for solver
+-- formula sizes are similar 
+-- but encTimesNat_1 is much (?) better for solver.
+-- it is basically a Wallace multiplier
+-- https://en.wikipedia.org/wiki/Wallace_tree
+-- which has shorter delay than the naive method (encTimesNat_0)
+
 encTimesNat = encTimesNat_1
 
 encTimesNat_0 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
@@ -226,38 +235,36 @@ encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> do
         return $ do
             z <- and [ x, y ]
             if ( case bound of Nothing -> False ; Just b -> i+j >= b )
-                 then do assert [ not z ] ; return ( i+j , [ ] )
-                 else do return ( i+j , [z] )
+                 then do assert [ not z ] ; return []
+                 else do return [ ( i+j , [z] ) ]
 
     export bound kzs = do
-        m <- reduce bound $ M.fromListWith (++) kzs
-        case M.maxViewWithKey m of
-            Nothing -> return []
-            Just ((k,_) , _) -> return $ do i <- [ 0 .. k ]
-                                            let { [ b ] = m M.! i }
-                                            return b
+        reduce bound $ M.fromListWith (++) $ concat kzs
 
     reduce bound m = case M.minViewWithKey m of
-        Nothing -> return M.empty
+        Nothing -> return []
         Just ((k, bs), rest ) ->
             if ( case bound of Nothing -> False ; Just b -> k >= b )
             then do
                 forM bs $ \ b -> assert [ not b ]
                 reduce bound rest
-            else case bs of
-                [] -> reduce bound rest
-                [x] -> do
-                    m' <- reduce bound rest
-                    return $ M.unionWith (error "PreludeNat.encTimesNat: huh") m'
-                           $ M.fromList [(k,[x])]
-                [x,y] -> do
-                    (r,c) <- halfAdder x y
-                    reduce bound $ M.unionWith (++) rest
-                           $ M.fromList [ (k,[r]), (k+1, [c]) ]
+            else let border = Just k == bound in case bs of
                 (x:y:z:more) -> do
                     (r,c) <- fullAdder x y z
+                    when border $ assert [ not c ]
                     reduce bound $ M.unionWith (++) rest
-                           $ M.fromList [ (k, more ++ [r]), (k+1, [c]) ]
+                           $ M.fromList [ (k, more ++ [r])
+                                        , (k+1, [c | Prelude.not border]) ]
+                [x,y] ->  do
+                    (r,c) <- halfAdder x y 
+                    when border $ assert [ not c ]
+                    reduce bound $ M.unionWith (++) rest
+                           $ M.fromList [ (k, [r])
+                                        , (k+1, [c | Prelude.not border]) ]
+                [x] -> do
+                    xs <- reduce bound rest
+                    return $ x : xs
+
 encTimesNatProf a b = traced "timesNat" $ encTimesNat a b
 
 ifthenelse :: Primitive -> Primitive -> Primitive -> CO4 Primitive
@@ -272,13 +279,11 @@ ifthenelse i t e = do
 fullAdder :: Primitive -> Primitive -> Primitive -> CO4 (Primitive,Primitive)
 fullAdder = fullAdder_three
 
-{-
 fullAdder_one p1 p2 p3 = do
   (r12,c12) <- halfAdder p1 p2
   (r,c3) <- halfAdder r12 p3
   c <- or [c12,c3]
   return (r, c)
--}
 
 fullAdder_three x y z = do
     let implies xs ys = assert (map not xs ++ ys)
@@ -300,7 +305,6 @@ fullAdder_three x y z = do
     implies [ not z, not x ] [ not c ]
     return (r,c)
 
-{-
 fullAdder_two p1 p2 p3 = do
   p4 <- primitive
   p5 <- primitive
@@ -325,7 +329,7 @@ fullAdder_two p1 p2 p3 = do
   assert [p1, p2, not p3, p4]
   assert [p1, p2, p3, not p4]
   return ( p4, p5 )
--}
+
 
 halfAdder :: Primitive -> Primitive -> CO4 (Primitive,Primitive)
 halfAdder p1 p2 = do
