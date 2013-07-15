@@ -28,8 +28,7 @@ import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator,known,constructors)
 import           CO4.EncEq (EncEq(..))
 
-import Debug.Trace
-
+import qualified CO4.PreludeNat.Opt as Opt
 
 type Should_Be_Integer = Int
 
@@ -174,7 +173,14 @@ encComparePrimitives a b = case (a,b) of
 -}
 
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat = catchInvalid2 $ onFlags2 $ \ (a:as) (b:bs) -> do
+encPlusNat = catchInvalid2 $ onFlags2 $ \ as bs -> do
+    case length as of
+        3 -> call Opt.plus3 as bs 
+        4 -> call Opt.plus4 as bs
+        5 -> call Opt.plus5 as bs
+        _ -> ripple_carry_adder as bs
+
+ripple_carry_adder (a:as) (b:bs) = do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
   return $ z : zs
@@ -223,8 +229,20 @@ encTimesNat_0 = catchInvalid2 $ onFlags2 $ \ as bs -> do
      mul (length as) as bs           
   
 
+call o as bs = do
+    cs <- forM as $ \ _ -> primitive
+    o as bs cs
+    return cs
+
 encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> do
+encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> 
+    case length as of
+        3 -> call Opt.times3 as bs 
+        4 -> call Opt.times4 as bs
+        5 -> call Opt.times5 as bs
+        _ -> wallace_multiplier as bs
+
+wallace_multiplier as bs = do
   kzs <- product_components (Just $ length as) as bs
   export (Just $ length as) kzs
 
