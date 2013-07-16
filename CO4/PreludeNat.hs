@@ -332,7 +332,7 @@ ifthenelse i t e = do
     return r
 
 fullAdder :: Primitive -> Primitive -> Primitive -> CO4 (Primitive,Primitive)
-fullAdder = fullAdder_three
+fullAdder = fullAdder_three_with_redundant
 
 fullAdder_one p1 p2 p3 = do
   (r12,c12) <- halfAdder p1 p2
@@ -357,6 +357,36 @@ fullAdder_three x y z = do
     implies [ not x, not y ] [ not c ]
     implies [ not y, not z ] [ not c ]
     implies [ not z, not x ] [ not c ]
+    return (r,c)
+
+fullAdder_three_with_redundant x y z = do
+
+    r <- primitive
+    implies [ not x, not y, not z ] [ not r ]
+    implies [ not x, not y,     z ] [     r ]
+    implies [ not x,     y, not z ] [     r ]
+    implies [ not x,     y,     z ] [ not r ]
+    implies [     x, not y, not z ] [     r ]
+    implies [     x, not y,     z ] [ not r ]
+    implies [     x,     y, not z ] [ not r ]
+    implies [     x,     y,     z ] [     r ]
+
+    c <- primitive
+    implies [ x, y ] [ c ]
+    implies [ y, z ] [ c ]
+    implies [ z, x ] [ c ] 
+    implies [ not x, not y ] [ not c ]
+    implies [ not y, not z ] [ not c ]
+    implies [ not z, not x ] [ not c ]
+
+    -- redundant:
+    implies [ not r, not c ] [ not x ]
+    implies [ not r, not c ] [ not y ]
+    implies [ not r, not c ] [ not z ]
+    implies [ r, c ] [ x ]
+    implies [ r, c ] [ y ]
+    implies [ r, c ] [ z ]
+
     return (r,c)
 
 fullAdder_two p1 p2 p3 = do
