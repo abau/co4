@@ -13,7 +13,7 @@ module CO4.PreludeNat
   )
 where
 
-import           Prelude hiding (not,and,or)
+import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM, when, foldM)
@@ -141,15 +141,14 @@ encMinNatProf a b = traced "minNat" $ encMinNat a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
                      -> CO4 (Primitive, Primitive) -- ^ (less, equals)
-encComparePrimitives = encComparePrimitives_linear
+encComparePrimitives = 
+    -- TODO: find out which is best for what length
+    encComparePrimitives_linear
+    -- encComparePrimitives_tree
 
 encComparePrimitives_tree as bs = do
-    let eq x y = do e <- primitive 
-                    implies [x,y][e] ; implies [not x, not y ] [e]
-                    implies [x,not y][not e] ; implies [not x, y] [not e]
-                    return e
     foldB ( \ (a,b) -> do 
-            l <- and [not a, b ]; e <- eq a b 
+            l <- and [not a, b ]; ne <- xor [ a, b ] ; let e = not ne
             assert [ not l, not e ] -- redundant but possibly helpful? 
             return (l,e) 
           )
@@ -215,7 +214,42 @@ encPlusNat = catchInvalid2 $ onFlags2 $ \ as bs -> do
         -- 3 -> call Opt.plus3 as bs 
         -- 4 -> call Opt.plus4 as bs
         -- 5 -> call Opt.plus5 as bs
-        _ -> ripple_carry_adder as bs
+        -- _ -> ripple_carry_adder as bs
+        _ -> carry_lookahead_adder as bs
+
+-- | semantics: x through c  is  (lin c and x)  or  abs c 
+-- Prop False False = delete
+-- Prop True False = propagate
+-- Prop _ True = create
+data Prop = Prop { lin :: Primitive, abs :: Primitive }
+
+multiply :: Prop -> Prop -> CO4 Prop
+multiply c1 c2 = do
+    l <- and [lin c1, lin c2] ; a <- apply c1 (abs c2)
+    return $ Prop { lin = l, abs = a }
+
+apply :: Prop -> Primitive -> CO4 Primitive
+apply c p = do d <- and [lin c, p] ; or [abs c, d]
+
+carry_lookahead_adder as bs = do
+    ( p, f ) <- foldB 
+            ( \ (a,b) -> do
+                (r,c) <- halfAdder a b 
+                return ( Prop { lin = r, abs = c } 
+                       , \ c -> do x <- xor [a, b, c] ; return [x]
+                       ) )
+            ( \ (p1, f1) (p2, f2) -> do
+                p <- multiply p2 p1
+                return ( p, \ ci1 -> do
+                          xs <- f1 ci1
+                          ci2 <- apply p1 ci1
+                          ys <- f2 ci2
+                          return $ xs ++ ys
+                       ) )
+            ( zip as bs )
+    assert [ not $ abs p ]
+    f (constant False)                    
+
 
 ripple_carry_adder (a:as) (b:bs) = do
   (z,c) <- halfAdder a b
@@ -341,15 +375,7 @@ fullAdder_one p1 p2 p3 = do
   return (r, c)
 
 fullAdder_three x y z = do
-    r <- primitive
-    implies [ not x, not y, not z ] [ not r ]
-    implies [ not x, not y,     z ] [     r ]
-    implies [ not x,     y, not z ] [     r ]
-    implies [ not x,     y,     z ] [ not r ]
-    implies [     x, not y, not z ] [     r ]
-    implies [     x, not y,     z ] [ not r ]
-    implies [     x,     y, not z ] [ not r ]
-    implies [     x,     y,     z ] [     r ]
+    r <- xor [x,y,z]
     c <- primitive
     implies [ x, y ] [ c ]
     implies [ y, z ] [ c ]
@@ -361,15 +387,7 @@ fullAdder_three x y z = do
 
 fullAdder_three_with_redundant x y z = do
 
-    r <- primitive
-    implies [ not x, not y, not z ] [ not r ]
-    implies [ not x, not y,     z ] [     r ]
-    implies [ not x,     y, not z ] [     r ]
-    implies [ not x,     y,     z ] [ not r ]
-    implies [     x, not y, not z ] [     r ]
-    implies [     x, not y,     z ] [ not r ]
-    implies [     x,     y, not z ] [ not r ]
-    implies [     x,     y,     z ] [     r ]
+    r <- xor [x,y,z]
 
     c <- primitive
     implies [ x, y ] [ c ]
