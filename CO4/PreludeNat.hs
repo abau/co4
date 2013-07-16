@@ -16,7 +16,8 @@ where
 import           Prelude hiding (not,and,or)
 import qualified Prelude
 import qualified Control.Exception as Exception
-import           Control.Monad (zipWithM,forM, when)
+import           Control.Monad (zipWithM,forM, when, foldM)
+import Control.Applicative ( (<$>) )
 import Data.Function (on)
 import qualified Data.Map.Strict as M
 import           Satchmo.Core.Decode (Decode,decode)
@@ -140,13 +141,47 @@ encMinNatProf a b = traced "minNat" $ encMinNat a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
                      -> CO4 (Primitive, Primitive) -- ^ (less, equals)
-encComparePrimitives a b = case (a,b) of
+encComparePrimitives = encComparePrimitives_linear
+
+encComparePrimitives_tree as bs = do
+    let eq x y = do e <- primitive 
+                    implies [x,y][e] ; implies [not x, not y ] [e]
+                    implies [x,not y][not e] ; implies [not x, y] [not e]
+                    return e
+    foldB ( \ (a,b) -> do 
+            l <- and [not a, b ]; e <- eq a b 
+            assert [ not l, not e ] -- redundant but possibly helpful? 
+            return (l,e) 
+          )
+          ( \ (l1,e1) (l2,e2) -> do 
+            e <- and [e1,e2] 
+
+            -- l1e2 <- and [l1,e2] ; l <- or [l1e2, l2]
+            l <- primitive
+            implies [ l2 ] [ l ] ; implies [ l1, e2 ] [ l ]
+            implies [ not l2, not l1 ] [ not l ]
+            implies [ not l2, not e2 ] [ not l ]
+
+            assert [ not l, not e ] -- redundant but possibly helpful?
+            return (l,e) 
+          )
+          ( zip as bs )
+
+implies xs ys = assert (map not xs ++ ys)
+
+foldB u f xs = case xs of
+    [ ] -> error "CO4.PreludeNat.foldB _ _ []"
+    [x] -> u x
+    _   -> do 
+        let (pre,post) = splitAt (div (length xs) 2) xs
+        a <- foldB u f pre ; b <- foldB u f post
+        f a b
+
+encComparePrimitives_linear a b = case (a,b) of
   ([],[]) -> return ( constant False, constant True )
   ((x:xs),(y:ys)) -> do
     ( ll, ee ) <- encComparePrimitives xs ys
     l <- primitive ; e <- primitive
-
-    let implies xs ys = assert (map not xs ++ ys)
 
     --   l <-> ( ll || (ee && (x < y)) )
     implies [ ll ] [ l ]
@@ -161,6 +196,8 @@ encComparePrimitives a b = case (a,b) of
     implies [ not ee ] [ not e ]
     implies [ x, not y ] [ not e ]
     implies [ not x, y ] [ not e ]
+
+    assert [ not l, not e ] -- redundant
 
     return ( l, e )
 {-
@@ -237,9 +274,9 @@ call o as bs = do
 encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> 
     case length as of
-        -- 3 -> call Opt.times3 as bs 
-        -- 4 -> call Opt.times4 as bs
-        -- 5 -> call Opt.times5 as bs
+        3 -> call Opt.times3 as bs 
+        4 -> call Opt.times4 as bs
+        5 -> call Opt.times5 as bs
         _ -> wallace_multiplier as bs
 
 wallace_multiplier as bs = do
@@ -304,7 +341,6 @@ fullAdder_one p1 p2 p3 = do
   return (r, c)
 
 fullAdder_three x y z = do
-    let implies xs ys = assert (map not xs ++ ys)
     r <- primitive
     implies [ not x, not y, not z ] [ not r ]
     implies [ not x, not y,     z ] [     r ]
