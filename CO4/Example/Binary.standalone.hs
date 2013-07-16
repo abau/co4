@@ -30,8 +30,8 @@ withCarry f (n,carry) = case f n of
 
 shiftRight :: Nat -> (Nat,Bit)
 shiftRight xs = cutMsb (False : xs)
-  where
-    cutMsb xs = case xs of
+
+cutMsb xs = case xs of
       []   -> ([],False) -- never happens
       y:ys -> case ys of
                 [] -> ([],y)
