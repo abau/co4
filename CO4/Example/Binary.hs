@@ -18,8 +18,8 @@ $( runIO $ configurable [Cache,ImportPrelude]
          $ compileFile "CO4/Example/Binary.standalone.hs" )
 
 bitWidth  = 8
-uNat      = uList bitWidth uBool
-allocator = uTuple2 uNat uNat
+uBinary      = uList bitWidth uBool
+allocator = uTuple2 uBinary uBinary
 
 result :: Int -> IO (Maybe (Int,Int))
 result x = do
