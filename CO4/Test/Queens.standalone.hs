@@ -1,4 +1,3 @@
-
 constraint :: Nat -> [Nat] -> Bool
 constraint n xs = 
      all ( \ x -> le (nat 8 1) x && le x n ) xs

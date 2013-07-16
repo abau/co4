@@ -8,6 +8,7 @@
 module Main where
 
 import           Language.Haskell.TH (runIO)
+import           Language.Haskell.TH.Syntax (addDependentFile)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
@@ -23,6 +24,8 @@ $( runIO $ configurable [ ImportPrelude
                         -- ,DumpAll "/tmp/WCB"
                         ] 
          $ compileFile "CO4/Test/Queens.standalone.hs")
+
+$(addDependentFile "CO4/Test/Queens.standalone.hs" >> return [])
 
 result n = do
     hSetBuffering stdout LineBuffering
