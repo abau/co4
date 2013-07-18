@@ -11,6 +11,8 @@ import Control.Monad.Writer
 import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
+import System.IO (stderr, hPutStrLn)
+
 data Config  = Verbose
              {-
              | Degree Int
@@ -42,7 +44,7 @@ configurable :: Configs -> ConfigurableT m a -> m a
 configurable configs c = runReaderT (run c) configs
 
 logWhenVerbose :: (MonadConfig m,MonadIO m) => String -> m ()
-logWhenVerbose = when' Verbose . liftIO . putStrLn 
+logWhenVerbose = when' Verbose . liftIO . hPutStrLn stderr
 
 dumpAfterStage :: (MonadConfig m,MonadIO m) => String -> String -> m ()
 dumpAfterStage stage content = do
@@ -67,7 +69,7 @@ fromConfigs f = configs >>= return . f
 
 dump :: MonadIO m => String -> String -> FilePath -> m ()
 dump title content filePath = liftIO $ case filePath of
-  "" -> putStrLn content'
+  "" -> hPutStrLn stderr content'
   _  -> appendFile filePath $ content' ++ "\n"
 
   where content' = unwords [ "##", title
