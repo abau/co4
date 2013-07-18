@@ -7,7 +7,7 @@ module CO4.Algorithms.Eitherize.Solve
 where
 
 import           Prelude hiding (and)
-import           System.IO (hFlush,stdout)
+import           System.IO (hFlush,stderr,hPutStrLn,hPutStr)
 import           Satchmo.Core.SAT.Minisat (note,solve')
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert,and)
@@ -60,12 +60,12 @@ solve allocator constraint =
 
 testSolution :: (Show a, Show b) => (a -> b) -> Maybe a -> IO (Maybe a)
 testSolution test solution = case solution of
-  Nothing -> do putStrLn "No solution found"
+  Nothing -> do hPutStrLn stderr "No solution found"
                 return Nothing
-  Just s  -> do putStrLn $ "Solution: " ++ (show s)
-                putStr "Test: "
-                hFlush stdout 
-                putStrLn $ show $ test s
+  Just s  -> do hPutStrLn stderr $ "Solution: " ++ (show s)
+                hPutStr stderr "Test: "
+                hFlush stderr
+                hPutStrLn stderr $ show $ test s
                 return $ Just s
 
 handleResult :: (Decode SAT EncodedAdt a) => EncodedAdt -> EncodedAdt 

@@ -12,6 +12,8 @@ import           Data.List (sortBy)
 import           Data.Function (on)
 import qualified Data.Map.Strict as M
 
+import System.IO ( stderr, hPutStrLn)
+
 data ProfileData = ProfileData { numCalls     :: ! Int
                                , numVariables :: ! Int
                                , numClauses   :: ! Int
@@ -84,7 +86,7 @@ printProfile profile = do
   where
     printProfileMap msg p profile =
       when (not $ M.null $ p profile) $
-        liftIO $ putStrLn $ unlines 
+        liftIO $ hPutStrLn stderr $ unlines 
                $ (concat ["Profiling (",msg,"): "] :) 
                $ map show 
                $ reverse
