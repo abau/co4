@@ -16,9 +16,8 @@ where
 import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
 import qualified Control.Exception as Exception
-import           Control.Monad (zipWithM,forM, when, foldM)
-import Control.Applicative ( (<$>) )
-import Data.Function (on)
+import           Control.Monad (zipWithM,forM, when)
+import           Data.Function (on)
 import qualified Data.Map.Strict as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
