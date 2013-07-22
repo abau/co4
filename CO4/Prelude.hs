@@ -145,7 +145,6 @@ unparsedPreludeContext = bind
 
     maybeT      = TCon maybeName [TVar a]
     eitherT     = TCon eitherName [ TVar a, TVar b ]
-    orderingT   = TCon orderingName []
 
     mkTuple i = 
       let type_ = functionType (map TVar $ take i names) 
