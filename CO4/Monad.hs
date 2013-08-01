@@ -9,10 +9,10 @@ where
 import           Control.Monad.State.Strict
 import qualified Satchmo.Core.SAT.Minisat 
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
-import           CO4.EncodedAdtData (Primitive,EncodedAdt(..),makeWithStackTrace)
 import           CO4.Cache 
 import           CO4.Profiling
 import           CO4.Stack
+import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithStackTrace)
 
 type SAT          = Satchmo.Core.SAT.Minisat.SAT
 type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt])

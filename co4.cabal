@@ -20,7 +20,6 @@ Library
                     , CO4.Config
                     , CO4.EncEq
                     , CO4.Encodeable
-                    , CO4.EncodedAdtData
                     , CO4.EncodedAdt
                     , CO4.Frontend
                     , CO4.Language
