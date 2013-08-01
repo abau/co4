@@ -1,6 +1,6 @@
 module CO4.AllocatorData
   ( Allocator (..), AllocateConstructor (..)
-  , known, constructors, bottom
+  , known, constructors, empty
   )
 where
 
@@ -15,7 +15,7 @@ data Allocator = Known { _constructorIndex :: Int
                deriving (Eq,Ord)
 
 data AllocateConstructor = AllocateConstructor [Allocator]
-                         | AllocateBottom
+                         | AllocateEmpty
                deriving (Eq,Ord)
 
 instance Show Allocator where
@@ -35,8 +35,8 @@ toTree allocator = case allocator of
 
     consToTree i (AllocateConstructor args) = 
       Node (show i ++ "th constructor") $ zipWith argToTree [0..] args
-    consToTree i AllocateBottom = 
-      Node (show i ++ "th constructor: bottom") []
+    consToTree i AllocateEmpty = 
+      Node (show i ++ "th constructor: empty") []
 
 known :: Int -> Int -> [Allocator] -> Allocator
 known = Known
@@ -45,8 +45,8 @@ constructors :: [Maybe [Allocator]] -> Allocator
 constructors allocs = Exception.assert (not $ null allocs) 
                     $ Unknown $ map toConstructor allocs
   where
-    toConstructor Nothing     = AllocateBottom
+    toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
 
-bottom :: AllocateConstructor
-bottom = AllocateBottom
+empty :: AllocateConstructor
+empty = AllocateEmpty

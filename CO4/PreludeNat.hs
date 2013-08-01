@@ -52,7 +52,7 @@ instance Decode SAT EncodedAdt Nat where
   decode p = case fmap length (flags p) of
     Just n -> toIntermediateAdt p (2^n) >>= \case 
       IntermediateUndefined -> error $ "Can not decode 'undefined' to data of type 'Nat'"
-      IntermediateBottom    -> error $ "Can not decode 'bottom' to data of type 'Nat'"
+      IntermediateEmpty     -> error $ "Can not decode 'empty' to data of type 'Nat'"
       IntermediateConstructorIndex i _ -> return $ Nat n i
     Nothing -> error "Missing flags while decoding 'Nat'"
 
@@ -459,8 +459,8 @@ catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAd
 catchInvalid f a = 
   if isConstantlyUndefined a 
   then return encUndefined
-  else if isBottom a 
-       then return encBottom
+  else if isEmpty a 
+       then return encEmpty
        else f a
 
 catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)) 
@@ -468,6 +468,6 @@ catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt))
 catchInvalid2 f a b = 
   if isConstantlyUndefined a || isConstantlyUndefined b
   then return encUndefined
-  else if isBottom a || isBottom b 
-       then return encBottom
+  else if isEmpty a || isEmpty b 
+       then return encEmpty
        else f a b

@@ -15,20 +15,20 @@ data EncodedAdt = EncodedAdt { _id          :: ! Int
                              , _arguments   :: ! [EncodedAdt] 
                              , _origin      :: ! Doc
                              }
-                | Bottom
+                | Empty
 
 makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> StackTrace
                    -> EncodedAdt
 makeWithStackTrace i d f a o = EncodedAdt i d f a $ vcat $ map text o
 
 instance Eq EncodedAdt where
-  Bottom == Bottom = True
-  _      == Bottom = False
-  Bottom == _      = False
-  a      == b      = _id a == _id b
+  Empty == Empty = True
+  _     == Empty = False
+  Empty == _     = False
+  a     == b     = _id a == _id b
 
 instance Ord EncodedAdt where
-  compare Bottom Bottom = EQ
-  compare _      Bottom = GT
-  compare Bottom _      = LT
+  compare Empty  Empty  = EQ
+  compare _      Empty  = GT
+  compare Empty  _      = LT
   compare a      b      = compare (_id a) (_id b)
