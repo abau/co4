@@ -16,7 +16,7 @@ import           CO4.Monad (CO4)
 instance Encodeable Allocator where
   encode alloc = do
     result <- encodeOverlapping [alloc]
-    excludeBottomAndInvalidConstructorPatterns result alloc
+    excludeEmptyAndInvalidConstructorPatterns result alloc
     return result
 
 encodeOverlapping :: [Allocator] -> CO4 EncodedAdt
@@ -28,7 +28,7 @@ encodeOverlapping allocs = do
                     Known _ _ args -> [ args ]
                     Unknown cons   -> for cons $ \case 
                       AllocateConstructor args -> args
-                      AllocateBottom           -> []
+                      AllocateEmpty            -> []
 
   flags <- case allocs of
     [Known 0 1 _] -> return []
@@ -46,10 +46,10 @@ encodeOverlapping allocs = do
       Known _ _ args -> length args
       Unknown cons   -> maximum $ for cons $ \case
         AllocateConstructor args -> length args
-        AllocateBottom           -> 0
+        AllocateEmpty            -> 0
 
-excludeBottomAndInvalidConstructorPatterns :: EncodedAdt -> Allocator -> CO4 ()
-excludeBottomAndInvalidConstructorPatterns = go [] []
+excludeEmptyAndInvalidConstructorPatterns :: EncodedAdt -> Allocator -> CO4 ()
+excludeEmptyAndInvalidConstructorPatterns = go [] []
   where
     go flags pattern adt (Known 0 1 args') =
         Exception.assert (length args >= length args') 
@@ -89,8 +89,8 @@ excludeBottomAndInvalidConstructorPatterns = go [] []
             $ zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args allocs
 
 
-          AllocateBottom -> excludePattern (flags   ++ thisFlags)
-                                           (pattern ++ thisPattern)
+          AllocateEmpty -> excludePattern (flags   ++ thisFlags)
+                                          (pattern ++ thisPattern)
 
           where
             thisPattern = case thisFlags of

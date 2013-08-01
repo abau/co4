@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 module CO4.EncodedAdt
   ( Primitive, EncodedAdt, IntermediateAdt (..)
-  , make, encUndefined, encBottom, encodedConstructor
-  , isBottom, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
+  , make, encUndefined, encEmpty, encodedConstructor
+  , isEmpty, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
   , arguments, arguments', constructorArgument, origin
@@ -28,7 +28,7 @@ import           CO4.EncodedAdtData (Primitive,EncodedAdt (..),makeWithStackTrac
 
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
-                     | IntermediateBottom
+                     | IntermediateEmpty
 
 instance Show EncodedAdt where
   show = drawTree . toTree 
@@ -41,7 +41,7 @@ instance Show EncodedAdt where
                      , ", origin: ", show o]
                      ) 
              (map toTree conss)
-      toTree Bottom = Node "bottom" [] 
+      toTree Empty  = Node "empty" [] 
 
 -- * Constructors
 
@@ -51,8 +51,8 @@ make definedness flags arguments = withAdtCache (definedness, flags, arguments)
 encUndefined :: EncodedAdt
 encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
 
-encBottom :: EncodedAdt
-encBottom = Bottom
+encEmpty :: EncodedAdt
+encEmpty = Empty
 
 encodedConstructor :: Integral i => i -> i -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
@@ -62,9 +62,9 @@ encodedConstructor i n args = Exception.assert (i < n)
                       _ -> map constant $ toBinary (Just $ bitWidth n) i
 
 -- * Predicates 
-isBottom :: EncodedAdt -> Bool
-isBottom = \case Bottom -> True
-                 _      -> False
+isEmpty :: EncodedAdt -> Bool
+isEmpty = \case Empty -> True
+                _     -> False
 
 isDefined,isUndefined :: EncodedAdt -> Maybe Bool
 isDefined   = P.evaluateConstant . definedness
@@ -74,9 +74,9 @@ isConstantlyDefined,isConstantlyUndefined :: EncodedAdt -> Bool
 isConstantlyDefined   = fromMaybe False . isDefined
 isConstantlyUndefined = fromMaybe False . isUndefined
 
--- |`isValid x = not ( isConstantlyUndefined x || isBottom x )`
+-- |`isValid x = not ( isConstantlyUndefined x || isEmpty x )`
 isValid :: EncodedAdt -> Bool
-isValid x = not ( isConstantlyUndefined x || isBottom x )
+isValid x = not ( isConstantlyUndefined x || isEmpty x )
 
 isInvalid :: EncodedAdt -> Bool
 isInvalid = not . isValid
@@ -84,7 +84,7 @@ isInvalid = not . isValid
 -- * Accessors
 
 flags :: EncodedAdt -> Maybe [Primitive]
-flags = \case Bottom -> Nothing
+flags = \case Empty -> Nothing
               adt    -> if isConstantlyUndefined adt
                         then Nothing
                         else Just $ _flags adt
@@ -102,8 +102,8 @@ constantConstructorIndex adt = case flags adt of
   Just fs -> primitivesToDecimal fs
 
 definedness :: EncodedAdt -> Primitive
-definedness = \case Bottom -> constant True
-                    adt    -> _definedness adt
+definedness = \case Empty -> constant True
+                    adt   -> _definedness adt
 
 arguments :: EncodedAdt -> Maybe [EncodedAdt]
 arguments adt | isInvalid adt = Nothing
@@ -117,19 +117,19 @@ arguments' adt = case arguments adt of
 
 constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
 constructorArgument _ _ adt | isConstantlyUndefined adt = encUndefined
-constructorArgument _ _ adt | isBottom adt              = encBottom
+constructorArgument _ _ adt | isEmpty adt              = encEmpty
 constructorArgument i j adt = 
   case constantConstructorIndex adt of
     Nothing           -> -- Exception.assert (i < length args) $ args !! i
                          if i < length args then args !! i
-                                            else encBottom
+                                            else encEmpty
     Just j' | j == j' -> Exception.assert (i < length args) $ args !! i
-    Just _            -> encBottom
+    Just _            -> encEmpty
   where
     args = _arguments adt
 
 origin :: EncodedAdt -> Doc
-origin Bottom = text "bottom"
+origin Empty = text "empty"
 origin adt    = _origin adt
 
 -- * Utilities
@@ -138,12 +138,12 @@ origin adt    = _origin adt
 caseOf :: EncodedAdt -> [EncodedAdt] -> CO4 EncodedAdt
 caseOf adt branches | isConstantlyUndefined adt 
                    || (all isConstantlyUndefined branches) 
-                   || (all (\x -> isConstantlyUndefined x || isBottom x) branches)
+                   || (all (\x -> isConstantlyUndefined x || isEmpty x) branches)
                     = return encUndefined
-caseOf adt branches | isBottom adt || (all isBottom branches)
-                    = return Bottom
+caseOf adt branches | isEmpty adt || (all isEmpty branches)
+                    = return Empty
 caseOf adt branches | length (fromJust $ flags adt) < bitWidth (length branches) 
-                    = return Bottom --error "EncodedAdt.Overlapping.caseOf: missing flags"
+                    = return Empty --error "EncodedAdt.Overlapping.caseOf: missing flags"
 caseOf adt branches =
   case constantConstructorIndex adt of
     Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
@@ -186,14 +186,14 @@ caseOfArguments adt branchArguments =
   forM (transpose sameSizeBranchArguments) $ caseOf adt
   where 
     sameSizeBranchArguments = for branchArguments $ \case 
-      Nothing   -> replicate maxArgs Bottom
-      Just args -> args ++ replicate (maxArgs - length args) Bottom
+      Nothing   -> replicate maxArgs Empty
+      Just args -> args ++ replicate (maxArgs - length args) Empty
 
     maxArgs = maximum $ map length $ catMaybes branchArguments
 
 toIntermediateAdt :: (Decode m Primitive Bool) => EncodedAdt -> Int -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
-toIntermediateAdt Bottom _                          = return IntermediateBottom
+toIntermediateAdt Empty _                          = return IntermediateEmpty
 toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 
@@ -213,7 +213,7 @@ primitivesToDecimal ps =
 
 caseOfBits :: [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
 caseOfBits flags branchBits = 
-    Exception.assert (not $ null nonBottomBits) 
+    Exception.assert (not $ null nonEmptyBits) 
   $ Exception.assert (length flags == bitWidth (length branchBits)) 
   $ case all equalBits (transpose branchBits') of
       True  -> return $ head $ branchBits'
@@ -221,8 +221,8 @@ caseOfBits flags branchBits =
         Nothing -> forM (transpose branchBits') mergeN 
         Just i  -> return $ branchBits' !! i
     where
-      nonBottomBits  = catMaybes branchBits
-      branchBitWidth = maximum $ map length nonBottomBits 
+      nonEmptyBits   = catMaybes branchBits
+      branchBitWidth = maximum $ map length nonEmptyBits 
       branchBits'    = for branchBits $ \case
         Nothing -> replicate branchBitWidth $ constant False
         Just bs -> bs ++ replicate (branchBitWidth - (length bs)) (constant False)

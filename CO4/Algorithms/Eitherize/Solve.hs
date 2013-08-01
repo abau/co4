@@ -73,7 +73,7 @@ handleResult :: (Decode SAT EncodedAdt a) => EncodedAdt -> EncodedAdt
 handleResult unknown result = do
   case flags result of
     Nothing -> do
-      note "Error: missing flags in constraint system's result (maybe 'undefined' or 'bottom')"
+      note "Error: missing flags in constraint system's result (maybe 'undefined' or 'empty')"
       return Nothing
 
     Just flags ->
