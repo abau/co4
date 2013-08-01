@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module CO4.EncodedAdt
   ( Primitive, EncodedAdt, IntermediateAdt (..)
-  , make, encUndefined, encEmpty, encodedConstructor
+  , make, makeWithStackTrace, encUndefined, encEmpty, encodedConstructor
   , isEmpty, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
@@ -21,10 +21,34 @@ import           Data.Tree (Tree (..),drawTree)
 import           Text.PrettyPrint (Doc,(<+>),vcat,int,text,nest,empty,($$))
 import           Satchmo.Core.Primitive (constant,select,primitive,assert,and)
 import qualified Satchmo.Core.Primitive as P
+import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,binaries,for,fromBinary,toBinary)
-import           CO4.EncodedAdtData (Primitive,EncodedAdt (..),makeWithStackTrace)
+import           CO4.Stack (StackTrace)
+
+-- See EncodedAdt.hs-boot
+type Primitive = Boolean
+
+data EncodedAdt = EncodedAdt { _id          :: ! Int
+                             , _definedness :: ! Primitive
+                             , _flags       :: ! [Primitive] 
+                             , _arguments   :: ! [EncodedAdt] 
+                             , _origin      :: ! Doc
+                             }
+                | Empty
+
+instance Eq EncodedAdt where
+  Empty == Empty = True
+  _     == Empty = False
+  Empty == _     = False
+  a     == b     = _id a == _id b
+
+instance Ord EncodedAdt where
+  compare Empty  Empty  = EQ
+  compare _      Empty  = GT
+  compare Empty  _      = LT
+  compare a      b      = compare (_id a) (_id b)
 
 data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
@@ -47,6 +71,11 @@ instance Show EncodedAdt where
 
 make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
 make definedness flags arguments = withAdtCache (definedness, flags, arguments)
+
+makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> StackTrace
+                   -> EncodedAdt
+makeWithStackTrace i d f a o = EncodedAdt i d f a $ vcat $ map text o
+
 
 encUndefined :: EncodedAdt
 encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
