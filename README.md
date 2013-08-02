@@ -66,7 +66,7 @@ loads and compiles
 [CO4/Example/Binary.standalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/Binary.standalone.hs)
 using Template-Haskell:
 
-    $( runIO $ configurable [ImportPrelude] $ compileFile "CO4/Example/Binary.standalone.hs" )
+    $( compileFile [ImportPrelude] "CO4/Example/Binary.standalone.hs" )
 
 Every definition `d` of the original program is compiled to an encoded
 definition `encD`, i.e. the compiled constraint system is `encConstraint`.
