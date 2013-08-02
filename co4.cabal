@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.55
+Version:        	0.0.56
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -66,6 +66,21 @@ Library
                     , CO4.Frontend.THPreprocess
 
   Ghc-options:        -W -fno-warn-incomplete-patterns
+  Build-Depends:      base >= 4.2 && < 5.0
+                    , template-haskell == 2.8.*
+                    , containers == 0.5.*
+                    , mtl == 2.1.*
+                    , syb == 0.4.*
+                    , pretty == 1.1.*
+                    , satchmo-core >= 0.6.4
+                    , haskell-src-exts == 1.13.*
+                    , haskell-src-exts-qq == 0.6.*
+                    , haskell-src-meta == 0.6.*
+                    , transformers == 0.3.*
+
+Test-Suite test-co4
+  Type:             exitcode-stdio-1.0
+  Main-Is:          CO4/Test.hs
   Build-Depends:      base >= 4.2 && < 5.0
                     , template-haskell == 2.8.*
                     , containers == 0.5.*
