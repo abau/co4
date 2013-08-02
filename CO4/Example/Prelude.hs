@@ -24,7 +24,7 @@ $( [d|
       Mix m -> m == [ Green , Blue ]
       _     -> False
 
-   |] >>= runIO . configurable [ImportPrelude] . compile 
+   |] >>= compile [ImportPrelude] 
   )
 
 uColor 0 = constructors [ Just [], Just [], Just [], Nothing ]

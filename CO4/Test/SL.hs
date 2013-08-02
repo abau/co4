@@ -31,13 +31,13 @@ import qualified Text.PrettyPrint.Leijen as PP
 
 import System.Console.GetOpt
 
-$( runIO $ configurable [ ImportPrelude
-                        -- , DumpAll "/tmp/sl" 
-                        -- , Verbose
-                        , Profile
-                        , Cache
-                        ] 
-         $ compileFile "CO4/Test/SL.standalone.hs" )
+$( compileFile [ ImportPrelude
+               -- , DumpAll "/tmp/sl" 
+               -- , Verbose
+               , Profile
+               , Cache
+               ] 
+   "CO4/Test/SL.standalone.hs" )
 
 
 uTree bits leaf = 

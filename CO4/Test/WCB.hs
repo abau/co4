@@ -15,13 +15,14 @@ import           CO4.Util (toBinary,fromBinary)
 import System.Environment (getArgs)
 import System.IO
 
-$( runIO $ configurable [ImportPrelude
-                        -- ,DumpAll "/tmp/WCB"
-                        , Cache
-                        , Profile
-                        ] 
-         $ compileFile "CO4/Test/WCB.standalone.hs" )
+import           Language.Haskell.TH.Syntax (addDependentFile)
 
+$( compileFile [ImportPrelude
+               -- ,DumpAll "/tmp/WCB"
+               , Cache
+               , Profile
+               ] 
+   "CO4/Test/WCB.standalone.hs" )
 
 -- uBase = constructors [ Just [], Just [], Just [], Just []]
 uBase = known 0 1 [ kList 2 uBool ]

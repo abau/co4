@@ -22,10 +22,7 @@ w = 24
 
 $( [d| constraint p (x,y) = 
          gtNat x (nat 24 1) && gtNat y (nat 24 1) && eqNat p ( timesNat x y)
-   |] >>= runIO . configurable [ ImportPrelude
-                         , Profile, Cache
-                        ] 
-         . compile )
+   |] >>= compile [ImportPrelude, Profile, Cache] )
 
 -- uNat w = kList w uBool
 

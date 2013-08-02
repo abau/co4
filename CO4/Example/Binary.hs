@@ -14,8 +14,7 @@ import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
 
-$( runIO $ configurable [Cache,ImportPrelude] 
-         $ compileFile "CO4/Example/Binary.standalone.hs" )
+$( compileFile [Cache,ImportPrelude] "CO4/Example/Binary.standalone.hs" )
 
 bitWidth  = 8
 uBinary      = uList bitWidth uBool

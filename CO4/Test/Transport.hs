@@ -17,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/Transport.standalone.hs" )
+$( compileFile [Verbose] "CO4/Test/Transport.standalone.hs" )
 
 uBool      = constructors [ Just [] , Just [] ]
 uSigma     = constructors [ Just [] , Just [], Just [] ]

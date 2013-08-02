@@ -34,13 +34,13 @@ import qualified Text.PrettyPrint.Leijen.Text as PP
 import Data.Text.Lazy (pack)
 import System.Console.GetOpt
 
-$( runIO $ configurable [ Verbose
-                        , ImportPrelude
-                        -- , DumpAll "/tmp/sl" 
-                        -- , Profile
-                        , Cache
-                        ] 
-         $ compileFile "CO4/Test/SLPO.standalone.hs" )
+$( compileFile [ Verbose
+               , ImportPrelude
+               -- , DumpAll "/tmp/sl" 
+               -- , Profile
+               , Cache
+               ] 
+         "CO4/Test/SLPO.standalone.hs" )
 
 
 uTree bits leaf = 

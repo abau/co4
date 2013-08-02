@@ -25,13 +25,7 @@ import qualified TPDB.Input as TPDB
 import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
 
-$( runIO $ configurable [ Verbose
-                        , ImportPrelude
-                        ] 
-         $ compileFile "CO4/Test/TermComp.standalone.hs" )
-
-kList 0 _  = known 0 2 []
-kList i a  = known 1 2 [ a , kList (i-1) a ]
+$( compileFile [Verbose, ImportPrelude] "CO4/Test/TermComp.standalone.hs" )
 
 uSymbol i = kList i uBool
 

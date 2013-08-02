@@ -7,7 +7,7 @@ where
 
 import           Control.Monad.Reader 
 import qualified Language.Haskell.TH as TH
-import           Language.Haskell.TH.Syntax (Quasi)
+import           Language.Haskell.TH.Syntax (Q,addDependentFile)
 import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
@@ -17,7 +17,7 @@ import           CO4.Frontend
 import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
-import           CO4.Config (MonadConfig,Config(..),is)
+import           CO4.Config (MonadConfig,Config(..),configurable,is)
 import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
@@ -47,52 +47,55 @@ stageNames                  = [ stageParsed
                               , stageSatchmoUnqualified
                               ]
 
-compileFile :: (MonadConfig m, MonadIO m, Quasi m) => FilePath -> m [TH.Dec]
-compileFile filePath = 
-  liftIO (HE.parseFile filePath) >>= \case
-    HE.ParseOk _module     -> compile _module
+compileFile :: [Config] -> FilePath -> Q [TH.Dec]
+compileFile configs filePath = 
+  TH.runIO (HE.parseFile filePath) >>= \case
+    HE.ParseOk _module -> do 
+      addDependentFile filePath
+      compile configs _module
     HE.ParseFailed loc msg -> error $ concat 
                                 [ "Compilation.compileFile: can not compile `"
                                 , filePath, "` (", msg, " at ", show loc, ")" ]
 
-compile :: (ProgramFrontend a, MonadConfig m, MonadIO m, Quasi m) 
-        => a -> m [TH.Dec]
-compile a = do
-  instantiationDepth <- C.fromConfigs C.instantiationDepth
+compile :: (ProgramFrontend a) => [Config] -> a -> Q [TH.Dec]
+compile configs a = TH.runIO 
+                  $ configurable configs 
+                  $ runUniqueT 
+                  $ do
+  let instantiationDepth = C.instantiationDepth configs
 
-  runUniqueT $ do
-    parsedPrelude <- is ImportPrelude >>= \case
-                          True  -> parsePrelude
-                          False -> return []
+  parsedPrelude <- is ImportPrelude >>= \case
+                        True  -> parsePrelude
+                        False -> return []
 
-    parsedProgram <- parsePreprocessedProgram a 
+  parsedProgram <- parsePreprocessedProgram a 
 
-    uniqueProgram <- lift ( dumpAfterStage' stageParsed 
-                          $ addDeclarations parsedPrelude parsedProgram)
+  uniqueProgram <- lift ( dumpAfterStage' stageParsed 
+                        $ addDeclarations parsedPrelude parsedProgram)
 
-                  >>= uniqueLocalNames 
-                  >>= lift . (dumpAfterStage' stageUniqueLocalNames)
+                >>= uniqueLocalNames 
+                >>= lift . (dumpAfterStage' stageUniqueLocalNames)
 
-                  >>= etaExpansion
-                  >>= lift . (dumpAfterStage' stageEtaExpansion)
+                >>= etaExpansion
+                >>= lift . (dumpAfterStage' stageEtaExpansion)
 
-                  >>= globalize 
-                  >>= lift . (dumpAfterStage' stageGlobalize)
+                >>= globalize 
+                >>= lift . (dumpAfterStage' stageGlobalize)
 
-                  >>= saturateApplication
-                  >>= lift . (dumpAfterStage' stageSaturateApplication)
+                >>= saturateApplication
+                >>= lift . (dumpAfterStage' stageSaturateApplication)
 
-                  >>= instantiation instantiationDepth
-                  >>= lift . (dumpAfterStage' stageInstantiation)
+                >>= instantiation instantiationDepth
+                >>= lift . (dumpAfterStage' stageInstantiation)
 
-    result <- lift (is NoSatchmo) >>= \case
-      True  -> return $ displayProgram parsedProgram
-      False -> do satchmoP <- compileToSatchmo uniqueProgram
-                  return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
-                        ++ satchmoP
+  result <- lift (is NoSatchmo) >>= \case
+    True  -> return $ displayProgram parsedProgram
+    False -> do satchmoP <- compileToSatchmo uniqueProgram
+                return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
+                      ++ satchmoP
 
-    lift $ C.logWhenVerbose "Compilation successful"
-    return result
+  lift $ C.logWhenVerbose "Compilation successful"
+  return result
 
 dumpAfterStage' :: (MonadConfig m, MonadIO m) 
                 => String -> Program -> m Program

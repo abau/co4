@@ -17,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [Verbose] $ compileFile "CO4/Test/TRS_Loop.standalone.hs" )
+$( compileFile [Verbose] "CO4/Test/TRS_Loop.standalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]

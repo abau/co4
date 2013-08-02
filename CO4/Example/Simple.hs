@@ -23,7 +23,7 @@ $( [d| data Bool = False | True
 
        constraint p x = and p (not x)
 
-   |] >>= runIO . configurable [] . compile 
+   |] >>= compile []
   )
 
 allocator = constructors [ M.Just [] , M.Just [] ]

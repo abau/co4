@@ -18,7 +18,7 @@ $( [d|
                              , gtNat x (nat 8 1)
                              , gtNat y (nat 8 1)
                              ]
-   |] >>= runIO . configurable [ImportPrelude] . compile 
+   |] >>= compile [ImportPrelude]
   )
 
 allocator = uTuple2 (uNat 8) (uNat 8)
