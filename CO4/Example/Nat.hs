@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module CO4.Example.Prelude
+module CO4.Example.Nat
 where
 
 import           Language.Haskell.TH (runIO)
