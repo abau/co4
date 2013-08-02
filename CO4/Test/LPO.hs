@@ -18,7 +18,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [] $ compileFile "CO4/Test/LPO.standalone.hs" )
+$( compileFile [] "CO4/Test/LPO.standalone.hs" )
 
 uSymbol = constructors [ M.Just [], M.Just [], M.Just [], M.Just [] ]
 

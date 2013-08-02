@@ -27,12 +27,12 @@ import qualified TPDB.Plain.Write as TPDB
 import System.Environment
 import Control.Monad ( void, forM )
 
-$( runIO $ configurable [ Verbose
-                        , ImportPrelude
-                        , Cache --, Profile
-                        -- , DumpAll "/tmp/sl" 
-                        ] 
-         $ compileFile "CO4/Test/Loop.standalone.hs" )
+$( compileFile [ Verbose
+               , ImportPrelude
+               , Cache --, Profile
+               -- , DumpAll "/tmp/sl" 
+               ] 
+   "CO4/Test/Loop.standalone.hs" )
 
 cSymbol xs = case xs of
     [] -> known 0 2 []

@@ -18,12 +18,12 @@ import           CO4.Util (toBinary,fromBinary)
 import System.Environment (getArgs)
 import System.IO
 
-$( runIO $ configurable [ ImportPrelude
-                        --, Profile
-                        , Cache
-                        -- ,DumpAll "/tmp/WCB"
-                        ] 
-         $ compileFile "CO4/Test/Queens.standalone.hs")
+$( compileFile [ ImportPrelude
+               --, Profile
+               , Cache
+               -- ,DumpAll "/tmp/WCB"
+               ] 
+   "CO4/Test/Queens.standalone.hs")
 
 $(addDependentFile "CO4/Test/Queens.standalone.hs" >> return [])
 

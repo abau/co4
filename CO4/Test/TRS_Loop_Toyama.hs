@@ -17,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( runIO $ configurable [] $ compileFile "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
+$( compileFile [] "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]

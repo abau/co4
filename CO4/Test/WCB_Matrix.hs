@@ -23,12 +23,12 @@ import Control.Monad ( void, forM )
 import System.Environment (getArgs)
 import System.IO
 
-$( runIO $ configurable [ ImportPrelude
-                        -- , DumpAll "/tmp/WCB_Matrix"
-                        -- , Cache , Profile
-                        , InstantiationDepth 20
-                        ] 
-  $ compileFile "CO4/Test/WCB_Matrix.standalone.hs" )
+$( compileFile [ ImportPrelude
+               -- , DumpAll "/tmp/WCB_Matrix"
+               -- , Cache , Profile
+               , InstantiationDepth 20
+               ] 
+  "CO4/Test/WCB_Matrix.standalone.hs" )
 
 
 -- data Base = Base [Bool]
