@@ -29,10 +29,12 @@ encodeOverlapping allocs = do
                     Unknown cons   -> for cons $ \case 
                       AllocateConstructor args -> args
                       AllocateEmpty            -> []
+                    BuiltIn _ -> []
 
   flags <- case allocs of
     [Known 0 1 _] -> return []
     [Known i n _] -> return $ map constant $ toBinary (Just $ bitWidth n) i
+    [BuiltIn  n ] -> sequence $ replicate n primitive
     _             -> sequence $ replicate (bitWidth maxConstructors) primitive
 
   make (constant True) flags args
@@ -41,12 +43,14 @@ encodeOverlapping allocs = do
     maxConstructors = maximum $ for allocs $ \case 
                         Known _ n _  -> n
                         Unknown cons -> length cons 
+                        BuiltIn n    -> 2^n
 
     maxArgs = maximum $ for allocs $ \case
       Known _ _ args -> length args
       Unknown cons   -> maximum $ for cons $ \case
         AllocateConstructor args -> length args
         AllocateEmpty            -> 0
+      BuiltIn _ -> 0
 
 excludeEmptyAndInvalidConstructorPatterns :: EncodedAdt -> Allocator -> CO4 ()
 excludeEmptyAndInvalidConstructorPatterns = go [] []
@@ -96,6 +100,8 @@ excludeEmptyAndInvalidConstructorPatterns = go [] []
             thisPattern = case thisFlags of
               [] -> []
               _  -> toBinary (Just $ length thisFlags) i
+
+    go _ _ _ (BuiltIn _) = return ()
 
 excludePattern :: [Primitive] -> [Bool] -> CO4 ()
 excludePattern []    []      = return ()

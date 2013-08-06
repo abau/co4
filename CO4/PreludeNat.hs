@@ -25,7 +25,7 @@ import           Satchmo.Core.Primitive
 import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.AllocatorData (Allocator,known,constructors)
+import           CO4.AllocatorData (Allocator,known,builtIn)
 import           CO4.EncEq (EncEq(..))
 
 import qualified CO4.PreludeNat.Opt as Opt
@@ -60,7 +60,7 @@ instance EncEq Nat where
   encEqPrimitive _ a b = encEqNat a b >>= return . head . flags'
 
 uNat :: Int -> Allocator
-uNat w = constructors $ replicate (2^w) $ Just []
+uNat = builtIn
 
 kNat :: Int -> Should_Be_Integer -> Allocator
 kNat w i = known i (2^w) []
