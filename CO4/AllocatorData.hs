@@ -1,6 +1,6 @@
 module CO4.AllocatorData
   ( Allocator (..), AllocateConstructor (..)
-  , known, constructors, empty
+  , known, constructors, builtIn, empty
   )
 where
 
@@ -12,6 +12,7 @@ data Allocator = Known { _constructorIndex :: Int
                        , _arguments        :: [Allocator]
                        }
                | Unknown [AllocateConstructor]
+               | BuiltIn Int
                deriving (Eq,Ord)
 
 data AllocateConstructor = AllocateConstructor [Allocator]
@@ -26,12 +27,17 @@ toTree allocator = case allocator of
   Known i n args -> Node (unwords ["Known",show i,show n]) 
                   $ zipWith argToTree [0..] args
   Unknown cons   -> Node "Unknown" $ zipWith consToTree [0..] cons
+  BuiltIn n      -> Node (unwords ["BuiltIn", show n]) []
   where
     argToTree i (Known j n args) = 
-      Node (show i ++ unwords ["th argument: known",show j,show n]) 
+      Node (show i ++ unwords ["th argument: Known",show j,show n]) 
           $ zipWith argToTree [0..] args
+
     argToTree i (Unknown cons) = 
-      Node (show i ++ "th argument: unknown") $ zipWith consToTree [0..] cons
+      Node (show i ++ "th argument: Unknown") $ zipWith consToTree [0..] cons
+
+    argToTree i (BuiltIn n) = 
+      Node (show i ++ unwords ["th argument: Builtin",show n]) []
 
     consToTree i (AllocateConstructor args) = 
       Node (show i ++ "th constructor") $ zipWith argToTree [0..] args
@@ -47,6 +53,9 @@ constructors allocs = Exception.assert (not $ null allocs)
   where
     toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
+
+builtIn :: Int -> Allocator
+builtIn = BuiltIn
 
 empty :: AllocateConstructor
 empty = AllocateEmpty
