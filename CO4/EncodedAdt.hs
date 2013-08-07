@@ -25,7 +25,7 @@ import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,binaries,for,fromBinary,toBinary)
-import           CO4.Stack (StackTrace)
+import           CO4.Stack (CallStackTrace)
 
 -- See EncodedAdt.hs-boot
 type Primitive = Boolean
@@ -72,7 +72,7 @@ instance Show EncodedAdt where
 make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
 make definedness flags arguments = withAdtCache (definedness, flags, arguments)
 
-makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> StackTrace
+makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> CallStackTrace
                    -> EncodedAdt
 makeWithStackTrace i d f a o = EncodedAdt i d f a $ vcat $ map text o
 
@@ -198,7 +198,7 @@ mergeOrigins branches =
   isProfileRun >>= \case
     False -> return empty
     True  -> do
-      trace <- getStackTrace
+      trace <- getCallStackTrace
       return $ merged trace
       where
         merged trace = vcat $

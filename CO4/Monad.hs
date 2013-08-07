@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Monad
-  ( CO4, SAT, newId, getStackTrace, isProfileRun, setProfileRun, abortWithTraces
+  ( CO4, SAT, newId, getCallStackTrace, isProfileRun, setProfileRun, abortWithTraces
   , runCO4, withCallCache, withAdtCache, traced
   )
 where
@@ -25,7 +25,7 @@ data CO4Data = CO4Data {
   , adtCache   :: ! AdtCache
   , callCache  :: ! CallCache
   , profile    :: ! Profile
-  , stack      :: ! Stack
+  , callStack  :: ! CallStack
   , profileRun :: ! Bool
   }
 
@@ -59,11 +59,11 @@ onCallCache f c = c { callCache = f $ callCache c }
 setCallCache :: CallCache -> CO4Data -> CO4Data
 setCallCache = onCallCache . const
 
-onStack :: (Stack -> Stack) -> CO4Data -> CO4Data
-onStack f c = c { stack = f $ stack c }
+onCallStack :: (CallStack -> CallStack) -> CO4Data -> CO4Data
+onCallStack f c = c { callStack = f $ callStack c }
 
-getStackTrace :: CO4 StackTrace
-getStackTrace = gets $ trace . stack
+getCallStackTrace :: CO4 CallStackTrace
+getCallStackTrace = gets $ trace . callStack
 
 isProfileRun :: CO4 Bool
 isProfileRun = gets profileRun
@@ -73,7 +73,7 @@ setProfileRun = modify $! \c -> c { profileRun = True }
 
 abortWithTraces :: String -> [(String,String)] -> CO4 a
 abortWithTraces msg traces = do
-  stackTrace <- getStackTrace
+  stackTrace <- getCallStackTrace
 
   let traces' = if null stackTrace 
                 then ("stack trace", "no stack trace available") : traces
@@ -123,11 +123,11 @@ withCallCache key action =
 withAdtCache :: AdtCacheKey -> CO4 EncodedAdt
 withAdtCache key@(d,fs,args) = gets (retrieve key . adtCache) >>= \case
   (Just id, c) -> do modify (setAdtCache c) 
-                     trace <- getStackTrace
+                     trace <- getCallStackTrace
                      return $ makeWithStackTrace id d fs args trace
   (Nothing, c) -> do 
     id    <- newId
-    trace <- getStackTrace
+    trace <- getCallStackTrace
     modify $! setAdtCache $! cache key id c
     return $ makeWithStackTrace id d fs args trace
 
@@ -141,7 +141,7 @@ traced name action = do
                       . writeCurrentInner 
                       )
 
-  modify $! onStack $! pushToStack name
+  modify $! onCallStack $! pushToStack name
 
   v1     <- numVariables
   c1     <- numClauses
@@ -153,5 +153,5 @@ traced name action = do
                       . setCurrentFunction previous 
                       . writeCurrentInner 
                       )
-  modify $! onStack $! popFromStack
+  modify $! onCallStack $! popFromStack
   return result

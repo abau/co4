@@ -1,26 +1,30 @@
 module CO4.Stack 
-  (StackTrace, Stack, trace, depth, emptyStack, pushToStack, popFromStack)
+  ( StackTrace, Stack, CallStackTrace, CallStack
+  , trace, depth, emptyStack, pushToStack, popFromStack)
 where
 
 import Control.Exception (assert)
 
-type StackTrace = [String]
+type StackTrace s = [s]
 
-data Stack = Stack { trace :: StackTrace
-                   , depth :: Int
-                   }
-                   deriving Show
+data Stack s = Stack { trace :: StackTrace s
+                     , depth :: Int
+                     }
+                     deriving Show
 
-emptyStack :: Stack
+type CallStackTrace = StackTrace String
+type CallStack      = Stack String
+
+emptyStack :: Stack s
 emptyStack = Stack [] 0
 
-pushToStack :: String -> Stack -> Stack
-pushToStack name stack = 
-  stack { trace = name : trace stack
+pushToStack :: s -> Stack s -> Stack s
+pushToStack s stack = 
+  stack { trace = s : trace stack
         , depth = 1 + depth stack
         }
 
-popFromStack :: Stack -> Stack 
+popFromStack :: Stack s -> Stack s
 popFromStack stack = assert (depth stack > 0) $
   stack { trace = tail $ trace stack
         , depth = depth stack - 1
