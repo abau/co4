@@ -7,7 +7,7 @@ module CO4.EncodedAdt
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
   , arguments, arguments', constructorArgument, origin
-  , caseOf, toIntermediateAdt, caseOfBits
+  , onValidDiscriminant, caseOf, toIntermediateAdt, caseOfBits
   )
 where
 
@@ -163,6 +163,21 @@ origin adt    = _origin adt
 
 -- * Utilities
 
+-- @onValidDiscriminant d n f@
+--  * returns 'Empty', if @d@ is empty or 'isValidDiscriminant' is false
+--  * returns 'encUndefined', if 'isConstantlyUndefined' is true
+--  * returns 'f' otherwise
+onValidDiscriminant :: EncodedAdt -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
+onValidDiscriminant d n f = 
+  if isConstantlyUndefined d then return encUndefined
+  else if isEmpty d || not (isValidDiscriminant d n) then return encEmpty
+       else f
+
+-- @isValidDiscriminant d n@ checks if @d@ has enough flags to
+-- discriminate between @n@ different branches
+isValidDiscriminant :: EncodedAdt -> Int -> Bool
+isValidDiscriminant adt n = length (flags' adt) >= bitWidth n
+
 -- |Case distinction between encoded ADTs
 caseOf :: EncodedAdt -> [EncodedAdt] -> CO4 EncodedAdt
 caseOf adt branches | isConstantlyUndefined adt 
@@ -171,8 +186,9 @@ caseOf adt branches | isConstantlyUndefined adt
                     = return encUndefined
 caseOf adt branches | isEmpty adt || (all isEmpty branches)
                     = return Empty
-caseOf adt branches | length (fromJust $ flags adt) < bitWidth (length branches) 
-                    = return Empty --error "EncodedAdt.Overlapping.caseOf: missing flags"
+caseOf adt branches | length (flags' adt) < bitWidth (length branches) 
+                    -- = error "EncodedAdt.caseOf: missing flags (use 'onValidDiscriminant')"
+                    = return Empty 
 caseOf adt branches =
   case constantConstructorIndex adt of
     Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
@@ -191,7 +207,7 @@ caseOf adt branches =
 
       return $ EncodedAdt id' def' flags' arguments' origin'
   where
-    relevantFlags = take (bitWidth $ length branches) $ fromJust $ flags adt
+    relevantFlags = take (bitWidth $ length branches) $ flags' adt
 
 mergeOrigins :: [EncodedAdt] -> CO4 Doc
 mergeOrigins branches =
