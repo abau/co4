@@ -23,7 +23,7 @@ import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
 import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
 import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (EncodedAdt,encUndefined,isInvalid,encodedConstructor,caseOf,constructorArgument)
+  (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.AllocatorData (known)
@@ -131,30 +131,32 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
   instantiateCase (ECase e ms) = do
     e'Name <- newName "bindCase"
     e'     <- instantiate e
-    ms'    <- instantiateMatches e'Name ms
 
-    let binding = bindS' e'Name e'
+    getAdt >>= \case 
+      Nothing  -> error "Algorithms.Eitherize.instantiateCase: no ADT found"
+      Just adt -> do
+        ms' <- instantiateMatches e'Name adt
 
-    if lengthOne ms'
-      then return $ TH.DoE [ binding, TH.NoBindS $ head ms' ]
+        let e'Binding = bindS' e'Name e'
+            numCons   = length $ dAdtConstructors adt
 
-      else do 
-        caseOfE <- bindAndApply 
-                     (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
-                     (appsE $ TH.VarE 'caseOf) ms'
+        if numCons == 1
+          then return $ TH.DoE [ e'Binding, TH.NoBindS $ head ms' ]
 
-        return $ TH.DoE [ binding, TH.NoBindS $ checkValidity e'Name $ caseOfE ]
+          else do 
+            caseOfE <- bindAndApply 
+                         (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
+                         (appsE $ TH.VarE 'caseOf) ms'
+
+            return $ TH.DoE [ e'Binding, TH.NoBindS $ checkValidity e'Name numCons
+                                                    $ caseOfE ]
     where 
       -- Instantiate matches
-      instantiateMatches e'Name matches =
-        getAdt >>= \case 
-          Nothing  -> error "Algorithms.Eitherize.instantiateMatches: no ADT found"
-          Just adt -> zipWithM instantiateMatch [0..] $ dAdtConstructors adt
-        
+      instantiateMatches e'Name = zipWithM instantiateMatch [0..] . dAdtConstructors
         where
           -- Default match
-          defaultMatch = case last matches of m@(Match (PVar _) _) -> Just m
-                                              _                    -> Nothing
+          defaultMatch = case last ms of m@(Match (PVar _) _) -> Just m
+                                         _                    -> Nothing
 
           -- Instantiate match of @j@-th constructor, namely @CCon c _@
           instantiateMatch j (CCon c _) = case matchFromConstructor c of
@@ -180,7 +182,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
             
           -- Finds the corresponding match for constructor @c@
           matchFromConstructor c = 
-            case find byMatch matches of
+            case find byMatch ms of
               Nothing -> case defaultMatch of
                             Nothing -> error $ "Algorithms.Eitherize.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
                             Just m  -> m
@@ -189,15 +191,14 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
             where byMatch (Match (PVar _  ) _) = False
                   byMatch (Match (PCon p _) _) = untypedName p == c
 
-          -- Finds the corresponding ADT for the matches
-          getAdt = asks (find (any isConstructor . dAdtConstructors) . adts)
-            where 
-              PCon p _ = matchPattern $ head $ matches
-              isConstructor (CCon c _) = untypedName p == c
+      -- Finds the corresponding ADT for the matches
+      getAdt = asks (find (any isConstructor . dAdtConstructors) . adts)
+        where 
+          PCon p _ = matchPattern $ head $ ms
+          isConstructor (CCon c _) = untypedName p == c
 
-      checkValidity e'Name = 
-          TH.CondE (TH.AppE (TH.VarE 'isInvalid) (varE e'Name))
-                   (TH.AppE (TH.VarE 'return) (varE e'Name))
+      checkValidity e'Name numCons caseOfE = 
+        appsE (TH.VarE 'onValidDiscriminant) [varE e'Name, intE numCons, caseOfE]
 
   instantiateLet (ELet bindings exp) = do
     exp'      <- instantiate exp 
