@@ -1,9 +1,9 @@
-module TRS_Loop where
+module TRS_Loop_Toyama where
 
 import qualified Prelude
 
-main :: Looping_Derivation -> Bool
-main ld = looping_derivation_ok toyama ld
+constraint :: Looping_Derivation -> Bool
+constraint ld = looping_derivation_ok toyama ld
 
 -- http://termcomp.uibk.ac.at/termcomp/tpdb/tpviewer.seam?tpId=54227&cid=3363
 data Term = V Name | F Term Term Term | A | B | C

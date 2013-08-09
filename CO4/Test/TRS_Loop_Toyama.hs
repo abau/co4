@@ -4,9 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
---module CO4.Test.TRS_Loop_Toyama where
-module Main where
-
 import qualified Prelude ; import Prelude (($), (-), (*))
 
 import qualified Data.Maybe as M
@@ -68,6 +65,6 @@ uLoopingDerivation numSteps numSubst termDepth =
                         ]
                ]
 
-result = solveAndTest (uLoopingDerivation 3 2 2) encMain main
+result = solveAndTest (uLoopingDerivation 3 2 2) encConstraint constraint
 
-mainz = result
+main = result
