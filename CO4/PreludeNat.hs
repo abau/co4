@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  (Nat, nat, uNat, kNat
+  (Nat, value, nat, uNat, kNat
   , gtNat, geNat, eqNat, leNat, ltNat, maxNat, minNat, plusNat, timesNat
   , isZeroNat, encIsZeroNat, encIsZeroNatProf
   , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
