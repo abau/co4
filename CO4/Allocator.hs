@@ -42,7 +42,7 @@ encodeOverlapping allocs = do
   where 
     maxConstructors = maximum $ for allocs $ \case 
                         Known _ n _  -> n
-                        Unknown cons -> length cons 
+                        Unknown cons -> toInteger $ length cons 
                         BuiltIn n    -> 2^n
 
     maxArgs = maximum $ for allocs $ \case
