@@ -30,10 +30,8 @@ import           CO4.EncEq (EncEq(..))
 
 import qualified CO4.PreludeNat.Opt as Opt
 
-type Should_Be_Integer = Int
-
 data Nat = Nat { width :: Int
-               , value :: Should_Be_Integer
+               , value :: Integer
                }
 
 instance Eq Nat where
@@ -62,12 +60,12 @@ instance EncEq Nat where
 uNat :: Int -> Allocator
 uNat = builtIn
 
-kNat :: Int -> Should_Be_Integer -> Allocator
+kNat :: Int -> Integer -> Allocator
 kNat w i = known i (2^w) []
 
 -- * Plain functions on naturals
 
-nat :: Int -> Should_Be_Integer -> Nat
+nat :: Int -> Integer -> Nat
 nat = Nat
 
 gtNat,geNat,eqNat,leNat,ltNat :: Nat -> Nat -> Bool
@@ -86,16 +84,16 @@ minNat   = onValue' min
 plusNat  = onValue' (+)
 timesNat = onValue' (*)
 
-onValue :: (Should_Be_Integer -> Should_Be_Integer -> a) -> Nat -> Nat -> a
+onValue :: (Integer -> Integer -> a) -> Nat -> Nat -> a
 onValue f a b = Exception.assert (width a == width b) $ f (value a) (value b)
 
-onValue' :: (Should_Be_Integer -> Should_Be_Integer -> Should_Be_Integer) -> Nat -> Nat -> Nat
+onValue' :: (Integer -> Integer -> Integer) -> Nat -> Nat -> Nat
 onValue' f a b = Exception.assert (width a == width b) 
                $ Nat (width a) $ f (value a) (value b)
 
 -- * Encoded functions on naturals
 
-encNat,encNatProf :: Int -> Should_Be_Integer -> CO4 EncodedAdt
+encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
 encNat     w i = encodedConstructor i (2^w) []
 encNatProf w i = traced "nat" $ encNat w i
 

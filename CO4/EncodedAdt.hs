@@ -50,7 +50,7 @@ instance Ord EncodedAdt where
   compare Empty  _      = LT
   compare a      b      = compare (_id a) (_id b)
 
-data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
+data IntermediateAdt = IntermediateConstructorIndex Integer [EncodedAdt]
                      | IntermediateUndefined
                      | IntermediateEmpty
 
@@ -236,9 +236,10 @@ caseOfArguments adt branchArguments =
 
     maxArgs = maximum $ map length $ catMaybes branchArguments
 
-toIntermediateAdt :: (Decode m Primitive Bool) => EncodedAdt -> Int -> m IntermediateAdt
+toIntermediateAdt :: (Decode m Primitive Bool, Integral i) 
+                  => EncodedAdt -> i -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
-toIntermediateAdt Empty _                          = return IntermediateEmpty
+toIntermediateAdt Empty _                           = return IntermediateEmpty
 toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 

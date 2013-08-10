@@ -7,8 +7,8 @@ where
 import qualified Control.Exception as Exception
 import           Data.Tree
 
-data Allocator = Known { _constructorIndex :: Int
-                       , _numConstructors  :: Int
+data Allocator = Known { _constructorIndex :: Integer
+                       , _numConstructors  :: Integer
                        , _arguments        :: [Allocator]
                        }
                | Unknown [AllocateConstructor]
@@ -44,7 +44,7 @@ toTree allocator = case allocator of
     consToTree i AllocateEmpty = 
       Node (show i ++ "th constructor: empty") []
 
-known :: Int -> Int -> [Allocator] -> Allocator
+known :: Integer -> Integer -> [Allocator] -> Allocator
 known = Known
 
 constructors :: [Maybe [Allocator]] -> Allocator
