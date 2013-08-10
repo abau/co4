@@ -81,8 +81,8 @@ instance MonadUnique u => MonadInstantiator (Globalizer u) where
 
         forM_ (zip boundNames boundExps') $ \(name, ELam params exp) -> do
           freeNames' <- forM freeNames newName
-          let exp' = replaceExpressions replacements 
-                        $ renameList (zip freeNames freeNames')
+          let exp' = renameList (zip freeNames freeNames')
+                        $ replaceExpressions replacements 
                         $ exp
           addGlobalBinding $ Binding name $ ELam (freeNames' ++ params) exp'
 
