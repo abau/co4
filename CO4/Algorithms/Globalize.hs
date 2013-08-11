@@ -16,6 +16,7 @@ import           CO4.Algorithms.Rename (renameList)
 import           CO4.Algorithms.Replace (replaceExpressions)
 import           CO4.Algorithms.Util (collapseApplications)
 import           CO4.Algorithms.TopologicalSort (bindingGroups)
+import           CO4.Prelude (unparsedNames)
 
 data Env = Env { callGlobal       :: M.Map Name Expression 
                , globalBindings   :: [Binding]
@@ -110,6 +111,6 @@ globalize :: MonadUnique u => Program -> u Program
 globalize program = do
   (program',state) <- runStateT ( runGlobalizer $ instantiate program ) 
                                 $ Env M.empty []
-                                $ boundToplevel program
+                                $ boundToplevel program ++ unparsedNames
   return $ collapseApplications 
          $ addDeclarations (map DBind $ globalBindings state) program' 
