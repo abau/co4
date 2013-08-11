@@ -55,7 +55,7 @@ instance MonadUnique u => MonadInstantiator (Globalizer u) where
 
       result <- case otherBindings' of
                   [] -> instantiate e
-                  _  -> liftM (ELet otherBindings) $ instantiate e
+                  _  -> liftM (ELet otherBindings') $ instantiate e
 
       modify $ \env -> env { callGlobal = oldCalls }
       return result
