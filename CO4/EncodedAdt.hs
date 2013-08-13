@@ -7,7 +7,7 @@ module CO4.EncodedAdt
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
   , arguments, arguments', constructorArgument, origin
-  , onValidDiscriminant, caseOf, toIntermediateAdt, caseOfBits
+  , onValidDiscriminant, caseOf, toIntermediateAdt, caseOfBits, trimFlags
   )
 where
 
@@ -284,3 +284,8 @@ caseOfBits flags branchBits =
                 assert ( r : P.not b : map P.not fs  )
                 assert ( P.not r :  b : map P.not fs  )
            return r
+
+trimFlags :: Int -> EncodedAdt -> EncodedAdt
+trimFlags n adt = case flags adt of
+  Nothing -> adt
+  Just fs -> adt { _flags = take n fs }
