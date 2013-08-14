@@ -2,9 +2,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Compilation
-  (compileFile, compile, stageNames)
+  (compileFile, compile)
 where
 
+import           Prelude hiding (log)
+import           System.IO (stderr, hPutStrLn)
 import           Control.Monad.Reader 
 import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Q,addDependentFile)
@@ -17,7 +19,7 @@ import           CO4.Frontend
 import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
-import           CO4.Config (MonadConfig,Config(..),configurable,is)
+import           CO4.Config (MonadConfig,Config(..),configurable,is,fromConfigs)
 import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
@@ -25,27 +27,6 @@ import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.CodeGen (codeGen)
-
-stageParsed                 = "parsed"
-stageUniqueLocalNames       = "uniqueLocalNames"
-stageTypeInference          = "typeInference"
-stageEtaExpansion           = "etaExpansion"
-stageGlobalize              = "globalize"
-stageSaturateApplication    = "saturateApplication"
-stageInstantiation          = "instantiation"
-stageSatchmo                = "satchmo"
-stageSatchmoUnqualified     = "satchmoUnqualified"
-
-stageNames                  = [ stageParsed
-                              , stageUniqueLocalNames
-                              , stageTypeInference
-                              , stageEtaExpansion
-                              , stageGlobalize
-                              , stageSaturateApplication
-                              , stageInstantiation
-                              , stageSatchmo
-                              , stageSatchmoUnqualified
-                              ]
 
 compileFile :: [Config] -> FilePath -> Q [TH.Dec]
 compileFile configs filePath = 
@@ -70,23 +51,12 @@ compile configs a = TH.runIO
 
   parsedProgram <- parsePreprocessedProgram a 
 
-  uniqueProgram <- lift ( dumpAfterStage' stageParsed 
-                        $ addDeclarations parsedPrelude parsedProgram)
-
+  uniqueProgram <-  return (addDeclarations parsedPrelude parsedProgram)
                 >>= uniqueLocalNames 
-                >>= lift . (dumpAfterStage' stageUniqueLocalNames)
-
                 >>= etaExpansion
-                >>= lift . (dumpAfterStage' stageEtaExpansion)
-
                 >>= globalize 
-                >>= lift . (dumpAfterStage' stageGlobalize)
-
                 >>= saturateApplication
-                >>= lift . (dumpAfterStage' stageSaturateApplication)
-
                 >>= instantiation instantiationDepth
-                >>= lift . (dumpAfterStage' stageInstantiation)
 
   result <- lift (is NoSatchmo) >>= \case
     True  -> return $ displayProgram parsedProgram
@@ -94,22 +64,20 @@ compile configs a = TH.runIO
                 return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
                       ++ satchmoP
 
-  lift $ C.logWhenVerbose "Compilation successful"
+  liftIO $ log "Compilation successful"
   return result
-
-dumpAfterStage' :: (MonadConfig m, MonadIO m) 
-                => String -> Program -> m Program
-dumpAfterStage' stage program = do
-  C.dumpAfterStage stage $ displayProgram program
-  return program
 
 compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
                  => Program -> m [TH.Dec]
 compileToSatchmo program = do
   thProgram <- codeGen program 
 
-  C.dumpAfterStage stageSatchmo $ show $ TH.ppr thProgram
-  C.dumpAfterStage stageSatchmoUnqualified 
-                 $ show $ TH.ppr 
-                 $ unqualifiedNames thProgram
+  fromConfigs C.dumpTo >>= \case
+    Nothing -> return ()
+    Just "" -> log         $ show $ TH.ppr $ unqualifiedNames thProgram
+    Just f  -> liftIO $ writeFile f $ show $ TH.ppr $ unqualifiedNames thProgram
+
   return thProgram
+
+log :: MonadIO m => String -> m ()
+log = liftIO . hPutStrLn stderr 
