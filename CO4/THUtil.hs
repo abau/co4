@@ -7,6 +7,9 @@ import           Data.Generics (GenericT,everywhere,mkT)
 import qualified Language.Haskell.TH as TH
 import qualified Data.Map as M
 import           CO4.Names
+import           CO4.Util (extT')
+import           CO4.Frontend.THPreprocess 
+  (noSignatureExpression,noSignaturePattern,noSignatureDeclarations)
 
 funD :: Namelike n => n -> [TH.Clause] -> TH.Dec
 funD n = TH.FunD $ toTHName n
@@ -77,27 +80,9 @@ toTHName :: Namelike n => n -> TH.Name
 toTHName = TH.mkName . fromName
 
 deleteSignatures :: GenericT
-deleteSignatures = everywhere (mkT noSigE)
-                 . everywhere (mkT noSigP)
-                 . everywhere (mkT noSigD)
-  where
-    noSigE exp = case exp of TH.SigE e _ -> e
-                             _           -> exp
-
-    noSigP pat = case pat of TH.SigP p _ -> p
-                             _           -> pat
-
-    noSigD = filter (not . isSig)
-    
-    isSig (TH.SigD {}) = True
-    isSig _            = False
-
-deleteTypeSynonyms :: GenericT
-deleteTypeSynonyms = everywhere (mkT noTypeSyn)
-  where
-    noTypeSyn                = filter (not . isTypeSyn)
-    isTypeSyn (TH.TySynD {}) = True
-    isTypeSyn _              = False
+deleteSignatures = everywhere $ extT' noSignatureDeclarations
+                              $ extT' noSignaturePattern
+                              $ mkT   noSignatureExpression
 
 renameTHNames :: [(TH.Name,TH.Name)] -> GenericT
 renameTHNames renamings = 

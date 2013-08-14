@@ -5,6 +5,8 @@ where
 import           Control.Exception (assert)
 import           Data.List (partition,find)
 import           Data.Maybe (mapMaybe)
+import           Data.Typeable (Typeable)
+import           Data.Generics (extM,extT)
 import           Text.Read (readEither)
 import           CO4.Language
 import           CO4.Names as N
@@ -235,6 +237,14 @@ isInt s = case readEither s :: Either String Int of
   Left _  -> False
   Right _ -> True
 
--- `mapAndUnzipM` on 3-tuple
+-- |'mapAndUnzipM' on 3-tuple
 mapAndUnzip3M :: (Monad m) => (a -> m (b,c,d)) -> [a] -> m ([b],[c],[d])
 mapAndUnzip3M f xs =  sequence (map f xs) >>= return . unzip3
+
+-- |@extM' = flip 'extM'@
+extM' :: (Monad m, Typeable a, Typeable b) => (b -> m b) -> (a -> m a) -> a -> m a
+extM' = flip extM 
+
+-- |@extT' = flip 'extT'@
+extT' :: (Typeable a, Typeable b) => (b -> b) -> (a -> a) -> a -> a
+extT' = flip extT 

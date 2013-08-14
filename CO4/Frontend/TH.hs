@@ -11,7 +11,7 @@ import           CO4.Util (programFromDeclarations)
 import           CO4.Frontend
 import           CO4.Names
 import           CO4.Frontend.THCheck (check)
-import           CO4.Frontend.THPreprocess (preprocess)
+import           CO4.Frontend.THPreprocess (preprocessExp,preprocessDecs)
 
 instance ProgramFrontend [TH.Dec] where
   parseProgram decs = 
@@ -19,7 +19,7 @@ instance ProgramFrontend [TH.Dec] where
     else error "Frontend.TH.parseProgram: check failed"
 
   parsePreprocessedProgram decs = 
-    if check decs then preprocess decs >>= return . parseTHDeclarations
+    if check decs then preprocessDecs decs >>= return . parseTHDeclarations
     else error "Frontend.TH.parsePreprocessedProgram: check failed"
 
 instance ExpressionFrontend TH.Exp where
@@ -28,7 +28,7 @@ instance ExpressionFrontend TH.Exp where
     else error "Frontend.TH.parseExpression: check failed"
 
   parsePreprocessedExpression exp =
-    if check exp then preprocess exp >>= return . parseTHExpression
+    if check exp then preprocessExp exp >>= return . parseTHExpression
     else error "Frontend.TH.parsePreprocessedExpression: check failed"
 
 {-
