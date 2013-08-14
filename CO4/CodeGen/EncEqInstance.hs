@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module CO4.Algorithms.Eitherize.EncEqInstance
+module CO4.CodeGen.EncEqInstance
   (encEqInstance)
 where
 

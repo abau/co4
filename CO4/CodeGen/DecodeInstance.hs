@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module CO4.Algorithms.Eitherize.DecodeInstance
+module CO4.CodeGen.DecodeInstance
   (decodeInstance)
 where
 

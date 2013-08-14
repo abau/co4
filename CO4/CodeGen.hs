@@ -2,8 +2,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# language LambdaCase #-}
 
-module CO4.Algorithms.Eitherize
-  (eitherize)
+module CO4.CodeGen
+  (codeGen)
 where
 
 import           Prelude hiding (undefined)
@@ -18,10 +18,10 @@ import           CO4.Names
 import           CO4.Algorithms.THInstantiator
 import           CO4.Algorithms.Collector
 import           CO4.Unique
-import           CO4.Algorithms.Eitherize.Names
-import           CO4.Algorithms.Eitherize.DecodeInstance (decodeInstance)
-import           CO4.Algorithms.Eitherize.EncodeableInstance (encodeableInstance)
-import           CO4.Algorithms.Eitherize.EncEqInstance (encEqInstance)
+import           CO4.CodeGen.Names
+import           CO4.CodeGen.DecodeInstance (decodeInstance)
+import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
+import           CO4.CodeGen.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
@@ -241,10 +241,10 @@ instantiateSignature name numArgs =
   in
     sigD' name $ TH.ForallT [] [] type_
 
--- |@eitherize prof p@ eitherizes a first order program into a Template-Haskell program.
+-- |@codeGen prof p@ transforms a first order co4 program into a Template-Haskell program.
 -- @prof@ enables profiling.
-eitherize :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
-eitherize program = do
+codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+codeGen program = do
   typedProgram <- schemes program
   withPrelude  <- is ImportPrelude
 
