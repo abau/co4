@@ -272,14 +272,14 @@ type Secondary = [ Paren ]
 -- * energy
 
 data Energy = MinusInfinity 
-            | Finite Nat8 
+            | Finite Nat 
      deriving Show
 
 mi   = MinusInfinity
-zero = Finite (nat8 0)
-one  = Finite (nat8 1)
-two  = Finite (nat8 2)
-three  = Finite (nat8 3)
+zero = Finite (nat 8 0)
+one  = Finite (nat 8 1)
+two  = Finite (nat 8 2)
+three  = Finite (nat 8 3)
 
 
 
@@ -291,7 +291,7 @@ maxbound_double :: Primary
                 -> (Energy, Energy) 
 maxbound_double p = maxbound
     ( MinusInfinity, MinusInfinity )
-    ( Finite (nat8 0), MinusInfinity )
+    ( Finite (nat 8 0), MinusInfinity )
     ( \ (f1, s1) (f2, s2) -> ( maxEnergy f1 f2
                              , maxEnergy ( minEnergy f1 f2 )
                                  (maxEnergy s2 s2 ) ) )
@@ -316,7 +316,7 @@ eqEnergy a b = case a of
         Finite g -> False
     Finite f -> case b of
         MinusInfinity -> False
-        Finite g -> eqNat8 f g
+        Finite g -> eqNat f g
 
 gtEnergy :: Energy -> Energy -> Bool
 gtEnergy a b = not (geEnergy b a)
@@ -326,25 +326,25 @@ geEnergy a b = case b of
   MinusInfinity -> True
   Finite b' -> case a of 
     MinusInfinity -> False
-    Finite a' -> geNat8 a' b'
+    Finite a' -> geNat a' b'
 
 plus :: Energy -> Energy -> Energy
 plus e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (maxNat8p x y)
+    Finite y      -> Finite (maxNatp x y)
     MinusInfinity -> e
   MinusInfinity -> f
 
-maxNat8p = maxNat8
+maxNatp = maxNat
 
 times :: Energy -> Energy -> Energy
 times e f = case e of
   Finite x -> case f of 
-    Finite y      -> Finite (plusNat8p x y)
+    Finite y      -> Finite (plusNatp x y)
     MinusInfinity -> f
   MinusInfinity -> e
 
-plusNat8p = plusNat8
+plusNatp = plusNat
 
 -- * Pairs of energies
 

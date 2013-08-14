@@ -44,7 +44,7 @@ balanced xs f = case xs of
                        , balanced post f
                        ]
 
-uEnergy = constructors [ Just [] , Just [ uNat8 ]]
+uEnergy = constructors [ Just [] , Just [ uNat 8 ]]
 uEnergy2 = known 0 1 [ uEnergy, uEnergy ]
 
 uMatrix xs ys f =
@@ -56,13 +56,13 @@ uMatrix xs ys f =
 -- upper triag finite energy
 uTriagGap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i + delta <= j 
-     then known 1 2 [ uNat8 ]
+     then known 1 2 [ uNat 8 ]
      else known 0 2 []
 
 
 uTriag2Gap delta n = uMatrix [1 .. n] [1 .. n] $ \ i j ->
      if i + delta <= j 
-     then known 0 1 [ known 1 2 [ uNat8 ], uEnergy ]
+     then known 0 1 [ known 1 2 [ uNat 8 ], uEnergy ]
      else known 0 1 [ known 0 2 [], known 0 2 [] ]
 
 inforna cs = map ( \ c -> case c of
