@@ -1,46 +1,69 @@
 -- |Template Haskell preprocessing
 module CO4.Frontend.THPreprocess
-  (preprocess)
+  ( preprocessExp, preprocessDecs
+  , noSignatureExpression, noSignaturePattern, noSignatureDeclarations)
 where
 
 import           Control.Monad (liftM)
 import           Control.Exception (assert)
+import           Data.List (foldl')
 import qualified Data.Map as M
-import           Data.Generics (GenericM,everywhere,everywhere',everywhereM,mkT,mkM,extM)
+import           Data.Generics (everywhere,everywhereM,mkT,mkM)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
-import           CO4.THUtil (deleteSignatures,deleteTypeSynonyms)
 import           CO4.Names (consName,listName,tupleName)
+import           CO4.Util (extM')
 
--- |Performs preprocessing on TH's AST 
-preprocess :: MonadUnique u => GenericM u
-preprocess a = everywhereM ( extM' onPat 
-                           $ extM' onMatch
-                           $ extM' onClause
-                           $ extM' onClauses
-                           $ extM' onType
-                           $ extM' onDecs
-                           $ mkM onExp
-                           ) a
-           >>= return . deleteTypeSynonyms . deleteSignatures
+type TypeSynonyms = M.Map Name ([TyVarBndr], Type)
+
+preprocessExp :: MonadUnique u => Exp -> u Exp
+preprocessExp = everywhereM $ extM' onPat 
+                            $ extM' onMatch
+                            $ extM' onClause
+                            $ extM' onClauses
+                            $ extM' (onType M.empty)
+                            $ mkM   onExp
+
+preprocessDecs :: MonadUnique u => [Dec] -> u [Dec]
+preprocessDecs decs = everywhereM 
+                    ( extM' onDecs
+                    $ extM' onPat 
+                    $ extM' onMatch
+                    $ extM' onClause
+                    $ extM' onClauses
+                    $ extM' (onType synonyms)
+                    $ mkM   onExp
+                    ) decs
   where
-    extM' a b = extM b a
+    synonyms = M.fromList $ concatMap synonym decs
 
-    onExp a   = noInfixAppExpression a >>= noNestedPatternsInLambdaParameters 
-            >>= return . noParensExpression . noListExpression . noTupleExpression
+    synonym (TySynD name vars t) = [(name,(vars,t))]
+    synonym _                    = []
 
-    onPat a   = noWildcardPattern a
-            >>= return . noParensPattern . noInfixPattern . noListPattern . noTuplePattern
+onExp :: MonadUnique u => Exp -> u Exp
+onExp a = noInfixAppExpression a >>= noNestedPatternsInLambdaParameters 
+      >>= return . noParensExpression . noListExpression . noTupleExpression
+                 . noSignatureExpression
 
-    onMatch   = noNestedPatternsInMatch
+onPat :: MonadUnique u => Pat -> u Pat
+onPat a = noWildcardPattern a
+      >>= return . noParensPattern . noInfixPattern . noListPattern . noTuplePattern
+                 . noSignaturePattern
 
-    onClause  = noNestedPatternsInClauseParameters
+onMatch :: MonadUnique u => Match -> u Match
+onMatch = noNestedPatternsInMatch
 
-    onClauses = noMultipleClauses
+onClause :: MonadUnique u => Clause -> u Clause
+onClause = noNestedPatternsInClauseParameters
 
-    onType    = return . noTupleType
+onClauses :: MonadUnique u => [Clause] -> u [Clause]
+onClauses = noMultipleClauses
 
-    onDecs    = return . expandTypeSynDeclarations
+onType :: MonadUnique u => TypeSynonyms -> Type -> u Type
+onType synonyms = return . expandTypeSynonyms synonyms . noTupleType
+
+onDecs :: MonadUnique u => [Dec] -> u [Dec]
+onDecs = return . noSignatureDeclarations . noTypeSynonyms
 
 -- Preprocessors on `Exp` ------------------------------------------------
 
@@ -76,6 +99,11 @@ noTupleExpression :: Exp -> Exp
 noTupleExpression exp = case exp of
   TupE xs -> foldl AppE (ConE $ tupleName $ length xs) xs
   _       -> exp
+
+noSignatureExpression :: Exp -> Exp
+noSignatureExpression exp = case exp of 
+  SigE e _ -> e
+  _        -> exp
 
 -- |Transforms nested patterns in arguments of lambda expressions into case expressions
 -- over those arguments
@@ -116,6 +144,11 @@ noTuplePattern :: Pat -> Pat
 noTuplePattern pat = case pat of
   TupP xs -> ConP (tupleName $ length xs) xs
   _       -> pat
+
+noSignaturePattern :: Pat -> Pat
+noSignaturePattern pat = case pat of 
+  SigP p _ -> p
+  _        -> pat
 
 -- Preprocessors on `Match` ------------------------------------------------
 
@@ -168,24 +201,15 @@ noTupleType ty = case ty of
   TupleT i -> ConT (tupleName i)
   _        -> ty
 
--- Preprocessors on `[Dec]` ------------------------------------------------
-
-expandTypeSynDeclarations :: [Dec] -> [Dec]
-expandTypeSynDeclarations decs = everywhere' (mkT expand) decs
+expandTypeSynonyms :: TypeSynonyms -> Type -> Type
+expandTypeSynonyms synonyms t = case collectAppT t of
+  (ConT con):args -> case M.lookup con synonyms of
+    Nothing        -> t
+    Just (vars,t') -> assert (length vars == length args) $
+                      expandTypeSynonyms synonyms $ foldl' apply t' 
+                                                  $ zip vars args
+  _ -> t
   where
-    synonyms = M.fromList $ concatMap synonym decs
-
-    synonym (TySynD name vars t) = [(name,(vars,t))]
-    synonym _                    = []
-
-    expand t | M.null synonyms = t
-    expand t                   = case collectAppT t of
-      (ConT con):args -> case M.lookup con synonyms of
-        Nothing        -> foldl1 AppT $ (ConT con) : (map expand args)
-        Just (vars,t') -> assert (length vars == length args) $
-                          expand $ foldl apply t' $ zip vars args
-      _ -> t
-
     collectAppT (AppT a b) = (collectAppT a) ++ [b]
     collectAppT t          = [t]
 
@@ -193,6 +217,20 @@ expandTypeSynDeclarations decs = everywhere' (mkT expand) decs
       where
         applyInType (VarT v') | v == v' = t'
         applyInType x                   = x
+
+-- Preprocessors on `[Dec]` ------------------------------------------------
+
+noSignatureDeclarations :: [Dec] -> [Dec]
+noSignatureDeclarations = filter (not . isSig)
+  where
+    isSig (SigD {}) = True
+    isSig _         = False
+
+noTypeSynonyms :: [Dec] -> [Dec]
+noTypeSynonyms = filter (not . isSynonym)
+  where
+    isSynonym (TySynD {}) = True
+    isSynonym _           = False
 
 -- Utilities ------------------------------------------------------------------
 
