@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-
 module CO4.Config 
 where
 
@@ -11,23 +10,10 @@ import Control.Monad.Writer
 import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
-import System.IO (stderr, hPutStrLn)
-
-data Config  = Verbose
-             {-
-             | Degree Int
-             | DegreeLoop Int
-             | Metric String
-             | NoRaml
-             -}
-             | NoSatchmo
-             | DumpAfter String FilePath
-             | DumpAll FilePath
+data Config  = NoSatchmo
+             | Dump FilePath
              | InstantiationDepth Int
              | ImportPrelude
-             | KeepTmp
-             | UndefinedSize String
-             | MakeFormula
              | Profile
              | Cache
              deriving (Eq,Show)
@@ -43,16 +29,6 @@ newtype ConfigurableT m a = ConfigurableT { run :: ReaderT Configs m a }
 configurable :: Configs -> ConfigurableT m a -> m a
 configurable configs c = runReaderT (run c) configs
 
-logWhenVerbose :: (MonadConfig m,MonadIO m) => String -> m ()
-logWhenVerbose = when' Verbose . liftIO . hPutStrLn stderr
-
-dumpAfterStage :: (MonadConfig m,MonadIO m) => String -> String -> m ()
-dumpAfterStage stage content = do
-  stageDump <- fromConfigs $ isStageDump stage
-  case stageDump of
-    Just filePath -> dump stage content filePath 
-    Nothing       -> return ()
-
 is :: (MonadConfig m,Monad m) => Config -> m Bool
 is c = liftM (elem c) configs
 
@@ -67,30 +43,6 @@ whenNot' c doThis = is c >>= \case False -> doThis
 fromConfigs :: MonadConfig m => (Configs -> a) -> m a
 fromConfigs f = configs >>= return . f
 
-dump :: MonadIO m => String -> String -> FilePath -> m ()
-dump title content filePath = liftIO $ case filePath of
-  "" -> hPutStrLn stderr content'
-  _  -> appendFile filePath $ content' ++ "\n"
-
-  where content' = unwords [ "##", title
-                           , replicate (50 - length title) '#', "\n"
-                           , content]
-
-
-{-
-degree :: Configs -> Int
-degree cs = case cs of
-  (Degree d):_ -> d
-  []           -> error "Compilation: No degree provided"
-  _            -> degree $ tail cs
-
-isDegreeLoop :: Configs -> Maybe Int
-isDegreeLoop cs = case cs of
-  (DegreeLoop d):_ -> Just d
-  []               -> Nothing
-  _                -> isDegreeLoop $ tail cs
--}
-
 defaultInstantiationDepth = 10
 instantiationDepth :: Configs -> Int
 instantiationDepth cs = case cs of
@@ -98,18 +50,11 @@ instantiationDepth cs = case cs of
   []                       -> defaultInstantiationDepth
   _                        -> instantiationDepth $ tail cs
 
-isStageDump :: String -> Configs -> Maybe FilePath
-isStageDump stage cs = case cs of
-  (DumpAfter s fp):_ | s == stage -> Just fp
-  (DumpAll         fp):_          -> Just fp
-  []                              -> Nothing
-  _                               -> isStageDump stage $ tail cs
-
-undefinedSize :: Configs -> Maybe String
-undefinedSize cs = case cs of
-  (UndefinedSize s):_ -> Just s
-  []                  -> Nothing
-  _                   -> undefinedSize $ tail cs
+dumpTo :: Configs -> Maybe FilePath
+dumpTo cs = case cs of
+  (Dump fp):_ -> Just fp
+  []          -> Nothing
+  _           -> dumpTo $ tail cs
 
 instance (Monad m) => MonadConfig (ConfigurableT m) where
   configs = ask
