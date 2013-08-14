@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module CO4.Algorithms.Eitherize.Solve
+module CO4.Solve
  ( ConstraintSystem, ParamConstraintSystem
  , solveAndTestP, solveP
  , solveAndTest, solve

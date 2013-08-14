@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module CO4.Algorithms.Eitherize.Names
+module CO4.CodeGen.Names
   (encodedConsName, encodedName, encodedNameProf, allocatorName)
 where
 

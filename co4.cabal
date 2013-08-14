@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.59
+Version:        	0.0.60
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -38,7 +38,6 @@ Library
                     , CO4.Util
                     , CO4.Algorithms.Bound
                     , CO4.Algorithms.Collector
-                    , CO4.Algorithms.Eitherize
                     , CO4.Algorithms.EtaExpansion
                     , CO4.Algorithms.Free
                     , CO4.Algorithms.Globalize
@@ -52,15 +51,16 @@ Library
                     , CO4.Algorithms.TopologicalSort
                     , CO4.Algorithms.UniqueNames
                     , CO4.Algorithms.Util
-                    , CO4.Algorithms.Eitherize.DecodeInstance
-                    , CO4.Algorithms.Eitherize.EncEqInstance
-                    , CO4.Algorithms.Eitherize.EncodeableInstance
-                    , CO4.Algorithms.Eitherize.Names
-                    , CO4.Algorithms.Eitherize.Solve
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
                     , CO4.Backend.TH
+                    , CO4.CodeGen
+                    , CO4.CodeGen.DecodeInstance
+                    , CO4.CodeGen.EncEqInstance
+                    , CO4.CodeGen.EncodeableInstance
+                    , CO4.CodeGen.Names
                     , CO4.Frontend.HaskellSrcExts
+                    , CO4.Solve
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess

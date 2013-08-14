@@ -24,7 +24,7 @@ import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
 import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
-import           CO4.Algorithms.Eitherize (eitherize)
+import           CO4.CodeGen (codeGen)
 
 stageParsed                 = "parsed"
 stageUniqueLocalNames       = "uniqueLocalNames"
@@ -106,7 +106,7 @@ dumpAfterStage' stage program = do
 compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
                  => Program -> m [TH.Dec]
 compileToSatchmo program = do
-  thProgram <- eitherize program 
+  thProgram <- codeGen program 
 
   C.dumpAfterStage stageSatchmo $ show $ TH.ppr thProgram
   C.dumpAfterStage stageSatchmoUnqualified 

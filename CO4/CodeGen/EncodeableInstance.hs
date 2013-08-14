@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module CO4.Algorithms.Eitherize.EncodeableInstance
+module CO4.CodeGen.EncodeableInstance
 where
 
 import           Control.Monad (forM)
