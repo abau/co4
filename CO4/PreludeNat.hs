@@ -5,18 +5,21 @@ module CO4.PreludeNat
   (Nat, value, nat, trimNat, uNat, kNat
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat
-  , maxNat, minNat, plusNat, plus'Nat, timesNat
+  , maxNat, minNat, timesNat
+  , plusNat, plus'Nat, plusCLANat, plus'CLANat
   , invertNat, shiftLNat, shiftRNat, andNat, orNat, xorNat
 
   , encNat, encTrimNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
   , encIsZeroNat
-  , encMaxNat, encMinNat, encPlusNat, encPlus'Nat, encTimesNat
+  , encMaxNat, encMinNat, encTimesNat
+  , encPlusNat, encPlus'Nat, encPlusCLANat, encPlus'CLANat
   , encInvertNat, encShiftLNat, encShiftRNat, encAndNat, encOrNat, encXorNat
 
   , encNatProf, encTrimNatProf
   , encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf, encLtNatProf
   , encIsZeroNatProf
-  , encMaxNatProf, encMinNatProf, encPlusNatProf, encPlus'NatProf, encTimesNatProf
+  , encMaxNatProf, encMinNatProf, encTimesNatProf
+  , encPlusNatProf, encPlus'NatProf, encPlusCLANatProf, encPlus'CLANatProf
   , encInvertNatProf, encShiftLNatProf, encShiftRNatProf, encAndNatProf, encOrNatProf
     , encXorNatProf
 
@@ -94,12 +97,18 @@ isZeroNat :: Nat -> Bool
 isZeroNat n = 0 == value n
 
 maxNat,minNat,plusNat,plus'Nat,timesNat :: Nat -> Nat -> Nat
-maxNat   = onValue2 max
-minNat   = onValue2 min
-plusNat  = onValue2 (+)
+maxNat      = onValue2 max
+minNat      = onValue2 min
+timesNat    = onValue2 (*)
+plusNat     = onValue2 (+)
 -- |`plus'Nat = plusNat` but `encPlus'Nat` ignores carry overflow
-plus'Nat = plusNat
-timesNat = onValue2 (*)
+plus'Nat    = plusNat
+-- |`plusCLANat = plusNat` but `encPlusCLANat` implements a 
+-- carry-look-ahead adder
+plusCLANat  = plusNat
+-- |`plus'CLANat = plusNat` but `encPlus'CLANat` implements a 
+-- carry-look-ahead adder that ignores carry overflows
+plus'CLANat = plusNat
 
 invertNat :: Nat -> Nat
 invertNat = onValue complement
@@ -259,24 +268,20 @@ encComparePrimitives_linear a b = case (a,b) of
 -}
 
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat = catchInvalid2 $ onFlags2 $ \ as bs -> do
-    case length as of
-        -- 3 -> call Opt.plus3 as bs 
-        -- 4 -> call Opt.plus4 as bs
-        -- 5 -> call Opt.plus5 as bs
-        -- _ -> ripple_carry_adder as bs
-        _ -> carry_lookahead_adder as bs
+encPlusNat = catchInvalid2 $ onFlags2 $ ripple_carry_adder
 encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
 encPlus'Nat,encPlus'NatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlus'Nat = catchInvalid2 $ onFlags2 $ \ as bs -> do
-    case length as of
-        -- 3 -> call Opt.plus3 as bs 
-        -- 4 -> call Opt.plus4 as bs
-        -- 5 -> call Opt.plus5 as bs
-        -- _ -> ripple_carry_adder as bs
-        _ -> carry_lookahead_adder_with_overflow as bs
+encPlus'Nat = catchInvalid2 $ onFlags2 $ ripple_carry_adder_with_overflow
 encPlus'NatProf a b = traced "plus'Nat" $ encPlus'Nat a b
+
+encPlusCLANat,encPlusCLANatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encPlusCLANat = catchInvalid2 $ onFlags2 $ carry_lookahead_adder
+encPlusCLANatProf a b = traced "plusCLANat" $ encPlusCLANat a b
+
+encPlus'CLANat,encPlus'CLANatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+encPlus'CLANat = catchInvalid2 $ onFlags2 $ carry_lookahead_adder_with_overflow
+encPlus'CLANatProf a b = traced "plus'CLANat" $ encPlus'CLANat a b
 
 -- | semantics: x through c  is  (lin c and x)  or  abs c 
 -- Prop False False = delete
@@ -318,21 +323,30 @@ carry_lookahead_adder_with_overflow as bs = do
     -- IGNORE CARRY: assert [ not $ abs p ]
     f (constant False)                    
 
-
-{-
 ripple_carry_adder (a:as) (b:bs) = do
   (z,c) <- halfAdder a b
   zs <- addWithCarry c as bs
   return $ z : zs
+  where
+    addWithCarry c [] [] = do
+      assert [ not c ] 
+      return []
+    addWithCarry c ( x : xs) ( y:ys ) = do
+      (z,d) <- fullAdder c x y
+      zs <- addWithCarry d xs ys
+      return $ z : zs
 
-addWithCarry c [] [] = do
-        assert [ not c ] 
-        return []
-addWithCarry c ( x : xs) ( y:ys ) = do
-          (z,d) <- fullAdder c x y
-          zs <- addWithCarry d xs ys
-          return $ z : zs
-
+ripple_carry_adder_with_overflow (a:as) (b:bs) = do
+  (z,c) <- halfAdder a b
+  zs <- addWithCarry c as bs
+  return $ z : zs
+  where
+    addWithCarry _ [] [] = return []
+    addWithCarry c ( x : xs) ( y:ys ) = do
+      (z,d) <- fullAdder c x y
+      zs <- addWithCarry d xs ys
+      return $ z : zs
+{-
 addWithCarryW w c xs ys | w <= 0 = do
      forM (c : xs ++ ys) $ \ c -> assert [ not c ]
      return []
