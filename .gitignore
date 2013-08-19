@@ -5,7 +5,9 @@
 *.clp
 *.lp
 *.hi
+*.hi-boot
 *.o
+*.o-boot
 *.oprof
 dist/
 archive/
