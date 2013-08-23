@@ -450,7 +450,7 @@ ifthenelse i t e = do
     return r
 
 fullAdder :: Primitive -> Primitive -> Primitive -> CO4 (Primitive,Primitive)
-fullAdder = fullAdder_three_with_redundant
+fullAdder = fullAdder_three
 
 {-
 fullAdder_one p1 p2 p3 = do
@@ -458,6 +458,7 @@ fullAdder_one p1 p2 p3 = do
   (r,c3) <- halfAdder r12 p3
   c <- or [c12,c3]
   return (r, c)
+-}
 
 fullAdder_three x y z = do
     r <- xor [x,y,z]
@@ -469,7 +470,6 @@ fullAdder_three x y z = do
     implies [ not y, not z ] [ not c ]
     implies [ not z, not x ] [ not c ]
     return (r,c)
--}
 
 fullAdder_three_with_redundant x y z = do
 

@@ -25,7 +25,8 @@ import System.IO
 
 $( compileFile [ ImportPrelude
                -- , DumpAll "/tmp/WCB_Matrix"
-               -- , Cache , Profile
+               , Cache 
+               , Profile
                , InstantiationDepth 20
                ] 
   "CO4/Test/WCB_Matrix.standalone.hs" )
@@ -81,8 +82,8 @@ result_for sec = do
     out <- solveAndTestP 
        sec 
        ( known 0 1 [ kList n uBase
-                   , uTriag2Gap 1 (n+1) 
-                   -- , uTriagGap 1 (n+1)
+                   --, uTriag2Gap 1 (n+1) 
+                    , uTriagGap 1 (n+1)
                    ] )
        encConstraint
        constraint
