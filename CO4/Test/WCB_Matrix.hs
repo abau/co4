@@ -25,8 +25,8 @@ import System.IO
 
 $( compileFile [ ImportPrelude
                -- , DumpAll "/tmp/WCB_Matrix"
-               , Cache 
-               , Profile
+               -- , Cache 
+               -- , Profile
                , InstantiationDepth 20
                ] 
   "CO4/Test/WCB_Matrix.standalone.hs" )
