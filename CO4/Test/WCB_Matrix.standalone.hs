@@ -6,8 +6,8 @@ import Prelude hiding ( sequence)
 
 -- * the main constraint
 
--- constraint = design_simple
-constraint = design_stable
+constraint = design_simple
+-- constraint = design_stable
 
 design_simple :: Secondary 
             -> (Primary, Matrix Energy)
@@ -34,18 +34,33 @@ grammar :: e -> e
         -> (e -> e -> e) -> (e -> e -> e)
         -> (Primary -> [[e]])
         -> Primary -> Matrix e -> Matrix e
-grammar zero one plus times costM p s =     
-        sequence plus times 
-            [ choice plus
+grammar = grammar0 -- geht aber nicht für stability!
+
+grammar1 zero one plus times costM p s =     
+        sequence plus times [ part1 zero one plus times costM p s 
+                            , part2 zero one plus p s 
+                            ]
+
+
+part1 zero one plus times costM p s = choice plus
                [ item zero one p
                , pointwise times (costM p) 
                 (shift zero (gap (S (S (S Z))) zero s))
                ]
-            , choice plus 
+part2  zero one plus  p s = choice plus 
                [ epsilon zero one (head p : p)
                , s
                ]
-            ]
+
+
+grammar0 zero one plus times costM p s =     
+    choice plus 
+       [ item zero one p
+       , sequence plus times [s, s]
+       , pointwise times (costM p) (shift zero (gap (S (S (S Z))) zero s))
+       ] 
+  
+         
 
 -- * matrix operations (general)
 
@@ -157,7 +172,7 @@ item zero one p =
     let p' = head p : p
     in  for (zipnats p') ( \ (i,_) ->
         for (zipnats p') ( \ (j,_) ->
-            case eqN (S i) j of
+            case assertKnown (eqN (S i) j) of
                 False -> zero
                 True  -> one  
                          ))
@@ -197,7 +212,7 @@ eqN x y = case x of
 
 zipnats :: [a] -> [ (N,a) ]
 zipnats xs = 
-    let f n xs = case xs of
+    let f n xs = case assertKnown xs of
             [] -> []
             x : xs' -> (n, x) : f (S n) xs'
     in  f Z xs
