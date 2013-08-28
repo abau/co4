@@ -5,7 +5,6 @@ module CO4.Frontend.THPreprocess
 where
 
 import           Control.Monad (liftM)
-import           Control.Exception (assert)
 import           Data.List (foldl')
 import qualified Data.Map as M
 import           Data.Generics (everywhere,everywhereM,mkT,mkM)
@@ -205,9 +204,12 @@ expandTypeSynonyms :: TypeSynonyms -> Type -> Type
 expandTypeSynonyms synonyms t = case collectAppT t of
   (ConT con):args -> case M.lookup con synonyms of
     Nothing        -> t
-    Just (vars,t') -> assert (length vars == length args) $
-                      expandTypeSynonyms synonyms $ foldl' apply t' 
-                                                  $ zip vars args
+    Just (vars,t') -> if length args < length vars 
+                      then t
+                      else 
+                        let expanded = foldl' apply t' $ zip vars args
+                        in
+                          everywhere (mkT $ expandTypeSynonyms synonyms) expanded
   _ -> t
   where
     collectAppT (AppT a b) = (collectAppT a) ++ [b]
