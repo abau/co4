@@ -125,3 +125,9 @@ We call `result` in a ghci session to find a factorization of 143:
     Just (13,11)
 
 For more examples see [CO4/Example] (https://github.com/apunktbau/co4/tree/master/CO4/Example).
+
+## Applications
+
+- *RNA Design by Program Inversion via SAT solving* at [WCB 2013] (http://cp2013.a4cp.org/workshops/wcb) ([Proceedings] (http://cp2013.a4cp.org/sites/default/files/uploads/WCB13_proceedings.pdf))
+- *Propositional Encoding of Constraints over Tree-Shaped Data* at [WFLP 2013] (http://www-ps.informatik.uni-kiel.de/wflp2013/) 
+- *SAT compilation for Termination Proofs via Semantic Labelling* at [WST 2013] (http://www.imn.htwk-leipzig.de/WST2013/) ([Proceedings] (http://www.imn.htwk-leipzig.de/WST2013/papers/wst13.pdf))
