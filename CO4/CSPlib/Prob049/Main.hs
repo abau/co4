@@ -27,19 +27,18 @@ $( compileFile [ ImportPrelude
                         ] 
   "CO4/CSPlib/Prob049/Constraint.hs" )
 
+
 main = do
     [ arg1 ] <- getArgs
     run ( read arg1 :: Integer )
 
 run n = do
-    let bits = 1 
-             + 2 * ( succ $ truncate $ logBase 2 
+    let bits = 3 * (  truncate $ logBase 2 
                    $ fromIntegral n )
     out <- solveAndTestP 
-       ( map (nat bits) [ 1 .. n ] )
-       ( known 0 1 [ kList (div n 2) (uNat bits)
-                   , kList (div n 2) (uNat bits)
-                   ] )
+       ( nat bits 0 , nat bits 1
+       , map (nat bits) [ 1 .. n ] )
+       ( kList n uBool )
        encConstraint
        constraint
     print out
