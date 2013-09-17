@@ -23,7 +23,7 @@ import System.IO
 $( compileFile [ ImportPrelude
                         -- , DumpAll "/tmp/WCB"
                         , Cache
-                        , Profile
+                        -- , Profile
                         ] 
   "CO4/CSPlib/Prob006/Constraint.hs" )
 
