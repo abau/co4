@@ -3,8 +3,6 @@ module CO4.CSPlib.Prob006.Constraint where
 import Prelude hiding ( sum )
 import CO4.Prelude
 
-import Debug.Trace
-
 constraint len diffs = 
        leNat (sum diffs) len
     && alldifferent_sorting 
