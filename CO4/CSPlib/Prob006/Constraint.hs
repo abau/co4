@@ -5,7 +5,9 @@ import CO4.Prelude
 
 constraint len diffs = 
        leNat (sum diffs) len
-    && alldifferent ( map sum ( segments diffs ))
+    && alldifferent 
+        -- ( map sum ( segments diffs ))
+       ( map_sum_segments diffs )
 
 
 -- naive implementation
@@ -13,6 +15,17 @@ alldifferent xs = case xs of
     [] -> True
     x : ys -> all ( \ y -> not (eqNat x y)) ys
           && alldifferent ys
+
+-- equivalent to map sum $ segments xs
+-- but used fewer additions (?)
+map_sum_segments xs = case xs of
+    [] -> []
+    x : xs' -> map_sum_inits xs ++ map_sum_segments xs'
+
+map_sum_inits xs = case xs of
+    [] -> []
+    x : xs' -> x : map ( \ y -> plusNat x y )
+                       (map_sum_inits xs')
 
 -- non-empty contiguous subwords
 segments :: [a] -> [[a]]
