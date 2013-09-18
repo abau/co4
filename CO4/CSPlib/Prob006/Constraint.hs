@@ -5,7 +5,9 @@ import CO4.Prelude
 
 constraint len diffs = 
        leNat (sum diffs) len
-    && alldifferent_sorting 
+    && all ( \ d -> not ( isZeroNat d)) diffs
+    && -- alldifferent_sorting 
+       alldifferent_naive
      -- ( map sum ( segments diffs ))
         ( map_sum_segments diffs )
 
