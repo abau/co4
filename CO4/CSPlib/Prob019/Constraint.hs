@@ -27,8 +27,13 @@ constraint is xs =
                   all ( \ (i,x) -> 
                     eqNat (count (zero,one) i xs) x )
                   ( zip is xs )
+             -- make more interesting problem:
+             --  && any ( \ x -> gtNat x two ) (tail xs)
+             -- but actually this cannot happen (?)
+             -- which justifies the following
+
              -- HACK to restrict search space:
-                 && all ( \ x -> leNat x two ) (tail xs)
+                  && all ( \ x -> leNat x two ) (tail xs)
    
 count (zero,one) i xs = 
     foldr plusNat zero 
