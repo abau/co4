@@ -21,11 +21,15 @@ constraint is xs =
         [] -> undefined
         zero : is1 -> case assertKnown is1 of
             [] -> undefined
-            one : is2 -> 
-              all ( \ (i,x) -> 
+            one : is2 -> case is2 of
+              [] -> undefined
+              two : rest -> 
+                  all ( \ (i,x) -> 
                     eqNat (count (zero,one) i xs) x )
                   ( zip is xs )
-
+             -- HACK to restrict search space:
+                 && all ( \ x -> leNat x two ) (tail xs)
+   
 count (zero,one) i xs = 
     foldr plusNat zero 
         (map ( \ x -> case eqNat i x of
