@@ -1,3 +1,8 @@
+-- | see also 
+-- http://ajc.maths.uq.edu.au/pdf/15/ocr-ajc-v15-p145.pdf
+-- the number here is the "independent domination number" i(n)
+-- a test case is i(16) = 9. Can we get this?
+
 import CO4.PreludeNat
 
 constraint :: (Nat, [(Nat,Nat)]) -> [(Nat,Nat)] -> Bool
