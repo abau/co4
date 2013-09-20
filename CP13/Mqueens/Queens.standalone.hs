@@ -3,9 +3,15 @@ import CO4.PreludeNat
 constraint :: (Nat, [(Nat,Nat)]) -> [(Nat,Nat)] -> Bool
 constraint (n, cells) queens = 
         onboard n queens
-     -- && monotone queens
+     && monotone ( map fst queens )
      && nonattack queens 
      && dominated cells queens
+
+monotone xs = case xs of
+    [] -> True
+    x : ys -> case ys of
+        [] -> True
+        y : zs -> ltNat x y && monotone ys
 
 onboard n queens = all ( \  q -> case q of
     (x,y) ->  leNat (nat 8 1) x && leNat x n
