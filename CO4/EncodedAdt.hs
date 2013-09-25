@@ -7,7 +7,7 @@ module CO4.EncodedAdt
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
   , arguments, arguments', constructorArgument, origin
-  , onValidDiscriminant, caseOf, toIntermediateAdt, caseOfBits, trimFlags
+  , onValidDiscriminant, ifReachable, caseOf, toIntermediateAdt, caseOfBits, trimFlags
   )
 where
 
@@ -127,7 +127,6 @@ flags' e = case flags e of
 constantConstructorIndex :: EncodedAdt -> Maybe Int
 constantConstructorIndex adt = case flags adt of
   Nothing -> error "EncodedAdt.constantConstructorIndex: no flags"
-  Just [] -> Just 0
   Just fs -> primitivesToDecimal fs
 
 definedness :: EncodedAdt -> Primitive
@@ -163,7 +162,7 @@ origin adt    = _origin adt
 
 -- * Utilities
 
--- @onValidDiscriminant d n f@
+-- |@onValidDiscriminant d n f@
 --  * returns 'Empty', if @d@ is empty or 'isValidDiscriminant' is false
 --  * returns 'encUndefined', if 'isConstantlyUndefined' is true
 --  * returns 'f' otherwise
@@ -173,10 +172,25 @@ onValidDiscriminant d n f =
   else if isEmpty d || not (isValidDiscriminant d n) then return encEmpty
        else f
 
--- @isValidDiscriminant d n@ checks if @d@ has enough flags to
--- discriminate between @n@ different branches
+-- |@isValidDiscriminant d n@ checks if @d@ is a valid discriminant, i.e.
+--  * if @d@ is not constantly undefined
+--  * if @d@ is not empty
+--  * if @d@ has enough flags to discriminate between @n@ different branches
 isValidDiscriminant :: EncodedAdt -> Int -> Bool
-isValidDiscriminant adt n = length (flags' adt) >= bitWidth n
+isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
+                                        , not $ isEmpty               adt
+                                        , length (flags' adt) >= bitWidth n
+                                        ]
+
+-- |@ifReachable d i n b@ evaluates the @i@-th branch @b@ of a case-distinction with @n@
+-- constructors on discriminat @d@, if the @i@-th branch is reachable according to @d@, i.e.
+-- if @d@ is not constant or if @d@ is constant @i@.
+ifReachable :: EncodedAdt -> Int -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
+ifReachable d i n b = Exception.assert (isValidDiscriminant d n) $
+  case primitivesToDecimal $ takeRelevantFlags n $ flags' d of
+    Nothing         -> b
+    Just j | i == j -> b
+    Just _          -> return encEmpty
 
 -- |Case distinction between encoded ADTs
 caseOf :: EncodedAdt -> [EncodedAdt] -> CO4 EncodedAdt
@@ -207,7 +221,7 @@ caseOf adt branches =
 
       return $ EncodedAdt id' def' flags' arguments' origin'
   where
-    relevantFlags = take (bitWidth $ length branches) $ flags' adt
+    relevantFlags = takeRelevantFlags (length branches) $ flags' adt
 
 mergeOrigins :: [EncodedAdt] -> CO4 Doc
 mergeOrigins branches =
@@ -248,10 +262,15 @@ toIntermediateAdt (EncodedAdt _ definedness flags args _) n =
                then return $ intermediate 0
                else decode relevantFlags >>= return . intermediate . fromBinary
         where
-          relevantFlags  = take (bitWidth n) flags
+          relevantFlags  = takeRelevantFlags n flags
           intermediate i = IntermediateConstructorIndex i args 
 
+-- |@takeRelevantFlags n@ returns the first @'bitWidth' n@ flags
+takeRelevantFlags :: Integral i => i -> [Primitive] -> [Primitive]
+takeRelevantFlags n = take $ bitWidth n
+
 primitivesToDecimal :: [Primitive] -> Maybe Int
+primitivesToDecimal [] = Just 0
 primitivesToDecimal ps = 
   if all P.isConstant ps
   then Just $ fromBinary $ map (fromJust . P.evaluateConstant) ps

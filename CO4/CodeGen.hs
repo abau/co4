@@ -23,7 +23,7 @@ import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.CodeGen.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
-  (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,caseOf,constructorArgument)
+  (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.AllocatorData (known)
@@ -156,8 +156,12 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                                                     $ caseOfE ]
     where 
       -- Instantiate matches
-      instantiateMatches e'Name = zipWithM instantiateMatch [0..] . dAdtConstructors
+      instantiateMatches e'Name adt = forM (zip [0..] $ dAdtConstructors adt) $ \(i,cons) ->
+        do match' <- instantiateMatch i cons
+           return $ appsE (TH.VarE 'ifReachable) [varE e'Name, intE i, intE numCons, match']
         where
+          numCons = length $ dAdtConstructors adt
+
           -- Default match
           defaultMatch = case last ms of m@(Match (PVar _) _) -> Just m
                                          _                    -> Nothing
@@ -183,7 +187,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                                           [ intE i, intE j, varE e'Name ]
 
                 psNames = map (\(PVar p) -> nUntyped p) ps
-            
+
           -- Finds the corresponding match for constructor @c@
           matchFromConstructor c = 
             case find byMatch ms of
