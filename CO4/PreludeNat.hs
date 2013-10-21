@@ -471,6 +471,7 @@ fullAdder_three x y z = do
     implies [ not z, not x ] [ not c ]
     return (r,c)
 
+{-
 fullAdder_three_with_redundant x y z = do
 
     r <- xor [x,y,z]
@@ -492,6 +493,7 @@ fullAdder_three_with_redundant x y z = do
     implies [ r, c ] [ z ]
 
     return (r,c)
+-}
 
 {-
 fullAdder_two p1 p2 p3 = do
