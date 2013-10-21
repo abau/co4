@@ -59,7 +59,7 @@ compile configs a = TH.runIO
                 >>= instantiation instantiationDepth
 
   result <- lift (is NoSatchmo) >>= \case
-    True  -> return $ displayProgram parsedProgram
+    True  -> return $ displayProgram uniqueProgram
     False -> do satchmoP <- compileToSatchmo uniqueProgram
                 return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
                       ++ satchmoP
