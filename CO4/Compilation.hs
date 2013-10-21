@@ -27,6 +27,7 @@ import           CO4.Algorithms.Instantiation (instantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.CodeGen (codeGen)
+import           CO4.PPrint (pprint)
 
 compileFile :: [Config] -> FilePath -> Q [TH.Dec]
 compileFile configs filePath = 
@@ -59,7 +60,9 @@ compile configs a = TH.runIO
                 >>= instantiation instantiationDepth
 
   result <- lift (is NoSatchmo) >>= \case
-    True  -> return $ displayProgram uniqueProgram
+    True  -> do dump $ show $ pprint uniqueProgram
+                return $ displayProgram uniqueProgram
+
     False -> do satchmoP <- compileToSatchmo uniqueProgram
                 return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
                       ++ satchmoP
@@ -71,13 +74,14 @@ compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m)
                  => Program -> m [TH.Dec]
 compileToSatchmo program = do
   thProgram <- codeGen program 
-
-  fromConfigs C.dumpTo >>= \case
-    Nothing -> return ()
-    Just "" -> log         $ show $ TH.ppr $ unqualifiedNames thProgram
-    Just f  -> liftIO $ writeFile f $ show $ TH.ppr $ unqualifiedNames thProgram
-
+  dump $ show $ TH.ppr $ unqualifiedNames thProgram
   return thProgram
+
+dump :: (MonadIO m, MonadConfig m) => String -> m ()
+dump msg = fromConfigs C.dumpTo >>= \case
+  Nothing -> return ()
+  Just "" -> log msg
+  Just f  -> liftIO $ writeFile f msg
 
 log :: MonadIO m => String -> m ()
 log = liftIO . hPutStrLn stderr 
