@@ -145,7 +145,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
             numCons   = length $ dAdtConstructors adt
 
         if numCons == 1
-          then return $ TH.DoE [ e'Binding, TH.NoBindS $ head ms' ]
+          then return $ TH.DoE [ e'Binding, TH.NoBindS $ checkValidity e'Name numCons
+                                                       $ head ms' ]
 
           else do 
             caseOfE <- bindAndApply 
