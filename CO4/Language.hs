@@ -3,19 +3,11 @@ module CO4.Language
   ( Type (..), Scheme (..)
   , Name (..), UntypedName (..)
   , Pattern (..), Match (..), Binding (..), Expression (..)
-  , Constructor (..), Declaration (..), Program (..)
+  , Constructor (..), Adt (..), Declaration (..), Program (..)
   ) 
 where
 
-import           Data.Data (Data,Typeable)
-
-data Type = TVar UntypedName
-          | TCon UntypedName [Type]
-          deriving (Show,Eq,Ord,Data,Typeable)
-
-data Scheme = SType Type
-            | SForall UntypedName Scheme
-            deriving (Show,Eq,Ord,Data,Typeable)
+import Data.Data (Data,Typeable)
 
 data UntypedName = UntypedName String
                  deriving (Show,Eq,Ord,Data,Typeable)
@@ -35,6 +27,14 @@ instance Ord Name where
                       string (NTyped n _) = n
                   in
                     compare (string a) (string b)
+
+data Type = TVar UntypedName
+          | TCon UntypedName [Type]
+          deriving (Show,Eq,Ord,Data,Typeable)
+
+data Scheme = SType Type
+            | SForall UntypedName Scheme
+            deriving (Show,Eq,Ord,Data,Typeable)
 
 data Pattern = PVar Name
              | PCon Name [Pattern]
@@ -65,10 +65,14 @@ data Constructor = CCon { cConName          :: UntypedName
                         }
                 deriving (Show,Eq,Ord,Data,Typeable)
 
+data Adt = Adt { adtName          ::  UntypedName 
+               , adtTypeVariables :: [UntypedName] 
+               , adtConstructors  :: [Constructor] 
+               }
+               deriving (Show,Eq,Ord,Data,Typeable)
+
 data Declaration = DBind Binding
-                 | DAdt  { dAdtName          ::  UntypedName 
-                         , dAdtTypeVariables :: [UntypedName] 
-                         , dAdtConstructors  :: [Constructor] }
+                 | DAdt  Adt
                 deriving (Show,Eq,Data,Typeable)
 
 data Program = Program { pMain  :: Binding

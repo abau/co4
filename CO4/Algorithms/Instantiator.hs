@@ -102,17 +102,17 @@ class Monad m => MonadInstantiator m where
   instantiateBind :: Declaration -> m Declaration
   instantiateBind (DBind b) = instantiateBinding b >>= return . DBind
 
-  instantiateAdt :: Declaration -> m Declaration
-  instantiateAdt (DAdt name ts cons) = do
+  instantiateAdt :: Adt -> m Adt
+  instantiateAdt (Adt name ts cons) = do
     name' <- instantiate name
     ts'   <- instantiate ts
     cons' <- instantiate cons
-    return $ DAdt name' ts' cons'
+    return $ Adt name' ts' cons'
 
   instantiateDeclaration :: Declaration -> m Declaration
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
-    DAdt {}  -> instantiateAdt decl
+    DAdt adt -> instantiateAdt adt >>= return . DAdt
 
   instantiateMain :: Binding -> m Binding
   instantiateMain main = do
@@ -163,6 +163,9 @@ instance Instantiable Match where
 
 instance Instantiable Binding where
   instantiate = instantiateBinding
+
+instance Instantiable Adt where
+  instantiate = instantiateAdt
 
 instance Instantiable Declaration where
   instantiate = instantiateDeclaration

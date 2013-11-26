@@ -19,10 +19,10 @@ bindingGroups bindings =
 
 -- |Computes groups of mutually recursive ADT declarations that are returned in
 -- topological order
-adtGroups :: [Declaration] -> [[Declaration]]
-adtGroups decs = 
-  let graph = map toNode decs
-      toNode adt@(DAdt name _ conss) = 
+adtGroups :: [Adt] -> [[Adt]]
+adtGroups adts = 
+  let graph = map toNode adts
+      toNode adt@(Adt name _ conss) = 
         (adt, name, nub $ concatMap fromConstructor conss)
 
       fromConstructor (CCon _ args) = concatMap fromType args

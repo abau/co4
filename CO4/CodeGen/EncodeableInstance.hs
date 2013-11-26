@@ -19,8 +19,8 @@ import           CO4.Util (for)
 -- >      ...
 -- >      encodedConstructor 0 n [ e1 ... ] 
 -- >    encode (Cons2 a1 ...) = ...
-encodeableInstance :: MonadUnique u => Declaration -> u TH.Dec
-encodeableInstance (DAdt name vars conss) = do
+encodeableInstance :: MonadUnique u => Adt -> u TH.Dec
+encodeableInstance (Adt name vars conss) = do
   varNames <- forM vars $ const $ newName "v"
 
   let predicates = for varNames $ \v -> TH.ClassP ''Encodeable [varT v]

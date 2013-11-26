@@ -1,7 +1,6 @@
 module CO4.TypesUtil
   ( splitScheme, quantifiedNames, typeOfScheme, isFunType, splitFunType
-  , argumentTypes, resultType, functionType, fromSType, typeOfAdt, schemeOfName
-  , countTCon)
+  , argumentTypes, resultType, functionType, fromSType, typeOfAdt, schemeOfName)
 where
 
 import           CO4.Language
@@ -53,16 +52,10 @@ fromSType (SType t) = t
 fromSType scheme = error $ "TypesUtil: fromSType (" ++ show (pprint scheme) ++ ")"
 
 -- |Returns the algebraic data type in terms of a @Type@ instance
-typeOfAdt :: Declaration -> Type
-typeOfAdt adt = TCon (dAdtName adt) $ map TVar $ dAdtTypeVariables adt
+typeOfAdt :: Adt -> Type
+typeOfAdt adt = TCon (adtName adt) $ map TVar $ adtTypeVariables adt
 
 -- |Returns the scheme of a typed name
 schemeOfName :: Name -> Scheme
 schemeOfName (NTyped _ s) = s
 schemeOfName (NUntyped n) = error $ "TypesUtil.schemeOfName: " ++ n ++ " is untyped"
-
--- |Counts how often a certain type constructor is present in a type.
-countTCon :: UntypedName -> Type -> Int
-countTCon name (TCon n ts) | n == name = foldl (+) 1 $ map (countTCon name) ts
-countTCon name (TCon _ ts)             = foldl (+) 0 $ map (countTCon name) ts
-countTCon _    _                       = 0

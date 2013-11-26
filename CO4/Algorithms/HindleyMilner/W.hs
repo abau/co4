@@ -229,7 +229,9 @@ wProgram context program = do
               return (s1 ++ s2, context', valueDecls' ++ bg')
           ) ([],context',[]) bgs
 
-  return $ programFromDeclarations $ typeDecls ++ (map DBind valueDecls')
+  return $ programFromDeclarations $ concat [ map DAdt typeDecls 
+                                            , map DBind valueDecls'
+                                            ]
 
 -- |Annotates the schemes to a mutually recursive binding group 
 wBindingGroup :: MonadUnique u => Context -> BindingGroup 
