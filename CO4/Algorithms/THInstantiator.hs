@@ -147,8 +147,8 @@ class Monad m => MonadTHInstantiator m where
   instantiateBind :: Declaration -> m [TH.Dec]
   instantiateBind (DBind b) = instantiateBinding b 
 
-  instantiateAdt :: Declaration -> m TH.Dec
-  instantiateAdt (DAdt name ts cons) = do
+  instantiateAdt :: Adt -> m TH.Dec
+  instantiateAdt (Adt name ts cons) = do
     name' <- instantiate name
     ts'   <- return (map TH.PlainTV) `ap` instantiate ts
     cons' <- instantiate cons
@@ -157,7 +157,7 @@ class Monad m => MonadTHInstantiator m where
   instantiateDeclaration :: Declaration -> m [TH.Dec]
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
-    DAdt {}  -> instantiateAdt decl >>= return . (:[]) 
+    DAdt adt -> instantiateAdt adt >>= return . return
 
   instantiateMain :: Binding -> m [TH.Dec]
   instantiateMain main = instantiateDeclaration $ DBind main
@@ -199,6 +199,9 @@ instance THInstantiable Match TH.Match where
 
 instance THInstantiable Binding [TH.Dec] where
   instantiate = instantiateBinding
+
+instance THInstantiable Adt TH.Dec where
+  instantiate = instantiateAdt
 
 instance THInstantiable Declaration [TH.Dec] where
   instantiate = instantiateDeclaration

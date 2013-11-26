@@ -10,7 +10,6 @@ import           Data.Generics (extM,extT)
 import           Text.Read (readEither)
 import           CO4.Language
 import           CO4.Names as N
-import           CO4.TypesUtil (countTCon)
 
 -- |Gets all declarations of a program
 programDeclarations :: Program -> [Declaration]
@@ -43,39 +42,18 @@ toplevelBindingByName :: Name -> Program -> Maybe Binding
 toplevelBindingByName name = find (\(Binding n _) -> n == name) . programToplevelBindings
 
 -- |Splits top-level declarations into type declarations and value declarations
-splitDeclarations :: Program -> ([Declaration], [Binding])
+splitDeclarations :: Program -> ([Adt], [Binding])
 splitDeclarations = foldl split ([],[]) . programDeclarations
-  where split (types, vals) d@(DAdt {}) = (types ++ [d], vals)
-        split (types, vals)   (DBind b) = (types, vals ++ [b])
+  where split (types, vals) (DAdt  a) = (types ++ [a], vals)
+        split (types, vals) (DBind b) = (types, vals ++ [b])
 
 -- |Adds declarations to a program
 addDeclarations :: [Declaration] -> Program -> Program
 addDeclarations decls program = program { pDecls = pDecls program ++ decls }
 
--- |Checks whether an ADT is directly recursive, i.e. if one of its constructor's 
--- arguments refers to the ADT itself. 
--- Recursions along other ADTs are not checked.
-isRecursiveAdt :: Declaration -> Bool
-isRecursiveAdt = not . null . fst . splitConstructors
-
--- |Splits the constructors of an ADT into recursive constructors and 
--- non-recursive constructors
-splitConstructors :: Declaration -> ([Constructor],[Constructor])
-splitConstructors (DAdt name _ conss) = partition isRecursiveCons conss
-  where isRecursiveCons c = countTConInConstructor name c > 0
-
--- |Counts the number of recursive constructor arguments
-countRecursiveConstructorArguments :: Declaration -> Int
-countRecursiveConstructorArguments (DAdt name _ conss) = 
-  sum $ map (countTConInConstructor name) conss
-
--- |Counts how often a certain type constructor is present in a constructor
-countTConInConstructor :: UntypedName -> Constructor -> Int
-countTConInConstructor name = sum . map (countTCon name) . cConArgumentTypes
-
 -- |Gets all constructor's argument types
-allConstructorsArgumentTypes :: Declaration -> [Type]
-allConstructorsArgumentTypes = concatMap cConArgumentTypes . dAdtConstructors
+allConstructorsArgumentTypes :: Adt -> [Type]
+allConstructorsArgumentTypes = concatMap cConArgumentTypes . adtConstructors
 
 -- |Replaces an element at a certain position in a list
 replaceAt :: Int -> a -> [a] -> [a]
@@ -175,8 +153,8 @@ cCon n = CCon (untypedName n)
 dBind :: Binding -> Declaration
 dBind = DBind 
 
-dAdt :: (Namelike n, Namelike m) => n -> [m] -> [Constructor] -> Declaration
-dAdt n m = DAdt (untypedName n) (map untypedName m)
+adt :: (Namelike n, Namelike m) => n -> [m] -> [Constructor] -> Adt
+adt n m = Adt (untypedName n) (map untypedName m)
 
 -- |Pattern-to-expression transformation
 patternToExpression :: Pattern -> Expression

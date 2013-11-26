@@ -43,8 +43,8 @@ import           CO4.Monad (traced)
 -- >     ...
 -- >     r     <- caseOfBits xFlags [Just y0, Just y1, ...]
 -- >     return (flags' r)
-encEqInstance :: (MonadUnique u, MonadConfig u) => Declaration -> u TH.Dec
-encEqInstance adt@(DAdt name vars conss) = do
+encEqInstance :: (MonadUnique u, MonadConfig u) => Adt -> u TH.Dec
+encEqInstance adt@(Adt name vars conss) = do
   [x,y]   <- mapM newName ["x","y"]
   profile <- is Profile
 

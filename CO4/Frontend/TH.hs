@@ -52,7 +52,7 @@ parseTHDeclaration dec = case dec of
         tVars' = map fromTHTyVarBndr tVars
         cons'  = map parseTHConstructor cons
     in
-      DAdt n' tVars' cons'
+      DAdt $ Adt n' tVars' cons'
 
   _ -> notSupported "parseTHDeclaration" dec
 

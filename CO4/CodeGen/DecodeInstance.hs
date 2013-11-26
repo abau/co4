@@ -31,8 +31,8 @@ import           CO4.Monad (SAT)
 -- >        ...
 -- >        IntermediateConstructorIndex d _      -> error "..."
 -- 
-decodeInstance :: MonadUnique u => Declaration -> u TH.Dec
-decodeInstance (DAdt name vars conss) = do
+decodeInstance :: MonadUnique u => Adt -> u TH.Dec
+decodeInstance (Adt name vars conss) = do
   paramName        <- newName "d"
   intermediateName <- newName "i"
 

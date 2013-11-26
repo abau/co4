@@ -86,13 +86,15 @@ instance PPrint Scheme where
 instance PPrint Constructor where
   pprint (CCon name types) = pprint $ TCon name types
 
-instance PPrint Declaration where
-  pprint (DBind binding) = pprint binding
-
-  pprint (DAdt name tvars cons) =
+instance PPrint Adt where
+  pprint (Adt name tvars cons) =
     hsep [ text "adt", pprint name, hsep $ map pprint tvars, text "= {"] 
       $$ (nest 2 $ vcat $ punctuate (text " ;") $ map pprint cons)
       $$ (text "}")
+
+instance PPrint Declaration where
+  pprint (DBind binding) = pprint binding
+  pprint (DAdt adt)      = pprint adt
 
 instance PPrint Program where 
   pprint (Program main decs) = vcat $ punctuate (text ";") 

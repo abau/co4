@@ -38,7 +38,7 @@ newtype AdtInstantiator u a = AdtInstantiator
 instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) where
 
   collectAdt adt = do
-    forM_ (zip [0..] $ dAdtConstructors adt) $ \constructor -> do
+    forM_ (zip [0..] $ adtConstructors adt) $ \constructor -> do
       mkAllocator constructor
       mkEncodedConstructor constructor
 
@@ -58,7 +58,7 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
 
         let exp = appsE (TH.VarE callThis) 
                       [ intE i
-                      , intE $ length $ dAdtConstructors adt
+                      , intE $ length $ adtConstructors adt
                       , TH.ListE $ map varE paramNames ]
         tellOne $ valD' (bindTo name) 
                 $ if null args 
@@ -70,7 +70,7 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
 type ToplevelName = Name
 data ExpInstantiatorData = ExpInstantiatorData 
   { toplevelNames :: [ToplevelName]
-  , adts          :: [Declaration]
+  , adts          :: [Adt]
   }
 
 newtype ExpInstantiator u a = ExpInstantiator 
@@ -142,7 +142,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         ms' <- instantiateMatches e'Name adt
 
         let e'Binding = bindS' e'Name e'
-            numCons   = length $ dAdtConstructors adt
+            numCons   = length $ adtConstructors adt
 
         if numCons == 1
           then return $ TH.DoE [ e'Binding, TH.NoBindS $ checkValidity e'Name numCons
@@ -157,11 +157,11 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                                                     $ caseOfE ]
     where 
       -- Instantiate matches
-      instantiateMatches e'Name adt = forM (zip [0..] $ dAdtConstructors adt) $ \(i,cons) ->
+      instantiateMatches e'Name adt = forM (zip [0..] $ adtConstructors adt) $ \(i,cons) ->
         do match' <- instantiateMatch i cons
            return $ appsE (TH.VarE 'ifReachable) [varE e'Name, intE i, intE numCons, match']
         where
-          numCons = length $ dAdtConstructors adt
+          numCons = length $ adtConstructors adt
 
           -- Default match
           defaultMatch = case last ms of m@(Match (PVar _) _) -> Just m
@@ -201,7 +201,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                   byMatch (Match (PCon p _) _) = untypedName p == c
 
       -- Finds the corresponding ADT for the matches
-      getAdt = asks (find (any isConstructor . dAdtConstructors) . adts)
+      getAdt = asks (find (any isConstructor . adtConstructors) . adts)
         where 
           PCon p _ = matchPattern $ head $ ms
           isConstructor (CCon c _) = untypedName p == c

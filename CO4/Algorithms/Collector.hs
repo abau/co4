@@ -71,13 +71,13 @@ class Monad m => MonadCollector m where
   collectBind :: Declaration -> m ()
   collectBind (DBind binding) = collect binding
 
-  collectAdt :: Declaration -> m ()
-  collectAdt (DAdt name ts cons) = collect name >> collect ts >> collect cons
+  collectAdt :: Adt -> m ()
+  collectAdt (Adt name ts cons) = collect name >> collect ts >> collect cons
 
   collectDeclaration :: Declaration -> m ()
   collectDeclaration decl = case decl of
     DBind {} -> collectBind decl
-    DAdt {}  -> collectAdt decl
+    DAdt adt -> collectAdt adt
 
   collectMain :: Binding -> m ()
   collectMain = collectBinding
@@ -111,6 +111,9 @@ instance Collectable Match where
 
 instance Collectable Binding where
   collect = collectBinding
+
+instance Collectable Adt where
+  collect = collectAdt
 
 instance Collectable Declaration where
   collect = collectDeclaration

@@ -109,11 +109,11 @@ bindTypes :: Namelike n => [(n,Type)] -> Context -> Context
 bindTypes bindings context = 
   mappend context $ gamma $ map (\(n,t) -> (n, SType t)) bindings
 
-bindAdt :: Declaration -> Context -> Context
-bindAdt adt context = foldr bindConstructor context $ dAdtConstructors adt
+bindAdt :: Adt -> Context -> Context
+bindAdt adt context = foldr bindConstructor context $ adtConstructors adt
   where bindConstructor (CCon name types) = 
           let scheme = foldr SForall (SType $ functionType types $ typeOfAdt adt) 
-                                     (dAdtTypeVariables adt)
+                                     (adtTypeVariables adt)
           in
             bind [(name, scheme)]
 
