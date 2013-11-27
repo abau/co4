@@ -20,23 +20,26 @@ preprocessExp = everywhereM $ extM' onPat
                             $ extM' onMatch
                             $ extM' onClause
                             $ extM' onClauses
-                            $ extM' (onType M.empty)
+                            $ extM' (return . onExpandedType M.empty)
                             $ mkM   onExp
 
 preprocessDecs :: MonadUnique u => [Dec] -> u [Dec]
 preprocessDecs decs = everywhereM 
-                    ( extM' onDecs
+                    ( extM' (return . onDecs)
                     $ extM' onPat 
                     $ extM' onMatch
                     $ extM' onClause
                     $ extM' onClauses
-                    $ extM' (onType synonyms)
+                    $ extM' (return . onExpandedType synonyms)
                     $ mkM   onExp
                     ) decs
   where
     synonyms = M.fromList $ concatMap synonym decs
 
-    synonym (TySynD name vars t) = [(name,(vars,t))]
+    synonym (TySynD name vars t) = 
+      let t' = everywhere (mkT onType) t
+      in
+        [(name, (vars,t'))]
     synonym _                    = []
 
 onExp :: MonadUnique u => Exp -> u Exp
@@ -58,11 +61,14 @@ onClause = noNestedPatternsInClauseParameters
 onClauses :: MonadUnique u => [Clause] -> u [Clause]
 onClauses = noMultipleClauses
 
-onType :: MonadUnique u => TypeSynonyms -> Type -> u Type
-onType synonyms = return . expandTypeSynonyms synonyms . noTupleType
+onExpandedType :: TypeSynonyms -> Type -> Type
+onExpandedType synonyms = expandTypeSynonyms synonyms . onType
 
-onDecs :: MonadUnique u => [Dec] -> u [Dec]
-onDecs = return . noSignatureDeclarations . noTypeSynonyms
+onType :: Type -> Type
+onType = noTupleType
+
+onDecs :: [Dec] -> [Dec]
+onDecs = noSignatureDeclarations . noTypeSynonyms
 
 -- Preprocessors on `Exp` ------------------------------------------------
 
