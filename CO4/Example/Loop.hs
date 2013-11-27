@@ -4,9 +4,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
 
--- module CO4.Test.Loop where
-module Main where
+module CO4.Example.Loop
+where
 
 import           Data.List (nub)
 import qualified Data.Map as M
@@ -27,17 +28,12 @@ import qualified TPDB.Plain.Write as TPDB
 import System.Environment
 import Control.Monad ( void, forM )
 
-$( compileFile [ Verbose
-               , ImportPrelude
-               , Cache --, Profile
-               -- , DumpAll "/tmp/sl" 
-               ] 
-   "CO4/Test/Loop.standalone.hs" )
+$( compileFile [ ImportPrelude, Cache ] "CO4/Example/Loop/Standalone.hs" )
 
 cSymbol xs = case xs of
     [] -> known 0 2 []
     x:xs' -> 
-        known 1 2 [ known (fromEnum x) 2 []
+        known 1 2 [ known (fromIntegral $ fromEnum x) 2 []
                   , cSymbol xs' 
                   ]
 
@@ -77,19 +73,18 @@ main = do
     [ w, h, fp ] <- getArgs
     solve (read w) (read h) fp
 
-
 solve  width height filePath = do
   sys <- TPDB.get_srs filePath
 
   let sigma = nub $ concat 
             $ map (\ u  -> TPDB.lhs u ++ TPDB.rhs u) $ TPDB.rules sys
-      m = M.fromList $ zip sigma $ map toBin [ 0 .. ]
-      m' = M.fromList $ zip (map toBin [ 0 .. ]) sigma
-      f xs = map (m M.!) xs
-      def = head sigma 
+      m     = M.fromList $ zip sigma $ map toBin [ 0 .. ]
+      m'    = M.fromList $ zip (map toBin [ 0 .. ]) sigma
+      f xs  = map (m M.!) xs
+      def   = head sigma 
       f' xs = map (\ x -> M.findWithDefault def x m') xs
-      back (Step pre (l,r) post) = 
-           ( f' pre, (f' l, f' r), f' post )
+
+      back (Step pre (l,r) post) = ( f' pre, (f' l, f' r), f' post )
 
       srs = map 
         ( \ u -> ( f $ TPDB.lhs u, f $ TPDB.rhs u ) ) $ TPDB.rules sys
@@ -97,6 +92,7 @@ solve  width height filePath = do
   let bits = length ( toBin (length sigma - 1))
       rwidth = maximum $ do
           (l,r) <- srs ; [ length l, length r ]
+
   solution <- solveAndTestP 
       srs 
       (uLoopDeriv rwidth bits width height)
@@ -107,4 +103,4 @@ solve  width height filePath = do
     Just (Looping_Derivation pre steps suf)  -> 
         void $ forM steps (print . back)
 
-
+  return solution
