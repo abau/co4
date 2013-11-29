@@ -15,7 +15,7 @@ import           Prelude hiding (and,undefined)
 import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (forM)
-import           Data.List (transpose)
+import           Data.List (transpose,genericIndex,genericLength)
 import           Data.Maybe (fromMaybe,catMaybes,fromJust)
 import           Data.Tree (Tree (..),drawTree)
 import           Text.PrettyPrint (Doc,(<+>),vcat,int,text,nest,empty,($$))
@@ -124,7 +124,7 @@ flags' e = case flags e of
   Nothing -> error "EncodedAdt.flags': missing flags"
   Just fs -> fs
 
-constantConstructorIndex :: EncodedAdt -> Maybe Int
+constantConstructorIndex :: EncodedAdt -> Maybe Integer
 constantConstructorIndex adt = case flags adt of
   Nothing -> error "EncodedAdt.constantConstructorIndex: no flags"
   Just fs -> primitivesToDecimal fs
@@ -143,15 +143,16 @@ arguments' adt = case arguments adt of
   Nothing   -> error "EncodedAdt.arguments': missing arguments"
   Just args -> args
 
-constructorArgument :: Int -> Int -> EncodedAdt -> EncodedAdt
+constructorArgument :: Integer -> Integer -> EncodedAdt -> EncodedAdt
 constructorArgument _ _ adt | isConstantlyUndefined adt = encUndefined
-constructorArgument _ _ adt | isEmpty adt              = encEmpty
+constructorArgument _ _ adt | isEmpty adt               = encEmpty
 constructorArgument i j adt = 
   case constantConstructorIndex adt of
-    Nothing           -> -- Exception.assert (i < length args) $ args !! i
-                         if i < length args then args !! i
-                                            else encEmpty
-    Just j' | j == j' -> Exception.assert (i < length args) $ args !! i
+    Nothing           -> if i < genericLength args 
+                         then args `genericIndex` i
+                         else encEmpty
+    Just j' | j == j' -> Exception.assert (i < genericLength args) 
+                       $ args `genericIndex` i
     Just _            -> encEmpty
   where
     args = _arguments adt
@@ -166,7 +167,7 @@ origin adt    = _origin adt
 --  * returns 'Empty', if @d@ is empty or 'isValidDiscriminant' is false
 --  * returns 'encUndefined', if 'isConstantlyUndefined' is true
 --  * returns 'f' otherwise
-onValidDiscriminant :: EncodedAdt -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
+onValidDiscriminant :: EncodedAdt -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
 onValidDiscriminant d n f = 
   if isConstantlyUndefined d then return encUndefined
   else if isEmpty d || not (isValidDiscriminant d n) then return encEmpty
@@ -176,7 +177,7 @@ onValidDiscriminant d n f =
 --  * if @d@ is not constantly undefined
 --  * if @d@ is not empty
 --  * if @d@ has enough flags to discriminate between @n@ different branches
-isValidDiscriminant :: EncodedAdt -> Int -> Bool
+isValidDiscriminant :: EncodedAdt -> Integer -> Bool
 isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
                                         , not $ isEmpty               adt
                                         , length (flags' adt) >= bitWidth n
@@ -185,7 +186,7 @@ isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
 -- |@ifReachable d i n b@ evaluates the @i@-th branch @b@ of a case-distinction with @n@
 -- constructors on discriminat @d@, if the @i@-th branch is reachable according to @d@, i.e.
 -- if @d@ is not constant or if @d@ is constant @i@.
-ifReachable :: EncodedAdt -> Int -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
+ifReachable :: EncodedAdt -> Integer -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
 ifReachable d i n b = Exception.assert (isValidDiscriminant d n) $
   case primitivesToDecimal $ takeRelevantFlags n $ flags' d of
     Nothing         -> b
@@ -205,7 +206,8 @@ caseOf adt branches | length (flags' adt) < bitWidth (length branches)
                     = return Empty 
 caseOf adt branches =
   case constantConstructorIndex adt of
-    Just i  -> Exception.assert (i < length branches) $ return $ branches !! i
+    Just i  -> Exception.assert (i < genericLength branches) 
+             $ return $ branches `genericIndex` i
     Nothing -> do 
       [branchDef] <- caseOfBits relevantFlags 
                    $ map (Just . return . definedness)        branches
@@ -269,7 +271,7 @@ toIntermediateAdt (EncodedAdt _ definedness flags args _) n =
 takeRelevantFlags :: Integral i => i -> [Primitive] -> [Primitive]
 takeRelevantFlags n = take $ bitWidth n
 
-primitivesToDecimal :: [Primitive] -> Maybe Int
+primitivesToDecimal :: [Primitive] -> Maybe Integer
 primitivesToDecimal [] = Just 0
 primitivesToDecimal ps = 
   if all P.isConstant ps
@@ -284,7 +286,7 @@ caseOfBits flags branchBits =
       True  -> return $ head $ branchBits'
       False -> case primitivesToDecimal flags of
         Nothing -> forM (transpose branchBits') mergeN 
-        Just i  -> return $ branchBits' !! i
+        Just i  -> return $ branchBits' `genericIndex` i
     where
       nonEmptyBits   = catMaybes branchBits
       branchBitWidth = maximum $ map length nonEmptyBits 
