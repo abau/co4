@@ -37,7 +37,7 @@ main = do
                  simpleTest "CO4.Example.Loop: zantema_loop1"  
                   $ CO4.Example.Loop.solve 16 16 "CO4/Example/Loop/zantema_loop1.xml"
 
-    all     = binary 143 >> nat 143 >> prelude >> simple
+    all = binary 143 >> nat 143 >> prelude >> simple >> loop
 
 simpleTest :: String -> IO (Maybe a) -> IO ()
 simpleTest name action = do
