@@ -41,8 +41,8 @@ lamE' ns = TH.LamE $ map varP ns
 letE' :: Namelike n => [(n,TH.Exp)] -> TH.Exp -> TH.Exp
 letE' bindings = TH.LetE $ map (uncurry valD') bindings
 
-intE :: Int -> TH.Exp
-intE = TH.LitE . TH.IntegerL . fromIntegral
+intE :: Integral a => a -> TH.Exp
+intE = TH.LitE . TH.IntegerL . toInteger
 
 stringE :: Namelike n => n -> TH.Exp
 stringE = TH.LitE . TH.StringL . fromName
@@ -70,8 +70,8 @@ varP = TH.VarP . toTHName
 conP :: Namelike n => n -> [TH.Pat] -> TH.Pat
 conP n = TH.ConP $ toTHName n
 
-intP :: Int -> TH.Pat
-intP = TH.LitP . TH.IntegerL . fromIntegral
+intP :: Integral a => a -> TH.Pat
+intP = TH.LitP . TH.IntegerL . toInteger
 
 normalC' :: Namelike n => n -> [TH.Type] -> TH.Con
 normalC' n = TH.NormalC (toTHName n) . map (\t -> (TH.NotStrict,t))

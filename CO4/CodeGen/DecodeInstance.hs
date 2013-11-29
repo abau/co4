@@ -101,7 +101,7 @@ matchDefault adtName = do
                 )
              ) []
   
-decodeCons :: MonadUnique u => Int -> Constructor -> u TH.Match
+decodeCons :: MonadUnique u => Integer -> Constructor -> u TH.Match
 decodeCons i (CCon consName params) = do
   paramNames   <- forM params $ const $ newName "p"
   decodedNames <- forM params $ const $ newName "d"
@@ -113,10 +113,7 @@ decodeCons i (CCon consName params) = do
         let paramPattern = foldr (\x y -> TH.ConP '(:) [x,y]) TH.WildP 
                          $ map varP paramNames
         in
-          TH.ConP 'IntermediateConstructorIndex
-                               [ intP $ fromIntegral i
-                               , paramPattern
-                               ]
+          TH.ConP 'IntermediateConstructorIndex [intP i, paramPattern]
       applyCons = foldl TH.AppE (conE consName) $ map varE decodedNames
       matchExp  = TH.DoE $ map decodeBind (zip paramNames decodedNames)
                       ++ [ TH.NoBindS $ TH.AppE (TH.VarE 'return) applyCons ]

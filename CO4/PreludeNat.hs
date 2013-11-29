@@ -75,7 +75,7 @@ instance EncEq Nat where
 uNat :: Int -> Allocator
 uNat = builtIn
 
-kNat :: Int -> Integer -> Allocator
+kNat :: Integer -> Integer -> Allocator
 kNat w i = known i (2^w) []
 
 -- * Plain functions on naturals

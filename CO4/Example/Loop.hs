@@ -33,7 +33,7 @@ $( compileFile [ ImportPrelude, Cache ] "CO4/Example/Loop/Standalone.hs" )
 cSymbol xs = case xs of
     [] -> known 0 2 []
     x:xs' -> 
-        known 1 2 [ known (fromIntegral $ fromEnum x) 2 []
+        known 1 2 [ known (toInteger $ fromEnum x) 2 []
                   , cSymbol xs' 
                   ]
 
