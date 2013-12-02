@@ -24,8 +24,9 @@ import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
-import           CO4.Util (bitWidth,binaries,for,fromBinary,toBinary)
+import           CO4.Util (bitWidth,for)
 import           CO4.Stack (CallStackTrace)
+import           CO4.Prefixfree (numeric,invNumeric)
 
 -- See EncodedAdt.hs-boot
 type Primitive = Boolean
@@ -83,12 +84,12 @@ encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
 encEmpty :: EncodedAdt
 encEmpty = Empty
 
-encodedConstructor :: Integral i => i -> i -> [EncodedAdt] -> CO4 EncodedAdt
+encodedConstructor :: Integer -> Integer -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
                             $ withAdtCache (constant True,flags,args)
   where
     flags = case n of 1 -> []
-                      _ -> map constant $ toBinary (Just $ bitWidth n) i
+                      _ -> map constant $ invNumeric n i
 
 -- * Predicates 
 isEmpty :: EncodedAdt -> Bool
@@ -124,10 +125,10 @@ flags' e = case flags e of
   Nothing -> error "EncodedAdt.flags': missing flags"
   Just fs -> fs
 
-constantConstructorIndex :: EncodedAdt -> Maybe Integer
-constantConstructorIndex adt = case flags adt of
+constantConstructorIndex :: Integer -> EncodedAdt -> Maybe Integer
+constantConstructorIndex n adt = case flags adt of
   Nothing -> error "EncodedAdt.constantConstructorIndex: no flags"
-  Just fs -> primitivesToDecimal fs
+  Just fs -> primitivesToDecimal n fs
 
 definedness :: EncodedAdt -> Primitive
 definedness = \case Empty -> constant True
@@ -143,11 +144,11 @@ arguments' adt = case arguments adt of
   Nothing   -> error "EncodedAdt.arguments': missing arguments"
   Just args -> args
 
-constructorArgument :: Integer -> Integer -> EncodedAdt -> EncodedAdt
-constructorArgument _ _ adt | isConstantlyUndefined adt = encUndefined
-constructorArgument _ _ adt | isEmpty adt               = encEmpty
-constructorArgument i j adt = 
-  case constantConstructorIndex adt of
+constructorArgument :: Integer -> Integer -> Integer -> EncodedAdt -> EncodedAdt
+constructorArgument _ _ _ adt | isConstantlyUndefined adt = encUndefined
+constructorArgument _ _ _ adt | isEmpty adt               = encEmpty
+constructorArgument n i j adt = 
+  case constantConstructorIndex n adt of
     Nothing           -> if i < genericLength args 
                          then args `genericIndex` i
                          else encEmpty
@@ -188,7 +189,7 @@ isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
 -- if @d@ is not constant or if @d@ is constant @i@.
 ifReachable :: EncodedAdt -> Integer -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
 ifReachable d i n b = Exception.assert (isValidDiscriminant d n) $
-  case primitivesToDecimal $ takeRelevantFlags n $ flags' d of
+  case primitivesToDecimal n $ flags' d of
     Nothing         -> b
     Just j | i == j -> b
     Just _          -> return encEmpty
@@ -205,7 +206,7 @@ caseOf adt branches | length (flags' adt) < bitWidth (length branches)
                     -- = error "EncodedAdt.caseOf: missing flags (use 'onValidDiscriminant')"
                     = return Empty 
 caseOf adt branches =
-  case constantConstructorIndex adt of
+  case constantConstructorIndex numCons adt of
     Just i  -> Exception.assert (i < genericLength branches) 
              $ return $ branches `genericIndex` i
     Nothing -> do 
@@ -223,7 +224,8 @@ caseOf adt branches =
 
       return $ EncodedAdt id' def' flags' arguments' origin'
   where
-    relevantFlags = takeRelevantFlags (length branches) $ flags' adt
+    numCons       = genericLength branches
+    relevantFlags = takeRelevantFlags numCons $ flags' adt
 
 mergeOrigins :: [EncodedAdt] -> CO4 Doc
 mergeOrigins branches =
@@ -252,42 +254,39 @@ caseOfArguments adt branchArguments =
 
     maxArgs = maximum $ map length $ catMaybes branchArguments
 
-toIntermediateAdt :: (Decode m Primitive Bool, Integral i) 
-                  => EncodedAdt -> i -> m IntermediateAdt
+toIntermediateAdt :: (Decode m Primitive Bool) 
+                  => EncodedAdt -> Integer -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
 toIntermediateAdt Empty _                           = return IntermediateEmpty
 toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 
       False -> return IntermediateUndefined
-      True  -> if null relevantFlags 
-               then return $ intermediate 0
-               else decode relevantFlags >>= return . intermediate . fromBinary
+      True  -> decode flags >>= return . intermediate . numeric n
         where
-          relevantFlags  = takeRelevantFlags n flags
           intermediate i = IntermediateConstructorIndex i args 
 
 -- |@takeRelevantFlags n@ returns the first @'bitWidth' n@ flags
 takeRelevantFlags :: Integral i => i -> [Primitive] -> [Primitive]
 takeRelevantFlags n = take $ bitWidth n
 
-primitivesToDecimal :: [Primitive] -> Maybe Integer
-primitivesToDecimal [] = Just 0
-primitivesToDecimal ps = 
+primitivesToDecimal :: Integer -> [Primitive] -> Maybe Integer
+primitivesToDecimal n ps = 
   if all P.isConstant ps
-  then Just $ fromBinary $ map (fromJust . P.evaluateConstant) ps
+  then Just $ numeric n $ map (fromJust . P.evaluateConstant) ps
   else Nothing
 
 caseOfBits :: [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonEmptyBits) 
-  $ Exception.assert (length flags == bitWidth (length branchBits)) 
+  $ Exception.assert (length flags == bitWidth numCons) 
   $ case all equalBits (transpose branchBits') of
       True  -> return $ head $ branchBits'
-      False -> case primitivesToDecimal flags of
+      False -> case primitivesToDecimal numCons flags of
         Nothing -> forM (transpose branchBits') mergeN 
         Just i  -> return $ branchBits' `genericIndex` i
     where
+      numCons        = genericLength branchBits
       nonEmptyBits   = catMaybes branchBits
       branchBitWidth = maximum $ map length nonEmptyBits 
       branchBits'    = for branchBits $ \case
@@ -300,8 +299,10 @@ caseOfBits flags branchBits =
         True  -> return $ head bitsT 
         False -> do
            r <- primitive
-           forM (zip bitsT (binaries $ length flags)) $ \ (b, pattern) -> do
-                let fs = zipWith select pattern flags
+           forM (zip bitsT [0..]) $ \ (b, i) -> do
+                let pattern = invNumeric numCons i
+                    fs      = zipWith select pattern flags
+                    
                 assert ( r : P.not b : map P.not fs  )
                 assert ( P.not r :  b : map P.not fs  )
            return r

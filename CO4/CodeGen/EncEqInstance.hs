@@ -5,6 +5,7 @@ where
 
 import           Prelude hiding (and)
 import           Control.Monad (forM,zipWithM,liftM)
+import           Data.List (genericLength)
 import qualified Language.Haskell.TH as TH
 import           Satchmo.Core.Primitive (Primitive,constant,and)
 import           CO4.Unique (MonadUnique,newName)
@@ -29,10 +30,10 @@ import           CO4.Monad (traced)
 -- >     let xFlags = flags' x
 -- >         yFlags = flags' y
 -- >
--- >     eq00  <- encEqPrimitive (undefined :: T00) (constructorArgument 0 0 x) 
--- >                                                (constructorArgument 0 0 y)
--- >     eq10  <- encEqPrimitive (undefined :: T10) (constructorArgument 1 0 x) 
--- >                                                (constructorArgument 1 0 y)
+-- >     eq00  <- encEqPrimitive (undefined :: T00) (constructorArgument n 0 0 x) 
+-- >                                                (constructorArgument n 0 0 y)
+-- >     eq10  <- encEqPrimitive (undefined :: T10) (constructorArgument n 1 0 x) 
+-- >                                                (constructorArgument n 1 0 y)
 -- >     ...
 -- >     eq0   <- and [eq00, eq10, eq20, ...]
 -- >     eq1   <- and [eq01, eq11, eq21, ...]
@@ -86,7 +87,7 @@ encEqBody x y conss = do
                                $ [varE yFlags, TH.ListE args]
 
         where args  = replaceAt j (just $ singleton $ eqJNames !! j) 
-                    $ replicate (length conss) 
+                    $ replicate numCons 
                     $ just $ singleton constantFalse
 
       eqYStmts      = zipWith eqYStmt [0..] eqYNames
@@ -102,6 +103,7 @@ encEqBody x y conss = do
     , [rStmt,TH.NoBindS result]
     ]
   where 
+    numCons = genericLength conss
     eqConstructor _ (CCon _ []) = return (constantTrue, [])
       where 
         constantTrue = TH.AppE (TH.VarE 'constant) (TH.ConE 'True)
@@ -120,6 +122,6 @@ encEqBody x y conss = do
     eqIJ name i j t = 
       bindS' name $ appsE (TH.VarE 'encEqPrimitive) 
           [ typedUndefined $ toTH t
-          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE x]
-          , appsE (TH.VarE 'constructorArgument) [intE i, intE j, varE y]
+          , appsE (TH.VarE 'constructorArgument) [intE numCons, intE i, intE j, varE x]
+          , appsE (TH.VarE 'constructorArgument) [intE numCons, intE i, intE j, varE y]
           ]

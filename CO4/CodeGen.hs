@@ -185,7 +185,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                   return (var', eConstructorArg i)
 
                 eConstructorArg i = appsE (TH.VarE 'constructorArgument) 
-                                          [ intE i, intE j, varE e'Name ]
+                                          [ intE numCons, intE i, intE j, varE e'Name ]
 
                 psNames = map (\(PVar p) -> nUntyped p) ps
 

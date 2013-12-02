@@ -556,8 +556,8 @@ encXorNatProf a b = traced "xorNat" $ encXorNat a b
 
 onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
 onFlags f a = case flags a of
-  Just as -> do flags' <- f as 
-                make (definedness a) flags' []
+  Just as -> do flags' <- f $ reverse as 
+                make (definedness a) (reverse flags') []
   _       -> abortWithTraces "PreludeNat.onFlags: missing flags" []
 
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
@@ -565,9 +565,9 @@ onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive])
 onFlags2 f a b = case (flags a, flags b) of
   (Just as, Just bs) -> 
     if length as == length bs
-    then do flags'       <- f as bs
+    then do flags'       <- f (reverse as) (reverse bs)
             definedness' <- and [definedness a, definedness b]
-            make definedness' flags' []
+            make definedness' (reverse flags') []
     else abortWithTraces ("PreludeNat.onFlags2: diverging number of flags (" ++ show (length as) ++ " /= " ++ show (length bs) ++ ")") []
   _ -> abortWithTraces "PreludeNat.onFlags2: missing flags" []
 
