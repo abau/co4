@@ -4,19 +4,20 @@ module CO4.Allocator
 where
 
 import qualified Control.Exception as Exception
-import           Control.Monad (forM_,zipWithM_)
-import           Data.List ((\\),transpose)
+import           Control.Monad (zipWithM_)
+import           Data.List (transpose,genericLength)
 import           Satchmo.Core.Primitive (primitive,constant,antiSelect,assert)
 import           CO4.AllocatorData 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt (Primitive,EncodedAdt,flags',arguments',make)
-import           CO4.Util (for,bitWidth,binaries,toBinary)
+import           CO4.Util (for,bitWidth)
 import           CO4.Monad (CO4)
+import           CO4.Prefixfree (invNumeric)
 
 instance Encodeable Allocator where
   encode alloc = do
     result <- encodeOverlapping [alloc]
-    excludeEmptyAndInvalidConstructorPatterns result alloc
+    excludeEmpty result alloc
     return result
 
 encodeOverlapping :: [Allocator] -> CO4 EncodedAdt
@@ -33,7 +34,7 @@ encodeOverlapping allocs = do
 
   flags <- case allocs of
     [Known 0 1 _] -> return []
-    [Known i n _] -> return $ map constant $ toBinary (Just $ bitWidth n) i
+    [Known i n _] -> return $ map constant $ invNumeric n i
     [BuiltIn  n ] -> sequence $ replicate n primitive
     _             -> sequence $ replicate (bitWidth maxConstructors) primitive
 
@@ -42,7 +43,7 @@ encodeOverlapping allocs = do
   where 
     maxConstructors = maximum $ for allocs $ \case 
                         Known _ n _  -> n
-                        Unknown cons -> toInteger $ length cons 
+                        Unknown cons -> genericLength cons 
                         BuiltIn n    -> 2^n
 
     maxArgs = maximum $ for allocs $ \case
@@ -52,8 +53,8 @@ encodeOverlapping allocs = do
         AllocateEmpty            -> 0
       BuiltIn _ -> 0
 
-excludeEmptyAndInvalidConstructorPatterns :: EncodedAdt -> Allocator -> CO4 ()
-excludeEmptyAndInvalidConstructorPatterns = go [] []
+excludeEmpty :: EncodedAdt -> Allocator -> CO4 ()
+excludeEmpty = go [] []
   where
     go flags pattern adt (Known 0 1 args') =
         Exception.assert (length args >= length args') 
@@ -65,28 +66,19 @@ excludeEmptyAndInvalidConstructorPatterns = go [] []
     go flags pattern adt (Known i n args') =
         Exception.assert (length args >= length args') 
       $ Exception.assert (bitWidth n <= length fs)
-      $ do 
-          forM_ invalidPatterns $ \p -> excludePattern (flags   ++ thisFlags) 
-                                                       (pattern ++ p)
-          zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
+      $ zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
         where
           args            = arguments' adt
           fs              = flags' adt
-          thisFlags       = take (bitWidth n) fs
-          thisPattern     = toBinary (Just $ length thisFlags) i
-          invalidPatterns = binaries (length thisFlags) \\ [thisPattern]
+          thisPattern     = invNumeric n i
+          thisFlags       = take (length thisPattern) fs
           
     go flags pattern adt (Unknown cons) =
         Exception.assert (length fs >= bitWidth (length cons))
-      $ do
-          forM_ invalidPatterns $ \p -> excludePattern (flags   ++ thisFlags)
-                                                       (pattern ++ p)
-          zipWithM_ goCons [0..] cons
+      $ zipWithM_ goCons [0..] cons
       where 
         args            = arguments' adt
         fs              = flags' adt
-        thisFlags       = take (bitWidth $ length cons) fs
-        invalidPatterns = drop (length cons) $ binaries $ length thisFlags
 
         goCons i = \case
           AllocateConstructor allocs -> Exception.assert (length allocs <= length args) 
@@ -97,9 +89,8 @@ excludeEmptyAndInvalidConstructorPatterns = go [] []
                                           (pattern ++ thisPattern)
 
           where
-            thisPattern = case thisFlags of
-              [] -> []
-              _  -> toBinary (Just $ length thisFlags) i
+            thisPattern = invNumeric (fromIntegral $ length cons) i
+            thisFlags   = take (length thisPattern) fs
 
     go _ _ _ (BuiltIn _) = return ()
 

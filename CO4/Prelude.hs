@@ -12,6 +12,7 @@ where
 
 import qualified Language.Haskell.Exts as HE
 import           Language.Haskell.Exts.QQ (dec)
+import           Satchmo.Core.Primitive (isConstant)
 import           CO4.Language 
 import           CO4.Algorithms.HindleyMilner.Util (Context,bind,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
@@ -21,8 +22,7 @@ import           CO4.Names
 import           CO4.AllocatorData (constructors,known)
 import           CO4.PreludeNat
 import           CO4.EncEq
-import           CO4.EncodedAdt 
-  (EncodedAdt,isConstantlyDefined,isInvalid,constantConstructorIndex,origin)
+import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,origin,flags')
 import           CO4.Monad (CO4,traced,abortWithTraces)
 import           CO4.PreludeBool
 
@@ -188,10 +188,11 @@ assertKnown = id
 
 encAssertKnown,encAssertKnownProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
-encAssertKnown e = case constantConstructorIndex e of 
-  Nothing -> abortWithTraces "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
-                             [("origin", show $ origin e)]
-  Just _  -> return e
+encAssertKnown e = 
+  if all isConstant (flags' e)
+  then return e
+  else abortWithTraces "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
+                       [("origin", show $ origin e)]
 encAssertKnownProf = traced "assertKnown" . encAssertKnown
 
 assertDefined :: a -> a

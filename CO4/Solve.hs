@@ -76,8 +76,8 @@ handleResult unknown result = do
       note "Error: missing flags in constraint system's result (maybe 'undefined' or 'empty')"
       return Nothing
 
-    Just flags ->
-      case constantConstructorIndex result of
+    Just [flag] ->
+      case constantConstructorIndex 2 result of
         Just 0 -> do 
           note "Known result: unsatisfiable"
           return Nothing
@@ -87,10 +87,10 @@ handleResult unknown result = do
           return Nothing
 
         Nothing -> do
-          formula <- and [ head flags , definedness result ]
+          formula <- and [ flag , definedness result ]
           assert [ formula ]
           return $ Just $ decode unknown 
 
-        _ -> do 
-          note "Error: constraint system did not evaluate to a Boolean"
-          return Nothing
+    _ -> do 
+      note "Error: constraint system did not evaluate to a Boolean"
+      return Nothing
