@@ -1,4 +1,5 @@
-module TRS_Loop_Toyama where
+module CO4.Example.LoopTrsToyama
+where
 
 import qualified Prelude
 
