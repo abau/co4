@@ -4,6 +4,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
+module CO4.Example.LoopTrsToyama
+where
+
 import qualified Prelude ; import Prelude (($), (-), (*))
 
 import qualified Data.Maybe as M
@@ -14,7 +17,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( compileFile [] "CO4/Test/TRS_Loop_Toyama.standalone.hs" )
+$( compileFile [] "CO4/Example/LoopTrsToyama.standalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]
