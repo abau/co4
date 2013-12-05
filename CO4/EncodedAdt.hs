@@ -202,8 +202,7 @@ caseOf adt branches | isConstantlyUndefined adt
 caseOf adt branches | isEmpty adt || (all isEmpty branches)
                     = return Empty
 caseOf adt branches | length (flags' adt) < bitWidth (length branches) 
-                    -- = error "EncodedAdt.caseOf: missing flags (use 'onValidDiscriminant')"
-                    = return Empty 
+                    = error "EncodedAdt.caseOf: missing flags (use 'onValidDiscriminant')"
 caseOf adt branches =
   case constantConstructorIndex adt of
     Just i  -> Exception.assert (i < genericLength branches) 
