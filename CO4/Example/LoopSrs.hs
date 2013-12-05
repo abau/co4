@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
 
-module CO4.Example.Loop
+module CO4.Example.LoopSrs
 where
 
 import           Data.List (nub)
@@ -28,7 +28,7 @@ import qualified TPDB.Plain.Write as TPDB
 import System.Environment
 import Control.Monad ( void, forM )
 
-$( compileFile [ ImportPrelude, Cache ] "CO4/Example/Loop/Standalone.hs" )
+$( compileFile [ ImportPrelude, Cache ] "CO4/Example/LoopSrs/Standalone.hs" )
 
 cSymbol xs = case xs of
     [] -> known 0 2 []

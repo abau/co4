@@ -1,4 +1,4 @@
-module CO4.Example.Loop.Standalone where
+module CO4.Example.LoopSrs.Standalone where
 
 -- * string rewriting:
 
