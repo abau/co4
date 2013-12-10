@@ -1,9 +1,11 @@
 module CO4.Prefixfree
-  (numeric, invNumeric)
+  (numeric, invNumeric, discriminates)
 where
 
 import qualified Control.Exception as Exception
-        
+import           Satchmo.Core.Primitive (Primitive,isConstant)
+import           CO4.Util (bitWidth)
+
 numeric :: Integer -> [Bool] -> Integer
 numeric n xs = go 0 n xs
   where
@@ -27,3 +29,12 @@ invNumeric n i = Exception.assert (i < n)
       where 
         c = ceiling $ fromInteger n / 2
         f = floor   $ fromInteger n / 2
+
+-- |@discriminates n xs@ checks whether @xs@ can 
+-- discriminate @n@ different states
+discriminates :: Primitive p => Integer -> [p] -> Bool
+discriminates n xs = case all isConstant xs of
+  False -> length xs >= w
+  True  -> length xs >= w - 1
+  where
+    w = bitWidth n
