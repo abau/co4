@@ -30,28 +30,31 @@ encodeOverlapping allocs = do
                     Unknown cons   -> for cons $ \case 
                       AllocateConstructor args -> args
                       AllocateEmpty            -> []
-                    BuiltIn _ -> []
+                    BuiltInKnown _   -> []
+                    BuiltInUnknown _ -> []
 
   flags <- case allocs of
-    [Known 0 1 _] -> return []
-    [Known i n _] -> return $ map constant $ invNumeric n i
-    [BuiltIn  n ] -> sequence $ replicate n primitive
-    _             -> sequence $ replicate (bitWidth maxConstructors) primitive
+    [Known 0 1 _]     -> return []
+    [Known i n _]     -> return $ map constant $ invNumeric n i
+    [BuiltInKnown fs] -> return $ map constant fs
+    _                 -> sequence $ replicate maxFlags primitive
 
   make (constant True) flags args
 
   where 
-    maxConstructors = maximum $ for allocs $ \case 
-                        Known _ n _  -> n
-                        Unknown cons -> genericLength cons 
-                        BuiltIn n    -> 2^n
+    maxFlags = maximum $ for allocs $ \case 
+                 Known _ n _      -> bitWidth n
+                 Unknown cons     -> bitWidth $ genericLength cons 
+                 BuiltInKnown  fs -> length fs
+                 BuiltInUnknown n -> n
 
     maxArgs = maximum $ for allocs $ \case
       Known _ _ args -> length args
       Unknown cons   -> maximum $ for cons $ \case
         AllocateConstructor args -> length args
         AllocateEmpty            -> 0
-      BuiltIn _ -> 0
+      BuiltInKnown _   -> 0
+      BuiltInUnknown _ -> 0
 
 excludeEmpty :: EncodedAdt -> Allocator -> CO4 ()
 excludeEmpty = go [] []
@@ -92,7 +95,8 @@ excludeEmpty = go [] []
             thisPattern = invNumeric (fromIntegral $ length cons) i
             thisFlags   = take (length thisPattern) fs
 
-    go _ _ _ (BuiltIn _) = return ()
+    go _ _ _ (BuiltInKnown   _) = return ()
+    go _ _ _ (BuiltInUnknown _) = return ()
 
 excludePattern :: [Primitive] -> [Bool] -> CO4 ()
 excludePattern []    []      = return ()

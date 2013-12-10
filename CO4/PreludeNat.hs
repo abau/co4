@@ -40,8 +40,9 @@ import           Satchmo.Core.Primitive
 import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.AllocatorData (Allocator,known,builtIn)
+import           CO4.AllocatorData (Allocator (BuiltInKnown,BuiltInUnknown))
 import           CO4.EncEq (EncEq(..))
+import           CO4.Util (toBinary,fromBinary)
 
 --import qualified CO4.PreludeNat.Opt as Opt
 
@@ -59,24 +60,23 @@ instance Show Nat where
   show x = concat ["(nat ", show $ width x, " ", show $ value x, ")"]
 
 instance Encodeable Nat where
-  encode n = encodedConstructor (value n) (2^(width n)) []
+  encode n = encNat (width n) (value n)
 
 instance Decode SAT EncodedAdt Nat where
   decode p = case fmap length (flags p) of
-    Just n -> toIntermediateAdt p (2^n) >>= \case 
-      IntermediateUndefined -> error $ "Can not decode 'undefined' to data of type 'Nat'"
-      IntermediateEmpty     -> error $ "Can not decode 'empty' to data of type 'Nat'"
-      IntermediateConstructorIndex i _ -> return $ Nat n i
+    Just n -> decode (definedness p) >>= \case
+      False -> error $ "Can not decode 'undefined' to data of type 'Nat'"
+      True  -> decode (flags' p) >>= return . Nat n . fromBinary 
     Nothing -> error "Missing flags while decoding 'Nat'"
 
 instance EncEq Nat where
   encEqPrimitive _ a b = encEqNat a b >>= return . head . flags'
 
 uNat :: Int -> Allocator
-uNat = builtIn
+uNat = BuiltInUnknown
 
-kNat :: Integer -> Integer -> Allocator
-kNat w i = known i (2^w) []
+kNat :: Int -> Integer -> Allocator
+kNat w i = BuiltInKnown $ toBinary (Just w) i 
 
 -- * Plain functions on naturals
 
@@ -150,7 +150,7 @@ onValue2' f a b = if width a == width b
 -- * Encoded functions on naturals
 
 encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
-encNat     w i = encodedConstructor i (2^w) []
+encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) []
 encNatProf w i = traced "nat" $ encNat w i
 
 encTrimNat,encTrimNatProf :: Int -> EncodedAdt -> CO4 EncodedAdt
@@ -556,8 +556,8 @@ encXorNatProf a b = traced "xorNat" $ encXorNat a b
 
 onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
 onFlags f a = case flags a of
-  Just as -> do flags' <- f $ reverse as 
-                make (definedness a) (reverse flags') []
+  Just as -> do flags' <- f as 
+                make (definedness a) flags' []
   _       -> abortWithTraces "PreludeNat.onFlags: missing flags" []
 
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
@@ -565,9 +565,9 @@ onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive])
 onFlags2 f a b = case (flags a, flags b) of
   (Just as, Just bs) -> 
     if length as == length bs
-    then do flags'       <- f (reverse as) (reverse bs)
+    then do flags'       <- f as bs
             definedness' <- and [definedness a, definedness b]
-            make definedness' (reverse flags') []
+            make definedness' flags' []
     else abortWithTraces ("PreludeNat.onFlags2: diverging number of flags (" ++ show (length as) ++ " /= " ++ show (length bs) ++ ")") []
   _ -> abortWithTraces "PreludeNat.onFlags2: missing flags" []
 

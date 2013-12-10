@@ -1,7 +1,5 @@
 module CO4.AllocatorData
-  ( Allocator (..), AllocateConstructor (..)
-  , known, constructors, builtIn, empty
-  )
+  ( Allocator (..), AllocateConstructor (..), constructors, known )
 where
 
 import qualified Control.Exception as Exception
@@ -11,8 +9,9 @@ data Allocator = Known { _constructorIndex :: Integer
                        , _numConstructors  :: Integer
                        , _arguments        :: [Allocator]
                        }
-               | Unknown [AllocateConstructor]
-               | BuiltIn Int
+               | Unknown        [AllocateConstructor]
+               | BuiltInKnown   [Bool]
+               | BuiltInUnknown Int
                deriving (Eq,Ord)
 
 data AllocateConstructor = AllocateConstructor [Allocator]
@@ -24,10 +23,11 @@ instance Show Allocator where
 
 toTree :: Allocator -> Tree String
 toTree allocator = case allocator of
-  Known i n args -> Node (unwords ["Known",show i,show n]) 
-                  $ zipWith argToTree [0..] args
-  Unknown cons   -> Node "Unknown" $ zipWith consToTree [0..] cons
-  BuiltIn n      -> Node (unwords ["BuiltIn", show n]) []
+  Known i n args    -> Node (unwords ["Known",show i,show n]) 
+                     $ zipWith argToTree [0..] args
+  Unknown cons      -> Node "Unknown" $ zipWith consToTree [0..] cons
+  BuiltInKnown   bs -> Node (unwords ["BuiltInKnown", show bs]) []
+  BuiltInUnknown n  -> Node (unwords ["BuiltInUnknown", show n]) []
   where
     argToTree i (Known j n args) = 
       Node (show i ++ unwords ["th argument: Known",show j,show n]) 
@@ -36,16 +36,16 @@ toTree allocator = case allocator of
     argToTree i (Unknown cons) = 
       Node (show i ++ "th argument: Unknown") $ zipWith consToTree [0..] cons
 
-    argToTree i (BuiltIn n) = 
-      Node (show i ++ unwords ["th argument: Builtin",show n]) []
+    argToTree i (BuiltInKnown fs) = 
+      Node (show i ++ unwords ["th argument: BuiltInKnown",show fs]) []
+
+    argToTree i (BuiltInUnknown n) = 
+      Node (show i ++ unwords ["th argument: BuiltInUnknown",show n]) []
 
     consToTree i (AllocateConstructor args) = 
       Node (show i ++ "th constructor") $ zipWith argToTree [0..] args
     consToTree i AllocateEmpty = 
       Node (show i ++ "th constructor: empty") []
-
-known :: Integer -> Integer -> [Allocator] -> Allocator
-known = Known
 
 constructors :: [Maybe [Allocator]] -> Allocator
 constructors allocs = Exception.assert (not $ null allocs) 
@@ -54,8 +54,5 @@ constructors allocs = Exception.assert (not $ null allocs)
     toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
 
-builtIn :: Int -> Allocator
-builtIn = BuiltIn
-
-empty :: AllocateConstructor
-empty = AllocateEmpty
+known :: Integer -> Integer -> [Allocator] -> Allocator
+known = Known
