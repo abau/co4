@@ -35,6 +35,7 @@ solveP k allocator constraint =
     (unknown,result) <- runCO4 $ do 
       unknown <- encode allocator
       param   <- encode k
+      --note $ "Encoded parameter:\n" ++ show param
       --note $ "Encoded unknown:\n" ++ show unknown
       result <- constraint param unknown
       return (unknown, result)

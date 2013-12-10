@@ -26,7 +26,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,for)
 import           CO4.Stack (CallStackTrace)
-import           CO4.Prefixfree (numeric,invNumeric)
+import           CO4.Prefixfree (numeric,invNumeric,discriminates)
 
 -- See EncodedAdt.hs-boot
 type Primitive = Boolean
@@ -165,23 +165,25 @@ origin adt    = _origin adt
 -- * Utilities
 
 -- |@onValidDiscriminant d n f@
---  * returns 'Empty', if @d@ is empty or 'isValidDiscriminant' is false
---  * returns 'encUndefined', if 'isConstantlyUndefined' is true
---  * returns 'f' otherwise
+--  * returns 'Empty', if @d@ is empty or @discriminates n (flags' d) == False@
+--  * returns 'encUndefined', if @isConstantlyUndefined d@ is true
+--  * returns @f@ otherwise
 onValidDiscriminant :: EncodedAdt -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
 onValidDiscriminant d n f = 
   if isConstantlyUndefined d then return encUndefined
-  else if isEmpty d || not (isValidDiscriminant d n) then return encEmpty
-       else f
+  else if isEmpty d then return encEmpty
+       else if discriminates n (flags' d) 
+            then f
+            else return encEmpty
 
 -- |@isValidDiscriminant d n@ checks if @d@ is a valid discriminant, i.e.
 --  * if @d@ is not constantly undefined
 --  * if @d@ is not empty
---  * if @d@ has enough flags to discriminate between @n@ different branches
+--  * if @discriminates n (flags' d) == True@
 isValidDiscriminant :: EncodedAdt -> Integer -> Bool
 isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
                                         , not $ isEmpty               adt
-                                        , length (flags' adt) >= bitWidth n
+                                        , discriminates n (flags' adt)
                                         ]
 
 -- |@ifReachable d i n b@ evaluates the @i@-th branch @b@ of a case-distinction with @n@
@@ -202,29 +204,29 @@ caseOf adt branches | isConstantlyUndefined adt
                     = return encUndefined
 caseOf adt branches | isEmpty adt || (all isEmpty branches)
                     = return Empty
-caseOf adt branches | length (flags' adt) < bitWidth (length branches) 
+caseOf adt branches | not (discriminates (genericLength branches) (flags' adt))
                     = error "EncodedAdt.caseOf: missing flags (use 'onValidDiscriminant')"
 caseOf adt branches =
   case constantConstructorIndex numCons adt of
     Just i  -> Exception.assert (i < genericLength branches) 
              $ return $ branches `genericIndex` i
     Nothing -> do 
-      [branchDef] <- caseOfBits relevantFlags 
+      [branchDef] <- caseOfBits fs 
                    $ map (Just . return . definedness)        branches
 
       def'        <- and [branchDef, definedness adt]
       id'         <- newId
       origin'     <- mergeOrigins branches
 
-      let adt'    = EncodedAdt id' def' relevantFlags (fromJust $ arguments adt) origin'
+      let adt'    = EncodedAdt id' def' fs (fromJust $ arguments adt) origin'
 
-      flags'      <- caseOfBits relevantFlags $ map flags     branches
+      flags'      <- caseOfBits fs $ map flags     branches
       arguments'  <- caseOfArguments adt'     $ map arguments branches
 
       return $ EncodedAdt id' def' flags' arguments' origin'
   where
-    numCons       = genericLength branches
-    relevantFlags = takeRelevantFlags numCons $ flags' adt
+    numCons = genericLength branches
+    fs      = flags' adt
 
 mergeOrigins :: [EncodedAdt] -> CO4 Doc
 mergeOrigins branches =
@@ -265,10 +267,6 @@ toIntermediateAdt (EncodedAdt _ definedness flags args _) n =
         where
           intermediate i = IntermediateConstructorIndex i args 
 
--- |@takeRelevantFlags n@ returns the first @'bitWidth' n@ flags
-takeRelevantFlags :: Integral i => i -> [Primitive] -> [Primitive]
-takeRelevantFlags n = take $ bitWidth n
-
 primitivesToDecimal :: Integer -> [Primitive] -> Maybe Integer
 primitivesToDecimal n ps = 
   if all P.isConstant ps
@@ -278,7 +276,7 @@ primitivesToDecimal n ps =
 caseOfBits :: [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonEmptyBits) 
-  $ Exception.assert (length flags == bitWidth numCons) 
+  $ Exception.assert (discriminates numCons flags) 
   $ case all equalBits (transpose branchBits') of
       True  -> return $ head $ branchBits'
       False -> case primitivesToDecimal numCons flags of
