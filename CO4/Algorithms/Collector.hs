@@ -6,14 +6,18 @@ import CO4.Language
 
 class Monad m => MonadCollector m where
 
-  collectScheme :: Scheme -> m ()
-  collectScheme = const $ return ()
-
-  collectType :: Type -> m ()
-  collectType = const $ return ()
-
   collectUntypedName :: UntypedName -> m ()
   collectUntypedName = const $ return ()
+
+  collectType :: Type -> m ()
+  collectType t = case t of
+    TVar v       -> collect v
+    TCon c ts    -> collect c >> collect ts
+
+  collectScheme :: Scheme -> m ()
+  collectScheme scheme = case scheme of
+    SType t     -> collect t
+    SForall n s -> collect n >> collect s
 
   collectName :: Name -> m ()
   collectName (NTyped _ s) = collect s
@@ -88,9 +92,6 @@ class Monad m => MonadCollector m where
 class Collectable a where
   collect :: MonadCollector m => a -> m ()
 
-instance Collectable Name where
-  collect = collectName
-
 instance Collectable UntypedName where
   collect = collectUntypedName
 
@@ -99,6 +100,9 @@ instance Collectable Type where
 
 instance Collectable Scheme where
   collect = collectScheme
+
+instance Collectable Name where
+  collect = collectName
 
 instance Collectable Expression where
   collect = collectExpression

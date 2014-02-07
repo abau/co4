@@ -1,5 +1,5 @@
 module CO4.Algorithms.Instantiator
-  (MonadInstantiator(..), Instantiable(..), instantiateSubexpressions)
+  (MonadInstantiator(..), Instantiable(..), instantiateSubexpressions, instantiateSubtypes)
 where
 
 import CO4.Language
@@ -7,10 +7,15 @@ import CO4.Language
 class Monad m => MonadInstantiator m where
 
   instantiateScheme :: Scheme -> m Scheme
-  instantiateScheme = return
+  instantiateScheme scheme = case scheme of
+    SType t     -> instantiate t >>= return . SType
+    SForall n s -> do
+      n' <- instantiate n
+      s' <- instantiate s
+      return $ SForall n' s'
 
   instantiateType :: Type -> m Type
-  instantiateType = return
+  instantiateType = instantiateSubtypes
 
   instantiateUntypedName :: UntypedName -> m UntypedName
   instantiateUntypedName = return
@@ -137,23 +142,28 @@ instantiateSubexpressions exp = case exp of
   ELet {}    -> instantiateLet exp
   EUndefined -> instantiateUndefined
 
+instantiateSubtypes :: MonadInstantiator m => Type -> m Type
+instantiateSubtypes t = case t of
+  TVar v    -> instantiate v >>= return . TVar
+  TCon c ts -> do
+    c'  <- instantiate c
+    ts' <- instantiate ts
+    return $ TCon c' ts'
+
 class Instantiable a where
   instantiate :: MonadInstantiator m => a -> m a
-
-instance Instantiable Name where
-  instantiate = instantiateName
-
-instance Instantiable UntypedName where
-  instantiate = instantiateUntypedName
-
-instance Instantiable Type where
-  instantiate = instantiateType
 
 instance Instantiable Scheme where
   instantiate = instantiateScheme
 
-instance Instantiable Expression where
-  instantiate = instantiateExpression
+instance Instantiable Type where
+  instantiate = instantiateType
+
+instance Instantiable UntypedName where
+  instantiate = instantiateUntypedName
+
+instance Instantiable Name where
+  instantiate = instantiateName
 
 instance Instantiable Pattern where
   instantiate = instantiatePattern
@@ -163,6 +173,9 @@ instance Instantiable Match where
 
 instance Instantiable Binding where
   instantiate = instantiateBinding
+
+instance Instantiable Expression where
+  instantiate = instantiateExpression
 
 instance Instantiable Adt where
   instantiate = instantiateAdt

@@ -91,23 +91,19 @@ instance (Substitutable a, Substitutable b) => Substitutable (a,b) where
   substitute s (a,b) = (substitute s a, substitute s b)
 
 substituteN :: Substitutable a => [Substitution] -> a -> a
-substituteN ss a = 
-  foldl (flip substitute) a ss'
-  {-
-  if (length ss' == length (nub $ map fst ss'))
-  then foldl (flip substitute) a ss'
-  else error $ ff ++ (show $ map (\(a,b) -> (pprint a, pprint b)) ss')
-  -}
-
-  where ss' = filter (\case (n, TVar v) -> n /= v
-                            _           -> True) ss
+substituteN ss a = foldl (flip substitute) a ss'
+  where 
+    ss' = filter (\case (n, TVar v) -> n /= v
+                        _           -> True) ss
 
 bind :: Namelike n => [(n,Scheme)] -> Context -> Context
 bind bindings context = mappend context $ gamma bindings
 
+bindSchemes :: Namelike n => [(n,Scheme)] -> Context -> Context
+bindSchemes bindings context = mappend context $ gamma bindings
+
 bindTypes :: Namelike n => [(n,Type)] -> Context -> Context
-bindTypes bindings context = 
-  mappend context $ gamma $ map (\(n,t) -> (n, SType t)) bindings
+bindTypes bindings = bindSchemes $ map (\(n,t) -> (n, SType t)) bindings
 
 bindAdt :: Adt -> Context -> Context
 bindAdt adt context = foldr bindConstructor context $ adtConstructors adt
