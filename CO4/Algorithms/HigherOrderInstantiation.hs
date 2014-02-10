@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-module CO4.Algorithms.Instantiation
-  (instantiation)
+module CO4.Algorithms.HigherOrderInstantiation
+  (hoInstantiation)
 where
 
 import           Control.Monad.Reader
@@ -115,8 +115,8 @@ isInstantiable declaration = case declaration of
             any isFunType paramTypes
 
 -- |Program must not contain local abstractions
-instantiation :: (MonadConfig u,MonadUnique u) => Int -> Program -> u Program
-instantiation maxDepth program = do
+hoInstantiation :: (MonadConfig u,MonadUnique u) => Int -> Program -> u Program
+hoInstantiation maxDepth program = do
   typedProgram <- HM.schemes program
 
   let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram

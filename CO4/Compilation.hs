@@ -23,7 +23,7 @@ import           CO4.Config (MonadConfig,Config(..),configurable,is,fromConfigs)
 import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
-import           CO4.Algorithms.Instantiation (instantiation)
+import           CO4.Algorithms.HigherOrderInstantiation (hoInstantiation)
 import           CO4.Algorithms.EtaExpansion (etaExpansion)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.CodeGen (codeGen)
@@ -57,7 +57,7 @@ compile configs a = TH.runIO
                 >>= etaExpansion
                 >>= globalize 
                 >>= saturateApplication
-                >>= instantiation instantiationDepth
+                >>= hoInstantiation instantiationDepth
 
   result <- lift (is NoSatchmo) >>= \case
     True  -> do dump $ show $ pprint uniqueProgram
