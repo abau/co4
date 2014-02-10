@@ -44,7 +44,6 @@ compile configs a = TH.runIO
                   $ configurable configs 
                   $ runUniqueT 
                   $ do
-  let instantiationDepth = C.instantiationDepth configs
 
   parsedPrelude <- is ImportPrelude >>= \case
                         True  -> parsePrelude
@@ -57,7 +56,7 @@ compile configs a = TH.runIO
                 >>= etaExpansion
                 >>= globalize 
                 >>= saturateApplication
-                >>= hoInstantiation instantiationDepth
+                >>= hoInstantiation
 
   result <- lift (is NoSatchmo) >>= \case
     True  -> do dump $ show $ pprint uniqueProgram
