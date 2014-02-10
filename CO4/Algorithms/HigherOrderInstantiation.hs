@@ -18,7 +18,7 @@ import           CO4.Algorithms.Free (free)
 import           CO4.Algorithms.Util (eraseTypedNames,collapseApplications,collapseAbstractions)
 import           CO4.TypesUtil
 import           CO4.Names
-import           CO4.Config (MonadConfig,Config(ImportPrelude),is)
+import           CO4.Config (MonadConfig,Config(ImportPrelude),is,instantiationDepth,fromConfigs)
 import           CO4.Prelude (unparsedNames)
 
 data Env = Env { -- |Bindings of higher order expressions
@@ -73,8 +73,7 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
         let instanceParameters = foParameters ++ freeInHoArguments 
             instanceArguments  = foArguments  ++ map EVar freeInHoArguments
 
-        cache <- gets cache
-        case M.lookup (f, hoArguments) cache of
+        gets (M.lookup (f, hoArguments) . cache) >>= \case
           Nothing -> do
             instanceName <- newName $ fromName (originalName f) ++ "Instance"
 
@@ -115,8 +114,9 @@ isInstantiable declaration = case declaration of
             any isFunType paramTypes
 
 -- |Program must not contain local abstractions
-hoInstantiation :: (MonadConfig u,MonadUnique u) => Int -> Program -> u Program
-hoInstantiation maxDepth program = do
+hoInstantiation :: (MonadConfig u,MonadUnique u) => Program -> u Program
+hoInstantiation program = do
+  maxDepth     <- fromConfigs instantiationDepth
   typedProgram <- HM.schemes program
 
   let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram
