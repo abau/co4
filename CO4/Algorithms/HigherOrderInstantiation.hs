@@ -5,7 +5,7 @@ module CO4.Algorithms.HigherOrderInstantiation
 where
 
 import           Control.Monad.Reader
-import           Control.Monad.State hiding (State)
+import           Control.Monad.State.Strict hiding (State)
 import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromMaybe,mapMaybe)

@@ -4,7 +4,7 @@ module CO4.Config
 where
 
 import Control.Applicative (Applicative)
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Control.Monad.Writer
 import Language.Haskell.TH.Syntax (Quasi(..))

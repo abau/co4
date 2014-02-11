@@ -3,7 +3,7 @@ module CO4.Algorithms.SaturateApplication
   (saturateApplication)
 where
 
-import           Control.Monad.State
+import           Control.Monad.State.Strict
 import           Control.Monad.Writer
 import qualified Data.Map as M
 import           CO4.Language
