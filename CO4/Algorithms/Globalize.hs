@@ -3,7 +3,7 @@ module CO4.Algorithms.Globalize
   (globalize)
 where
 
-import           Control.Monad.State
+import           Control.Monad.State.Strict
 import           Data.List (partition,(\\),nub)
 import qualified Data.Map as M
 import           CO4.Language

@@ -6,7 +6,7 @@ where
 
 import Control.Applicative (Applicative)
 import Control.Monad.Identity
-import Control.Monad.State 
+import Control.Monad.State.Strict
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.RWS (RWST)
