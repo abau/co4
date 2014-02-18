@@ -14,7 +14,7 @@ import           CO4
 import           CO4.Prelude
 
 $( [d| 
-    constraint p (x,y) = and [ (timesNat x y) == p
+    constraint p (x,y) = and [ eqNat (timesNat x y) p
                              , gtNat x (nat 8 1)
                              , gtNat y (nat 8 1)
                              ]

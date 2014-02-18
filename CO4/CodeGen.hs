@@ -21,13 +21,11 @@ import           CO4.Unique
 import           CO4.CodeGen.Names
 import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
-import           CO4.CodeGen.EncEqInstance (encEqInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
-import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
+import           CO4.Algorithms.HindleyMilner (schemes)
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.AllocatorData (known)
-import           CO4.EncEq (encEq)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 
@@ -44,11 +42,6 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
 
     decodeInstance adt     >>= tellOne
     encodeableInstance adt >>= tellOne
-
-    is ImportPrelude >>= \case
-      True  -> encEqInstance adt >>= tellOne
-      False -> return ()
-
     where 
       mkAllocator          = withConstructor allocatorName   'known
       mkEncodedConstructor = withConstructor encodedConsName 'encodedConstructor
@@ -100,7 +93,6 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
       EVar fName -> do
         fName' <- instantiateName fName
         case fromName fName of
-          n | n == eqName  -> instantiateEq args'
           n | n == natName -> case args of
             [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
             _               -> error $ "Algorithms.Eitherize.instantiateApp: nat"
@@ -117,20 +109,6 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           _         -> bindAndApplyArgs (appsE $ varE fName') args'
     where 
       nameToIntE = intE . read . fromName
-
-      instantiateEq args' = do
-        scheme <- liftM toTH $ schemeOfExp $ head args
-
-        is Cache >>= \case
-          False -> bindAndApplyArgs (\args'' -> appsE (TH.VarE 'encEq) 
-                                              $ typedUndefined scheme : args''
-                                    ) args'
-
-          True  -> bindAndApplyArgs (\args'' -> 
-                    appsE (TH.VarE 'withCallCache) 
-                    [ TH.TupE [stringE "==", TH.ListE args'']
-                    , appsE (TH.VarE 'encEq) $ typedUndefined scheme : args''
-                    ]) args'
 
   instantiateCase (ECase e ms) = do
     e'Name <- newName "bindCase"
