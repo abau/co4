@@ -4,14 +4,14 @@ type Bit = Bool
 type Nat = [Bit]
 
 constraint r (a,b) = case mult a b of
-  (result,carry) -> and [ result == r
+  (result,carry) -> and [ eqNat' result r
                         , not (trivial a)
                         , not (trivial b)
                         , not carry
                         ]
 trivial a = case a of
   []   -> True
-  x:xs -> all (\bit -> bit == False) xs
+  x:xs -> all not xs
 
 mult :: Nat -> Nat -> (Nat,Bit)
 mult a b = case a of
@@ -68,6 +68,13 @@ fullAdder a b carry =
 halfAdder :: Bit -> Bit -> (Bit,Bit)
 halfAdder a b = (xor a b, a && b)
   
+eqNat' :: Nat -> Nat -> Bool
+eqNat' n1 n2 = case n1 of
+  [] -> case n2 of [] -> True
+                   _  -> False
+  x:xs -> case n2 of []    -> False
+                     y:ys  -> (not (xor x y)) && (eqNat' xs ys)
+
 xor :: Bit -> Bit -> Bit
 xor a b = case a of
   False -> b

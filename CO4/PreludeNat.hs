@@ -41,7 +41,6 @@ import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator (BuiltInKnown,BuiltInUnknown))
-import           CO4.EncEq (EncEq(..))
 import           CO4.Util (toBinary,fromBinary)
 
 --import qualified CO4.PreludeNat.Opt as Opt
@@ -68,9 +67,6 @@ instance Decode SAT EncodedAdt Nat where
       False -> error $ "Can not decode 'undefined' to data of type 'Nat'"
       True  -> decode (flags' p) >>= return . Nat n . fromBinary 
     Nothing -> error "Missing flags while decoding 'Nat'"
-
-instance EncEq Nat where
-  encEqPrimitive _ a b = encEqNat a b >>= return . head . flags'
 
 uNat :: Int -> Allocator
 uNat = BuiltInUnknown

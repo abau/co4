@@ -21,7 +21,10 @@ $( [d|
 
     constraint c = case c of
       Blue  -> True
-      Mix m -> m == [ Green , Blue ]
+      Mix m -> case m of []   -> False
+                         c:cs -> case c of 
+                          Green -> True
+                          _     -> False
       _     -> False
 
    |] >>= compile [ImportPrelude] 

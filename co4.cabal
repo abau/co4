@@ -18,7 +18,6 @@ Library
                     , CO4.Cache
                     , CO4.Compilation
                     , CO4.Config
-                    , CO4.EncEq
                     , CO4.Encodeable
                     , CO4.EncodedAdt
                     , CO4.Frontend
@@ -57,7 +56,6 @@ Library
                     , CO4.Backend.TH
                     , CO4.CodeGen
                     , CO4.CodeGen.DecodeInstance
-                    , CO4.CodeGen.EncEqInstance
                     , CO4.CodeGen.EncodeableInstance
                     , CO4.CodeGen.Names
                     , CO4.Frontend.HaskellSrcExts

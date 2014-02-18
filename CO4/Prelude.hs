@@ -6,7 +6,6 @@ module CO4.Prelude
   , assertDefined, encAssertDefined, encAssertDefinedProf
   , module CO4.PreludeNat
   , module CO4.PreludeBool
-  , module CO4.EncEq
   )
 where
 
@@ -21,7 +20,6 @@ import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.AllocatorData (constructors,known)
 import           CO4.PreludeNat
-import           CO4.EncEq
 import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,origin,flags')
 import           CO4.Monad (CO4,traced,abortWithTraces)
 import           CO4.PreludeBool
@@ -108,8 +106,7 @@ preludeAdtDeclarations = [
 
 unparsedPreludeContext :: Context
 unparsedPreludeContext = bind
-  [ (eqName          , SForall a $ SType $ functionType [TVar a,TVar a] boolT)
-  , ("False"         ,             SType boolT)
+  [ ("False"         ,             SType boolT)
   , ("True"          ,             SType boolT)
   , (listName        , SForall a $ SType listT)
   , (consName        , SForall a $ SType $ functionType [TVar a,listT] listT)
