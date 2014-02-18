@@ -19,6 +19,7 @@ import           CO4.Names
 import           CO4.TypesUtil
 import           CO4.Algorithms.HindleyMilner.Util
 import           CO4.Algorithms.Bound (boundInScheme)
+import           CO4.Algorithms.Util (introduceTypedNames)
 import           CO4.PPrint
 import           CO4.Algorithms.Instantiator hiding (instantiate)
 import           CO4.Algorithms.Util (eraseTypedNames)
@@ -241,8 +242,7 @@ wBindingGroup context decls = do
   doIntro <- introduceVarTLamTApp 
 
   let names           = map boundName decls
-      bindings        = zip names rhsTs
-      extendedContext = bindTypes bindings context
+      extendedContext = bindTypes (zip names rhsTs) context
 
   (s1,rhss',_) <- 
        foldM (\(s1,rhss',extendedContext) (Binding _ rhs, rhsT) -> do
@@ -255,18 +255,22 @@ wBindingGroup context decls = do
              ) ([],[],extendedContext) 
                (zip decls rhsTs)
 
-  let rhss''    = substituteN s1 rhss'
-      context'  = unbind names extendedContext
-      bindings' = map (\(n, t) -> (n, generalize context' $ substituteN s1 t)) bindings
-      decls'    = map (\((name, scheme), rhs) -> 
-                    case boundInScheme scheme of
-                      [] -> Binding (nTyped name scheme) rhs
-                      bs -> if doIntro
-                            then let bs' = map untypedName bs
-                                 in
-                                  Binding (nTyped name scheme) $ ETLam bs' rhs
-                            else  Binding (nTyped name scheme)             rhs
-                  ) $ zip bindings' rhss''
+  let genRhsTs  = map (generalize context . substituteN s1) rhsTs
+      rhss''    = map (generalizeRecursiveCalls . substituteN s1) rhss'
+
+      generalizeRecursiveCalls = introduceTypedNames $ gamma $ zip names genRhsTs
+                  
+      decls'    = zipWith3 makeBinding names genRhsTs rhss''
+
+      makeBinding name scheme rhs =
+        case boundInScheme scheme of
+          [] -> Binding (nTyped name scheme) rhs
+          bs -> if doIntro
+                then let bs' = map untypedName bs
+                     in
+                      Binding (nTyped name scheme) $ ETLam bs' rhs
+                else  Binding (nTyped name scheme)             rhs
+
   return (s1, decls')
 
 -- |Infers two types for a match: 

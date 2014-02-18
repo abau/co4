@@ -3,7 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.Util
   ( Context (..), Substitution, Substitutable (..), mappend
-  , substituteN, bind, bindTypes, bindAdt, bindTypedBindings, unbind
+  , substituteN, bind, bindTypes, bindAdt, bindTypedBindings
   , generalize, generalizeAll, gamma
   , emptyContext, lookup, unsafeLookup, hasScheme, toList, instantiateSchemeApp
   , unifyOrFail, unifyNorFail)
@@ -116,10 +116,6 @@ bindAdt adt context = foldr bindConstructor context $ adtConstructors adt
 bindTypedBindings :: [Binding] -> Context -> Context
 bindTypedBindings b = bind (map toContextBinding b)
   where toContextBinding (Binding (NTyped n s) _) = (UntypedName n, s)
-
-unbind :: Namelike n => [n] -> Context -> Context
-unbind names (Gamma ctxt) = 
-  Gamma $ foldl (\c n -> M.delete (untypedName n) c) ctxt names
 
 generalize :: Context -> Type -> Scheme
 generalize context t =
