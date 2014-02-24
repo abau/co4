@@ -255,7 +255,7 @@ wBindingGroup context decls = do
              ) ([],[],extendedContext) 
                (zip decls rhsTs)
 
-  let genRhsTs  = map (generalize context . substituteN s1) rhsTs
+  let genRhsTs  = map (generalize (substituteN s1 context) . substituteN s1) rhsTs
       rhss''    = map (generalizeRecursiveCalls . substituteN s1) rhss'
 
       generalizeRecursiveCalls = introduceTypedNames $ gamma $ zip names genRhsTs
