@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.68
+Version:        	0.0.69
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -44,6 +44,7 @@ Library
                     , CO4.Algorithms.HigherOrderInstantiation
                     , CO4.Algorithms.HindleyMilner
                     , CO4.Algorithms.Instantiator
+                    , CO4.Algorithms.PolymorphicInstantiation
                     , CO4.Algorithms.Rename
                     , CO4.Algorithms.Replace
                     , CO4.Algorithms.SaturateApplication
@@ -78,8 +79,8 @@ Library
                     , transformers == 0.3.*
 
 Test-Suite test-co4
-  Type:             exitcode-stdio-1.0
-  Main-Is:          CO4/Test.hs
+  Type:               exitcode-stdio-1.0
+  Main-Is:            CO4/Test.hs
   Build-Depends:      base >= 4.2 && < 5.0
                     , template-haskell == 2.8.*
                     , containers == 0.5.*
