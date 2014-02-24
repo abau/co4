@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module CO4.Test.List
 where
@@ -29,7 +30,7 @@ $( [d| data Bool   = False | True
 
        main xs = and xs
 
-   |] >>= runIO . configurable [Verbose, DumpAfter "satchmoUnqualified" ""] . compile 
+   |] >>= compile []
   )
 
 uBool      = constructors [ Just [] , Just [] ]

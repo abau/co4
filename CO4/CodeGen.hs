@@ -23,7 +23,6 @@ import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
-import           CO4.Algorithms.HindleyMilner (schemes)
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.AllocatorData (known)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
@@ -224,14 +223,13 @@ instantiateSignature name numArgs =
   in
     sigD' name $ TH.ForallT [] [] type_
 
--- |@codeGen prof p@ transforms a first order co4 program into a Template-Haskell program.
--- @prof@ enables profiling.
+-- |@codeGen p@ transforms a co4 program into a Template-Haskell program.
+-- @p@ must be first-order, fully instantiated and explicitly typed.
 codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
 codeGen program = do
-  typedProgram <- schemes program
   withPrelude  <- is ImportPrelude
 
-  let (pAdts,pFuns)  = splitDeclarations typedProgram 
+  let (pAdts,pFuns)  = splitDeclarations program 
       adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
                                       else pAdts
       pToplevelNames = map boundName $ programToplevelBindings program
@@ -245,7 +243,6 @@ codeGen program = do
                 (ExpInstantiatorData toplevelNames adts)
                          
   return $ {-deleteSignatures $-} decls ++ values'
-
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and

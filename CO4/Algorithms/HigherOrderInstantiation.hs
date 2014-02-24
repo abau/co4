@@ -75,7 +75,7 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
 
         gets (M.lookup (f, hoArguments) . cache) >>= \case
           Nothing -> do
-            instanceName <- newName $ fromName (originalName f) ++ "Instance"
+            instanceName <- newName $ fromName (originalName f) ++ "HOInstance"
 
             writeCacheItem (f, hoArguments) instanceName
 
