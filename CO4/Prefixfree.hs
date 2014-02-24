@@ -7,13 +7,13 @@ import           Satchmo.Core.Primitive (Primitive,isConstant)
 import           CO4.Util (bitWidth)
 
 numeric :: Integer -> [Bool] -> Integer
-numeric n xs = go 0 n xs
+numeric n' xs' = go 0 n' xs'
   where
     go sum 1 _  = sum
     go sum n xs = case xs of 
       (False : ys) -> go  sum      c ys
       (True  : ys) -> go (sum + c) f ys
-      []           -> error "Prefixfree.numeric: not enough flags"
+      []           -> error $ "Prefixfree.numeric: not enough flags (" ++ show n' ++ ", " ++ show xs' ++ ")"
       where 
         c = ceiling $ fromInteger n / 2
         f = floor   $ fromInteger n / 2
