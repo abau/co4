@@ -1,17 +1,19 @@
 module CO4.Test.TermComp2014.Standalone
 where
 
+import Prelude hiding (lookup)
+
+type Map k v = [(k,v)]
+
 type Symbol  = [Bool]
 
 type Domain  = [Bool]
 
-type Mapping = ([Domain], Domain)
+type Interpretation = Map [Domain] Domain
 
-type Interpretation = [Mapping]
+type Model       = Map Symbol Interpretation
 
-type Model       = [(Symbol, Interpretation)]
-
-type Sigma       = [(Symbol, Domain)]
+type Sigma       = Map Symbol Domain
 
 type Assignments = [Sigma]
 
@@ -38,34 +40,26 @@ valueOfTerm model sigma term = case term of
   Var v         -> valueOfVar v sigma
   Node sym args -> 
     let values = map (valueOfTerm model sigma) args
-        i      = interpretation model sym
+        i      = interpretation sym model
     in
-      mapping i values
+      mapping values i
 
 valueOfVar :: Symbol -> Sigma -> Domain
-valueOfVar symbol sigma = case sigma of
-  []   -> undefined
-  s:ss -> case s of 
-    (symbol', value) ->
-      case eqSymbol symbol symbol' of
-        False -> valueOfVar symbol ss
-        True  -> value
+valueOfVar = lookup eqSymbol
 
-mapping :: Interpretation -> [Domain] -> Domain
-mapping interpretation values = case interpretation of
-  []   -> undefined
-  i:is -> case i of
-    (xs,y) -> case and (zipWith eqValue xs values) of
-                False -> mapping is values
-                True  -> y
+mapping :: [Domain] -> Interpretation -> Domain
+mapping = lookup (\xs ys -> and (zipWith eqValue xs ys))
 
-interpretation :: Model -> Symbol -> Interpretation
-interpretation model symbol = case model of
+interpretation :: Symbol -> Model -> Interpretation
+interpretation = lookup eqSymbol
+
+lookup :: (k -> k -> Bool) -> k -> Map k v -> v
+lookup f k map = case map of
   []   -> undefined
-  m:ms -> case m of
-    (sym, i) -> case eqSymbol sym symbol of
-      False -> interpretation ms symbol
-      True  -> i
+  m:ms -> case m of 
+    (k',v) -> case f k k' of
+      False -> lookup f k ms
+      True  -> v
 
 eqSymbol :: Symbol -> Symbol -> Bool
 eqSymbol = eqList eqBool

@@ -7,6 +7,7 @@
 module CO4.Test.TermComp2014.Main
 where
 
+import           Prelude hiding (lookup)
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 

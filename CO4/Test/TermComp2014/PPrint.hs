@@ -37,7 +37,6 @@ pprintModel = unlines . intersperse "" . map pprintInterpretation
 
 pprintInterpretation :: (Symbol,Interpretation) -> String
 pprintInterpretation (s,i) = unlines $ map (pprintMapping $ pprintSymbol s) i
-
-pprintMapping :: String -> Mapping -> String
-pprintMapping s (xs, y) = 
-  concat [ s, " ", intercalate " " (map pprintValue xs), " |-> ", pprintValue y ]
+  where
+    pprintMapping s (xs, y) = 
+      concat [ s, " ", intercalate " " (map pprintValue xs), " |-> ", pprintValue y ]
