@@ -22,43 +22,71 @@ import           CO4.Prelude (unparsedNames)
 
 polyInstantiation :: (MonadConfig u, MonadUnique u) => Program -> u Program 
 polyInstantiation program = do
-  typedProgram <- initialContext >>= \c -> schemesConfig (HMConfig IntroduceVarTLamTApp True)
+  typedProgram <- initialContext >>= \c -> schemesConfig (HMConfig IntroduceAllTLamTApp True)
                                                          c program
-  --return typedProgram
-  let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram
+  let (instantiable,rest) = partition isInstantiableDecl $ programDeclarations typedProgram
 
   (p',state) <- runStateT (runReaderT (runInstantiator $ instantiate rest) 
                                       (initEnv instantiable)
                           ) emptyState
 
-  return $ programFromDeclarations 
-         $ p' ++ (map DBind $ instances state)
+  let instances = map DBind $ getInstances (map (\(DBind b) -> boundName b) instantiable) state
 
-isInstantiable :: Declaration -> Bool
-isInstantiable declaration = case declaration of
-  DBind (Binding n (ETLam {})) -> assert (isPolymorphic n      ) True
-  DBind (Binding n _         ) -> assert (not $ isPolymorphic n) False
-  _                            -> False
+  return $ programFromDeclarations 
+         $ p' ++ instances
+
+isInstantiableDecl :: Declaration -> Bool
+isInstantiableDecl declaration = case declaration of
+  DBind binding -> isInstantiableBinding binding
+  _             -> False
+
+isInstantiableBinding :: Binding -> Bool
+isInstantiableBinding binding = case binding of
+  Binding n (ETLam {}) -> assert (isPolymorphic n      ) True
+  Binding n _          -> assert (not $ isPolymorphic n) False
   where 
     isPolymorphic (NTyped _ (SType   {})) = False
     isPolymorphic (NTyped _ (SForall {})) = True
 
-type CacheKey   = (Name,[Type]) -- (polymorphic name, type arguments)
-type CacheValue = Name          --  monomorphic name
-type Cache      = M.Map CacheKey CacheValue
+data State = State { 
+    instanceNames :: M.Map Name (M.Map [Type] Name) -- name -> (types -> instance name)
+  , instances     :: M.Map Name Expression          -- instance name -> instance body
+  }
+emptyState = State M.empty M.empty
 
-data State = State { cache     :: Cache
-                   , instances :: [Binding]
-                   }
-emptyState = State M.empty []
+writeInstanceName :: Name -> [Type] -> Name -> State -> State
+writeInstanceName polyName args monoName state = state { instanceNames = go $ instanceNames state }
+  where
+    go = M.insertWith M.union polyName $ M.singleton args monoName
 
-writeInstance :: MonadUnique u => Binding -> Instantiator u ()
-writeInstance instance_ = 
-  modify (\state -> state { instances = (instances state) ++ [instance_] })
+lookupInstanceNames :: Name -> State -> [Name]
+lookupInstanceNames name state = case M.lookup name (instanceNames state) of
+                                   Nothing -> []
+                                   Just is -> M.elems is
 
-writeCacheItem :: MonadUnique u => CacheKey -> CacheValue -> Instantiator u ()
-writeCacheItem key value = 
-  modify (\state -> state { cache = M.insert key value $ cache state })
+lookupInstanceName :: Name -> [Type] -> State -> Maybe Name
+lookupInstanceName name args state = M.lookup name (instanceNames state) 
+                                 >>= M.lookup args
+
+getInstances :: [Name] -> State -> [Binding]
+getInstances names state = concatMap getInstances names
+  where
+    getInstances n = flip map (lookupInstanceNames n state) $ \n' -> 
+      case M.lookup n' (instances state) of
+        Nothing -> error $ "Algorithms.PolymorphicInstantiation.getInstances: '" ++ fromName n' ++ "' not found"
+        Just b  -> Binding n' b
+
+removeInstances :: [Name] -> State -> State
+removeInstances = flip $ foldr $ \n -> removeInstanceNames' n . removeInstances' n
+  where
+    removeInstances' name state = 
+      state { instances = foldr M.delete (instances state) $ lookupInstanceNames name state }
+
+    removeInstanceNames' name state = 
+      state { instanceNames = M.delete name $ instanceNames state }
+
+writeInstance :: Name -> Expression -> State -> State
+writeInstance name exp state = state { instances = M.insert name exp $ instances state }
 
 data Env = Env { boundTypeVars :: M.Map UntypedName Type
                , polyBindings  :: M.Map Name Expression 
@@ -70,6 +98,11 @@ initEnv = Env M.empty
 
 bindTypeVars :: [(UntypedName,Type)] -> Env -> Env
 bindTypeVars bs env = env { boundTypeVars = M.union (M.fromList bs) $ boundTypeVars env }
+
+addPolyBindings :: [Binding] -> Env -> Env
+addPolyBindings bindings env = env { polyBindings = M.union (M.fromList bs) $ polyBindings env }
+  where
+    bs = map (\(Binding n e) -> (n,e)) bindings
 
 newtype Instantiator u a = Instantiator { runInstantiator :: ReaderT Env (StateT State u) a }
   deriving (Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
@@ -88,9 +121,17 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
       Nothing -> instantiateScheme s >>= return . SForall n
       Just _  -> instantiateScheme s
   
+  instantiateTApp (ETApp (ECon c) types) = assert (length types == length typeVars) $ do
+    types' <- mapM instantiateType types
+    local (bindTypeVars $ zip typeVars types') $ do 
+      instanceScheme <- instantiate $ schemeOfName c
+      return $ ECon $ NTyped (fromName c) instanceScheme
+    where
+      typeVars = quantifiedNames $ schemeOfName c
+
   instantiateTApp (ETApp (EVar f) types) = do
     types' <- mapM instantiateType types
-    gets (M.lookup (f,types') . cache) >>= \case
+    gets (lookupInstanceName f types') >>= \case
       Just f' -> return $ EVar f'
       Nothing -> 
         is ImportPrelude >>= \case
@@ -104,14 +145,28 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
 
           let instanceName = NTyped untypedInstanceName instanceScheme
 
-          writeCacheItem (f, types) $ instanceName
+          modify $ writeInstanceName f types instanceName
 
           asks (M.lookup f . polyBindings) >>= \case 
             Nothing -> error $ "Algorithms.PolymorphicInstantiation.makeInstance: '" ++ fromName f ++ "' not found"
             Just (ETLam typeVars' body) -> assert (typeVars == typeVars') $ do
               body' <- instantiate body
-              writeInstance $ Binding instanceName body'
+              modify $ writeInstance instanceName body'
               return instanceName
           where
             typeVars     = quantifiedNames $ schemeOfName f
             newBoundVars = zip typeVars types
+
+  instantiateLet (ELet bindings exp) =
+    local (addPolyBindings instantiable) $ do
+      rest' <- instantiate rest
+      exp'  <- instantiate exp
+
+      instances <- gets $ getInstances instantiableNames
+
+      modify $ removeInstances instantiableNames
+      return $ ELet (rest' ++ instances) exp'
+
+    where
+      (instantiable, rest) = partition isInstantiableBinding bindings
+      instantiableNames    = map boundName instantiable
