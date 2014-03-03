@@ -1,11 +1,19 @@
-module CO4.Test.TermComp2014.Standalone
+module CO4.Test.TermComp2014.SL.Standalone
 where
 
 import Prelude hiding (lookup)
 
+-- Keep in sync with CO4.Test.TermComp2014.Data
 type Map k v = [(k,v)]
 
 type Symbol  = [Bool]
+
+data Term = Var  Symbol
+          | Node Symbol [Term]
+
+data Rule = Rule Term Term
+
+data Trs  = Trs [Rule]
 
 type Domain  = [Bool]
 
@@ -16,13 +24,6 @@ type Model       = Map Symbol Interpretation
 type Sigma       = Map Symbol Domain
 
 type Assignments = [Sigma]
-
-data Term = Var  Symbol
-          | Node Symbol [Term]
-
-data Rule = Rule Term Term
-
-data Trs  = Trs [Rule]
 
 constraint :: (Trs,Assignments) -> Model -> Bool
 constraint (trs,assignments) model = all (isModelForTrs model trs) assignments
