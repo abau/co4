@@ -10,10 +10,13 @@ type Symbol = [Bool]
 
 data Term = Var  Symbol
           | Node Symbol [Term]
+          deriving (Eq,Show)
 
 data Rule = Rule Term Term
+          deriving (Eq,Show)
 
 data Trs  = Trs [Rule]
+          deriving (Eq,Show)
 
 -- SL
 
@@ -29,7 +32,9 @@ type Assignments = [Sigma]
 
 -- LPO
 data Order = Gr | Eq | NGe
+           deriving (Eq,Show)
 
 data Nat   = Zero | Succ Nat
+           deriving (Eq,Show)
 
 type Precedence = Map Symbol Nat

@@ -55,6 +55,9 @@ nodeSymbols (Trs rules) = nub $ concatMap goRule rules
     goTerm (Var _)       = []
     goTerm (Node f args) = f : (concatMap goTerm args)
 
+fromNat :: Nat -> Int
+fromNat Zero     = 0
+fromNat (Succ x) = 1 + (fromNat x)
 
 toLabeledTrs :: Int -> Trs -> Model -> (Trs, M.Map Symbol (Symbol, Domain))
 toLabeledTrs n (Trs rules) model = (Trs rules', makeMap $ concat mapping)
@@ -65,7 +68,7 @@ toLabeledTrs n (Trs rules) model = (Trs rules', makeMap $ concat mapping)
 
     sigmas = assignments n $ Trs rules
 
-    makeMap = M.fromListWith $ \_ _ -> error "toLabeledTrs"
+    makeMap = M.fromListWith (\k v -> error "toLabeledTrs") . nub
 
     goRule (Rule l r) sigma = 
       let (l', ml) = goTerm l sigma
