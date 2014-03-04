@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedNames, unparsedPreludeContext
-  , uBool, uList, kList, kNil, kList', kBool, kTuple2, kTuple3, kTuple4, kTuple5
+  , uBool, uList, kList, kNil, kList', kBool, kTuple2, kTuple3, kTuple4, kTuple5, kUnit
   , assertKnown, encAssertKnownProf, encAssertKnown
   , assertDefined, encAssertDefined, encAssertDefinedProf
   , module CO4.PreludeNat
@@ -100,6 +100,7 @@ preludeAdtDeclarations = [
                         , CCon (readName "EQ") []
                         , CCon (readName "GT") [] 
                         ] 
+  , Adt unitName [] [ CCon unitName [] ]
   ]
   where
     [a,b,c,d,e] = map UntypedName ["a","b","c","d","e"]
@@ -166,6 +167,8 @@ kTuple2 a b       = constructors [ Just [a,b]       ]
 kTuple3 a b c     = constructors [ Just [a,b,c]     ]
 kTuple4 a b c d   = constructors [ Just [a,b,c,d]   ]
 kTuple5 a b c d e = constructors [ Just [a,b,c,d,e] ]
+
+kUnit             = known 0 1 []
 
 -- * Utilities
 
