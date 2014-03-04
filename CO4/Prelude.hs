@@ -78,9 +78,9 @@ preludeFunctionDeclarations = [
 -- These declarations are not parsed by CO4.
 preludeAdtDeclarations :: [Adt]
 preludeAdtDeclarations = [
-    Adt (UntypedName "Bool") [] [ CCon (UntypedName "False") []
-                                , CCon (UntypedName "True")  []
-                                ]
+    Adt boolName [] [ CCon (UntypedName "False") []
+                    , CCon (UntypedName "True")  []
+                    ]
   , Adt listName [a] 
      [ CCon listName []
      , CCon consName [ TVar a , TCon listName [TVar a] ]
@@ -105,19 +105,8 @@ preludeAdtDeclarations = [
     [a,b,c,d,e] = map UntypedName ["a","b","c","d","e"]
 
 unparsedPreludeContext :: Context
-unparsedPreludeContext = bind
-  [ ("False"         ,             SType boolT)
-  , ("True"          ,             SType boolT)
-  , (listName        , SForall a $ SType listT)
-  , (consName        , SForall a $ SType $ functionType [TVar a,listT] listT)
-  , mkTuple 2        , mkTuple 3 , mkTuple 4 , mkTuple 5
-  , ( maybeName      , SForall a $ SType maybeT )
-  , ("Nothing"       , SForall a $ SType maybeT )
-  , ("Just"          , SForall a $ SType $ functionType [TVar a] maybeT)
-  , ( eitherName     , SForall a $ SForall b $ SType eitherT )
-  , ("Left"          , SForall a $ SForall b $ SType $ functionType [ TVar a ] eitherT )
-  , ("Right"         , SForall a $ SForall b $ SType $ functionType [ TVar b ] eitherT )
-  , (natName         , SType $ functionType [TCon intName [],TCon intName []] natT)
+unparsedPreludeContext = bind (
+  [ (natName         , SType $ functionType [TCon intName [],TCon intName []] natT)
   , (trimNatName     , SType $ functionType [TCon intName [],natT] natT)
   , ("gtNat"         , SType $ functionType [natT,natT] boolT)
   , ("geNat"         , SType $ functionType [natT,natT] boolT)
@@ -144,22 +133,18 @@ unparsedPreludeContext = bind
   , ("||"            , SType $ functionType [boolT,boolT] boolT)
   , ("not"           , SType $ functionType [boolT] boolT)
   , ("xor2"          , SType $ functionType [boolT,boolT] boolT)
-  ] emptyContext
+  ]
+  ++ (concatMap fromAdt preludeAdtDeclarations)) emptyContext
   where 
-    names@(a:b:_) = map UntypedName ["a","b","c","d","e"]
-    boolT       = TCon boolName []
-    listT       = TCon listName [TVar a]
+    a     = UntypedName "a"
+    boolT = TCon boolName []
+    natT  = TCon natTypeName []
 
-    maybeT      = TCon maybeName [TVar a]
-    eitherT     = TCon eitherName [ TVar a, TVar b ]
-
-    mkTuple i = 
-      let type_ = functionType (map TVar $ take i names) 
-                $ TCon (tupleName i) $ map TVar $ take i names
-      in
-        ( tupleName i, (foldr SForall (SType type_) $ take i names) )
-
-    natT = TCon natTypeName []
+    fromAdt (Adt name vars conss) = map fromCons conss
+      where
+        mkScheme t                  = foldr SForall (SType t) vars
+        resultT                     = TCon name $ map TVar vars
+        fromCons (CCon cName argTs) = (fromName cName, mkScheme $ functionType argTs resultT)
 
 unparsedNames :: Namelike n => [n]
 unparsedNames = map (convertName . fst) $ toList $ unparsedPreludeContext 
