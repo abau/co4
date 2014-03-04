@@ -4,7 +4,7 @@
 module CO4.Names 
   ( Namelike (..), convertName, funName, listName, consName, tupleName
   , maybeName, eitherName, orderingName
-  , natName, natTypeName, trimNatName, intName, boolName
+  , natName, natTypeName, trimNatName, intName, boolName, unitName
   , mainName, deprecatedMainName
   )
 where
@@ -83,6 +83,9 @@ intName = readName "Int"
 
 boolName :: Namelike n => n
 boolName = readName "Bool"
+
+unitName :: Namelike n => n
+unitName = readName "()"
 
 mainName :: Namelike n => n
 mainName = readName "constraint"
