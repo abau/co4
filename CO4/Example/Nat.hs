@@ -21,6 +21,6 @@ $( [d|
    |] >>= compile [ImportPrelude]
   )
 
-allocator = uTuple2 (uNat 8) (uNat 8)
+allocator = kTuple2 (uNat 8) (uNat 8)
 
 result p = solveAndTestP (nat 8 p) allocator encConstraint constraint
