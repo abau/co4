@@ -19,7 +19,6 @@ preprocessExp :: MonadUnique u => Exp -> u Exp
 preprocessExp = everywhereM $ extM' onPat 
                             $ extM' onMatch
                             $ extM' onClause
-                            $ extM' onClauses
                             $ extM' (return . onExpandedType M.empty)
                             $ mkM   onExp
 
@@ -29,7 +28,6 @@ preprocessDecs decs = everywhereM
                     $ extM' onPat 
                     $ extM' onMatch
                     $ extM' onClause
-                    $ extM' onClauses
                     $ extM' (return . onExpandedType synonyms)
                     $ mkM   onExp
                     ) decs
@@ -57,9 +55,6 @@ onMatch = noNestedPatternsInMatch
 
 onClause :: MonadUnique u => Clause -> u Clause
 onClause = noNestedPatternsInClauseParameters
-
-onClauses :: MonadUnique u => [Clause] -> u [Clause]
-onClauses = noMultipleClauses
 
 onExpandedType :: TypeSynonyms -> Type -> Type
 onExpandedType synonyms = expandTypeSynonyms synonyms . onType
@@ -177,27 +172,6 @@ noNestedPatternsInClauseParameters :: MonadUnique u => Clause -> u Clause
 noNestedPatternsInClauseParameters (Clause ps (NormalB e) d) = do
   (ps',e') <- onlyVariablePatterns ps e
   return $ Clause ps' (NormalB e') d
-
--- Preprocessors on `[Clause]` ------------------------------------------------
-
--- |Transforms multiple clauses of a function declaration into a single declaration
--- with a case expression as outermost expression
-noMultipleClauses :: MonadUnique u => [Clause] -> u [Clause]
-noMultipleClauses []      = return [] 
-noMultipleClauses [x]     = return [x] 
-noMultipleClauses clauses = 
-  let numParams = case head clauses of Clause pats _ _ -> length pats
-      clauseToMatch (Clause [p]  body decs) = Match p           body decs
-      clauseToMatch (Clause pats body decs) = Match (TupP pats) body decs
-    in do
-      names <- mapM (const $ newTHName "noMultipleClauses") [1..numParams]
-       
-      let caseE = case names of [n] -> VarE n
-                                _   -> TupE $ map VarE names
-      
-      return $ [Clause (map VarP names) (
-                    NormalB $ CaseE caseE $ map clauseToMatch clauses) []
-               ] 
 
 -- Preprocessors on `Type` ------------------------------------------------
 
