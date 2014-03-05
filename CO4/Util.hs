@@ -198,8 +198,7 @@ fromBinary = go 0
 
 -- |@binaries n@ returns all binary numbers with bit width @n@
 binaries :: Int -> [[Bool]]
-binaries 0 = []
-binaries 1 = [[False],[True]]
+binaries 0 = [[]]
 binaries i = do
   y <- binaries $ i - 1
   x <- [False,True]
