@@ -73,6 +73,8 @@ preludeFunctionDeclarations = [
   , [dec| any f xs = or  (map f xs) |]
   , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
   , [dec| zipWith f xs ys = map (\(x,y) -> f x y) (zip xs ys) |]
+  , [dec| concatMap f xs = concat (map f xs) |]
+  , [dec| unzip xs = foldr (\(u,v) (us,vs) -> (u:us, v:vs)) ([],[]) xs |]
   ]
 
 -- These declarations are not parsed by CO4.
