@@ -38,7 +38,7 @@ Library
                     , CO4.Util
                     , CO4.Algorithms.Bound
                     , CO4.Algorithms.Collector
-                    , CO4.Algorithms.EtaExpansion
+                    , CO4.Algorithms.ExtendLambda
                     , CO4.Algorithms.Free
                     , CO4.Algorithms.Globalize
                     , CO4.Algorithms.HigherOrderInstantiation
