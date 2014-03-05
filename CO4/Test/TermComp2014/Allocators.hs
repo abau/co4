@@ -1,48 +1,61 @@
 module CO4.Test.TermComp2014.Allocators
 where
 
-import           Control.Exception (assert)
 import qualified Data.Map as M
 import           CO4.AllocatorData (Allocator,known,constructors)
-import           CO4.Prelude (kNil,kList',uBool,kBool,uTuple2)
-import           CO4.Util (toBinary)
-import           CO4.Test.TermComp2014.Data
-import           CO4.Test.TermComp2014.Util
+import           CO4.Prelude (kNil,kList',uBool,kBool,kTuple2)
+import           CO4.Util (binaries)
+import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),Rule(..),Term(..))
+import           CO4.Test.TermComp2014.Util (nodeArities)
 
-modelAllocator :: Int -> Trs -> Allocator
-modelAllocator n (Trs rules) = kList' $ map goArity $ M.toList arities
+modelAllocator :: Int -> Trs () -> Allocator
+modelAllocator n = kList' . map goArity . M.toList . nodeArities
   where
-    arities = M.fromListWith (\a b -> assert (a == b) a) $ concatMap goRule rules
-      where goRule (Rule l r)    = (goTerm l) ++ (goTerm r)
-            goTerm (Var {})      = []
-            goTerm (Node v args) = (v, length args) : (concatMap goTerm args)
-
-    goArity (v,arity)      = uTuple2 (knownSymbolAllocator v) (goInterpretation arity)
-    goInterpretation arity = kList' $ do args <- sequence $ replicate arity [0..numStates - 1]
+    goArity (v,arity)      = kTuple2 (knownSymbolAllocator v) (goInterpretation arity)
+    goInterpretation arity = kList' $ do args <- sequence $ replicate arity $ binaries n
                                          return $ goMapping args
-      where
-        numStates = 2^n
     
-    goMapping args = uTuple2 (kList' $ map (knownValueAllocator n) args)
+    goMapping args = kTuple2 (kList' $ map knownValueAllocator args)
                              (unknownValueAllocator n)
 
-precedenceAllocator :: Trs -> Allocator
-precedenceAllocator trs = kList' $ map goMapping symbols
+precedenceAllocator :: Int -> Trs () -> Allocator
+precedenceAllocator n trs = kList' $ concatMap goArity $ M.toList arities
   where
-    symbols             = nodeSymbols trs
-    goMapping symbol    = uTuple2 (knownSymbolAllocator symbol) $ unknownNatAllocator 
-                                                                $ length symbols
-    unknownNatAllocator 0 = constructors [ Just [], Nothing ]
-    unknownNatAllocator i = constructors [ Just [], Just [unknownNatAllocator $ i - 1] ]
+    arities                = nodeArities trs
+    labels                 = binaries n
+    maxNat                 = (M.size arities) * (length labels)
+    goArity (symbol,arity) = do
+      args <- sequence $ replicate arity labels
+      return $ kTuple2 (kTuple2 (knownSymbolAllocator symbol) 
+                                (kList' $ map knownValueAllocator args)
+                       ) 
+                       (unknownNatAllocator maxNat)
 
-knownValueAllocator :: Int -> Int -> Allocator
-knownValueAllocator n l = kList' $ map kBool $ toBinary (Just n) l
+labeledTrsAllocator :: Int -> Trs () -> Allocator
+labeledTrsAllocator n (Trs rules) = known 0 1 [ kList' $ concatMap goRule rules ]
+  where
+    factor                  = length $ binaries n
+    goRule (Rule lhs rhs)   = replicate factor $ known 0 1 [ goTerm lhs, goTerm rhs ]
+    goTerm (Var v)          = known 0 2 [ knownSymbolAllocator v ]
+    goTerm (Node s () args) = known 1 2 [ knownSymbolAllocator s
+                                        , unknownLabelAllocator args
+                                        , kList' $ map goTerm args
+                                        ]
+
+    unknownLabelAllocator = kList' . map (const $ unknownValueAllocator n)
+
+unknownNatAllocator :: Int -> Allocator
+unknownNatAllocator 0 = constructors [ Just [], Nothing ]
+unknownNatAllocator i = constructors [ Just [], Just [unknownNatAllocator $ i - 1] ]
+
+knownValueAllocator :: Domain -> Allocator
+knownValueAllocator = kList' . map kBool
       
 unknownValueAllocator :: Int -> Allocator
 unknownValueAllocator n = kList' $ replicate n uBool
 
 knownSymbolAllocator :: Symbol -> Allocator
-knownSymbolAllocator = kList' . map kBool
+knownSymbolAllocator = knownValueAllocator
 
 unknownSymbolAllocator :: Int -> Allocator
 unknownSymbolAllocator = unknownValueAllocator

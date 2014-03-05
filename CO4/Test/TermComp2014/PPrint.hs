@@ -6,34 +6,25 @@ import           Data.List (intercalate,intersperse)
 import qualified Data.Map as M
 import           Unsafe.Coerce
 import           CO4.Util (fromBinary)
-import           CO4.Test.TermComp2014.Data
-import           CO4.Test.TermComp2014.Util
-import           CO4.Test.TermComp2014.SL.Standalone (valueOfVar,valueOfTerm)
+import           CO4.Test.TermComp2014.Standalone 
+  (Domain,Symbol,Trs(..),Rule(..),Term(..),Model,Precedence,Nat (..))
+import           CO4.Test.TermComp2014.Util (fromNat)
 
-pprintLabeledTrs :: Int -> Trs -> Model -> String
-pprintLabeledTrs n (Trs rules) model = unlines $ do
-  r <- rules
-  s <- sigmas
-  return $ goRule r s
+pprintTrs :: Int -> Trs () -> String
+pprintTrs n = pprintTrs' n $ const ""
+
+pprintLabeledTrs :: Int -> Trs [Domain] -> String
+pprintLabeledTrs n = pprintTrs' n pprintLabel
+
+pprintTrs' :: Int -> (a -> String) -> Trs a -> String
+pprintTrs' n f (Trs rules) = unlines $ map goRule rules
   where
-    sigmas = assignments n $ Trs rules
+    goRule (Rule l r) = concat [ goTerm l, " -> ", goTerm r ]
 
-    goRule (Rule l r) sigma = concat [ goTerm l sigma
-                                     , " -> "
-                                     , goTerm r sigma ]
+    goTerm (Var v) = pprintSymbol v
 
-    goTerm (Var v)       sigma = pprintLabeledSymbol v l 
-      where l = unsafeCoerce $ valueOfVar (unsafeCoerce v) (unsafeCoerce sigma)
-
-    goTerm (Node s args) sigma = pprintLabeledSymbol s l 
-                              ++ (concat [" (", intercalate ", " (map (flip goTerm sigma) args), ")" ])
-
-      where l = unsafeCoerce $ valueOfTerm (unsafeCoerce model) (unsafeCoerce sigma)
-                             $ unsafeCoerce
-                             $ Node s args
-
-pprintLabeledSymbol :: Symbol -> Domain -> String
-pprintLabeledSymbol s v = concat [pprintSymbol s, "^", pprintValue v]
+    goTerm (Node s l args) = 
+      concat [ pprintSymbol s, "^", f l ," (", intercalate ", " (map goTerm args), ")" ]
 
 pprintValue :: Domain -> String
 pprintValue = show . fromBinary
@@ -49,14 +40,10 @@ pprintModel = unlines . intersperse "" . map pprintInterpretation
         pprintMapping s (xs, y) = 
           concat [ s, " ", intercalate " " (map pprintValue xs), " |-> ", pprintValue y ]
 
-pprintPrecedence :: Precedence -> String
-pprintPrecedence = unwords . map go
-  where
-    go (s,n) = pprintSymbol s ++ "[" ++ (show $ fromNat n) ++ "]"
+pprintLabel :: [Domain] -> String
+pprintLabel vs = "[" ++ (intercalate ", " $ map pprintValue vs) ++ "]"
 
-pprintPrecedence' :: M.Map Symbol (Symbol,Domain) -> Precedence -> String
-pprintPrecedence' mapping = unwords . map go
+pprintPrecedence :: Precedence -> String
+pprintPrecedence = unlines . map go
   where
-    go (s,n) = case M.lookup s mapping of
-      Nothing     -> error "pprintPrecedence'"
-      Just (s',v) -> pprintLabeledSymbol s' v ++ "[" ++ (show $ fromNat n) ++ "]"
+    go ((s,l),n) = pprintSymbol s ++ "^" ++ pprintLabel l ++ " |-> " ++ show (fromNat n)
