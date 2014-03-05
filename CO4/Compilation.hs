@@ -24,7 +24,7 @@ import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
 import           CO4.Algorithms.HigherOrderInstantiation (hoInstantiation)
-import           CO4.Algorithms.EtaExpansion (etaExpansion)
+import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
 import           CO4.CodeGen (codeGen)
@@ -54,7 +54,7 @@ compile configs a = TH.runIO
 
   uniqueProgram <-  return (addDeclarations parsedPrelude parsedProgram)
                 >>= uniqueLocalNames 
-                >>= etaExpansion
+                >>= extendLambda
                 >>= globalize 
                 >>= saturateApplication
                 >>= hoInstantiation

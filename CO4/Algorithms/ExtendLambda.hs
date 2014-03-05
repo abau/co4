@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module CO4.Algorithms.EtaExpansion
-  (etaExpansion)
+module CO4.Algorithms.ExtendLambda
+  (extendLambda)
 where
 
 import           Control.Monad (forM)
@@ -12,6 +12,14 @@ import           CO4.Algorithms.Instantiator
 import           CO4.Algorithms.HindleyMilner (schemes,schemeOfExp)
 import           CO4.Config (MonadConfig)
 
+-- |Extends lamda expressions (@\x -> e x => \x y -> e x y@) and
+-- eta-expands bound expressions (@n = e => n = \x -> e x@).
+extendLambda :: (MonadUnique u,MonadConfig u) => Program -> u Program
+extendLambda program =
+      schemes program 
+  >>= runInstantiator . instantiate . sanitize
+  >>= return . sanitize . eraseTypedNames
+
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
   deriving (Monad, MonadUnique, MonadConfig)
 
@@ -19,24 +27,23 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
   
   instantiateLam (ELam ns e) = do
     e'     <- instantiate e
-    params <- etaExpandExpression (ELam ns e) (length ns) 
+    params <- expandExpression (ELam ns e') (length ns) 
     case params of
       [] -> return $ ELam ns e'
       ps -> return $ ELam (ns ++ ps) (EApp e' $ map EVar ps)
 
-  instantiateBinding b@(Binding n e) = 
-    case e of
-      ELam {} -> instantiateLam e >>= return . Binding n
-      _       -> do
-        params <- etaExpandExpression e 0 
-        case params of
-          [] -> return b
-          ps -> return $ Binding n $ ELam ps $ EApp e $ map EVar ps
+  instantiateBinding (Binding n e@(ELam {})) = instantiateLam e >>= return . Binding n
+  instantiateBinding (Binding n e)           = do
+    e'     <- instantiate e
+    params <- expandExpression e' 0 
+    case params of
+      [] -> return $ Binding n e'
+      ps -> return $ Binding n $ ELam ps $ EApp e' $ map EVar ps
 
--- |@etaExpandExpression e n@ eta-expands @e@ by counting the parameters of its type. 
+-- |@expandExpression e n@ expands @e@ by counting the parameters of its type. 
 -- @n@ is the number of already assigned parameters.
-etaExpandExpression :: (MonadUnique u,MonadConfig u) => Expression -> Int -> u [Name]
-etaExpandExpression exp numAssignedParameters = do
+expandExpression :: (MonadUnique u,MonadConfig u) => Expression -> Int -> u [Name]
+expandExpression exp numAssignedParameters = do
   scheme <- schemeOfExp exp
 
   let numParams = length (argumentTypes $ typeOfScheme scheme)
@@ -44,11 +51,3 @@ etaExpandExpression exp numAssignedParameters = do
   if numParams > numAssignedParameters
     then forM [1 .. numParams - numAssignedParameters] $ const $ newName "eta"
     else return []
-
--- |Eta-expands bound expressions (@n = e => n = \x -> e x@) and 
--- lamda expressions (@\x -> e x => \x y -> e x y@).
-etaExpansion :: (MonadUnique u,MonadConfig u) => Program -> u Program
-etaExpansion program =
-      schemes program 
-  >>= runInstantiator . instantiate . sanitize
-  >>= return . sanitize . eraseTypedNames
