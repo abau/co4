@@ -35,7 +35,8 @@ checks a = concat  [ and' noGuardedBody a
 
 validDeclaration :: Dec -> Check
 validDeclaration dec = case dec of
-  FunD {}          -> []
+  FunD _ [_]       -> []
+  FunD n _         -> [Error $ "Multiple clauses per function declaration are not allowed (" ++ (show $ ppr n) ++ ")"]
   ValD {}          -> []
   DataD _ _ _ _ [] -> []
   DataD _ _ _ _ _  -> [Warning "Deriving statements will be ignored"]
