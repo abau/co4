@@ -11,7 +11,7 @@ import qualified TPDB.Data as TPDB
 import qualified TPDB.Plain.Read as Read
 import           CO4.Util (toBinary, binaries)
 import           CO4.Test.TermComp2014.Standalone 
-  (Symbol,Assignments,Trs(..),Rule(..),Term(..),Nat (..))
+  (Symbol,Assignments,Trs(..),Rule(..),Term(..))
 
 {-
 import TPDB.Plain.Write ()
@@ -57,7 +57,3 @@ nodeArities (Trs rules) = M.fromListWith (\a b -> assert (a == b) a)
     goRule (Rule l r)      = (goTerm l) ++ (goTerm r)
     goTerm (Var {})        = []
     goTerm (Node v _ args) = (v, length args) : (concatMap goTerm args)
-
-fromNat :: Nat -> Int
-fromNat Zero     = 0
-fromNat (Succ x) = 1 + (fromNat x)

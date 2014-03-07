@@ -93,3 +93,19 @@ Test-Suite test-co4
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
                     , tpdb == 0.8.*
+
+-- Executable termcomp2014
+--   Main-is:            CO4/Test/TermComp2014/Main.hs
+--   Ghc-options:        -W -fno-warn-incomplete-patterns
+--   Build-Depends:      base >= 4.2 && < 5.0
+--                     , template-haskell == 2.8.*
+--                     , containers == 0.5.*
+--                     , mtl == 2.1.*
+--                     , syb == 0.4.*
+--                     , pretty == 1.1.*
+--                     , satchmo-core == 0.7.*
+--                     , haskell-src-exts == 1.13.*
+--                     , haskell-src-exts-qq == 0.6.*
+--                     , haskell-src-meta == 0.6.*
+--                     , transformers == 0.3.*
+--                     , tpdb == 0.8.*

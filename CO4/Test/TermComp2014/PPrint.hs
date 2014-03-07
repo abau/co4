@@ -7,8 +7,7 @@ import qualified Data.Map as M
 import           Unsafe.Coerce
 import           CO4.Util (fromBinary)
 import           CO4.Test.TermComp2014.Standalone 
-  (Domain,Symbol,Trs(..),Rule(..),Term(..),Model,Precedence,Nat (..))
-import           CO4.Test.TermComp2014.Util (fromNat)
+  (Domain,Symbol,Trs(..),Rule(..),Term(..),Model,Precedence)
 
 pprintTrs :: Int -> Trs () -> String
 pprintTrs n = pprintTrs' n $ const ""
@@ -46,4 +45,4 @@ pprintLabel vs = "[" ++ (intercalate ", " $ map pprintValue vs) ++ "]"
 pprintPrecedence :: Precedence -> String
 pprintPrecedence = unlines . map go
   where
-    go ((s,l),n) = pprintSymbol s ++ "^" ++ pprintLabel l ++ " |-> " ++ show (fromNat n)
+    go ((s,l),n) = pprintSymbol s ++ "^" ++ pprintLabel l ++ " |-> " ++ show n

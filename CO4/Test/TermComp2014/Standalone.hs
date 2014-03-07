@@ -2,6 +2,7 @@ module CO4.Test.TermComp2014.Standalone
 where
 
 import Prelude hiding (lex,lookup,length)
+import CO4.PreludeNat
 
 type Map k v        = [(k,v)]
 
@@ -30,18 +31,14 @@ type Assignments    = [Sigma]
 data Order          = Gr | Eq | NGe
                     deriving (Eq,Show)
 
-data Nat            = Zero | Succ Nat
-                    deriving (Eq,Show)
-
 type PrecedenceKey  = (Symbol, [Domain])
 
 type Precedence     = Map PrecedenceKey Nat
 
-constraint :: (Trs (),Assignments) -> (Model,Trs [Domain],Precedence) -> Bool
-constraint (trs,assignments) (model, labeledTrs, precedence) = 
+constraint :: (Trs (),Assignments) -> (Model,Precedence) -> Bool
+constraint (trs,assignments) (model, precedence) = 
   and [ isModelForTrsUnderAllAssignments model trs assignments 
-      , eqTrs eqLabel labeledTrs (makeLabeledTrs model trs assignments)
-      , isMonotoneAccordingLPO labeledTrs precedence
+      , isMonotoneAccordingLPO (makeLabeledTrs model trs assignments) precedence
       ]
 
 -- * search model
@@ -128,11 +125,11 @@ ord prec a b =
     ordNat pa pb
 
 ordNat :: Nat -> Nat -> Order
-ordNat a b = case a of
-  Zero    -> case b of Zero    -> Eq
-                       _       -> NGe
-  Succ a' -> case b of Zero    -> Gr
-                       Succ b' -> ordNat a' b'
+ordNat a b = case eqNat a b of
+  True  -> Eq
+  False -> case gtNat a b of
+    True  -> Gr
+    False -> NGe
 
 varOccurs :: Symbol -> Term a -> Bool
 varOccurs var term = case term of
@@ -160,17 +157,6 @@ lookup f k map = case map of
       False -> lookup f k ms
       True  -> v
 
-length :: [a] -> Nat
-length = foldr (\_ -> Succ) Zero
-
-eqTrs :: (a -> a -> Bool) -> Trs a -> Trs a -> Bool
-eqTrs f (Trs ra) (Trs rb) = and [ and (zipWith (eqRule f) ra rb)
-                                , eqNat (length ra) (length rb)
-                                ]
-
-eqRule :: (a -> a -> Bool) -> Rule a -> Rule a -> Bool
-eqRule f (Rule la ra) (Rule lb rb) = (eqTerm f la lb) && (eqTerm f ra rb)
-
 eqTerm :: (a -> a -> Bool) -> Term a -> Term a -> Bool
 eqTerm f x y = case x of
   Var u     -> case y of { Var v -> eqSymbol u v; _ -> False }
@@ -191,11 +177,6 @@ eqOrder x y = case x of
 
 eqPrecedenceKey :: PrecedenceKey -> PrecedenceKey -> Bool
 eqPrecedenceKey (s,l) (s',l') = (eqSymbol s s') && (eqLabel l l')
-
-eqNat :: Nat -> Nat -> Bool
-eqNat a b = case a of
-  Zero    -> case b of { Zero    -> True       ; _ -> False }
-  Succ a' -> case b of { Succ b' -> eqNat a' b'; _ -> False }
 
 eqSymbol :: Symbol -> Symbol -> Bool
 eqSymbol = eqList eqBool
