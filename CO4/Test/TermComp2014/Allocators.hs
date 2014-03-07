@@ -3,8 +3,8 @@ where
 
 import qualified Data.Map as M
 import           CO4.AllocatorData (Allocator,known,constructors)
-import           CO4.Prelude (kNil,kList',uBool,kBool,kTuple2)
-import           CO4.Util (binaries)
+import           CO4.Prelude (kNil,kList',uBool,kBool,kTuple2,uNat)
+import           CO4.Util (binaries,bitWidth)
 import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),Rule(..),Term(..))
 import           CO4.Test.TermComp2014.Util (nodeArities)
 
@@ -23,13 +23,13 @@ precedenceAllocator n trs = kList' $ concatMap goArity $ M.toList arities
   where
     arities                = nodeArities trs
     labels                 = binaries n
-    maxNat                 = (M.size arities) * (length labels)
+    numLabeledSymbols      = (M.size arities) * (length labels)
     goArity (symbol,arity) = do
       args <- sequence $ replicate arity labels
       return $ kTuple2 (kTuple2 (knownSymbolAllocator symbol) 
                                 (kList' $ map knownValueAllocator args)
                        ) 
-                       (unknownNatAllocator maxNat)
+                       (uNat $ bitWidth numLabeledSymbols)
 
 labeledTrsAllocator :: Int -> Trs () -> Allocator
 labeledTrsAllocator n (Trs rules) = known 0 1 [ kList' $ concatMap goRule rules ]
@@ -43,10 +43,6 @@ labeledTrsAllocator n (Trs rules) = known 0 1 [ kList' $ concatMap goRule rules 
                                         ]
 
     unknownLabelAllocator = kList' . map (const $ unknownValueAllocator n)
-
-unknownNatAllocator :: Int -> Allocator
-unknownNatAllocator 0 = constructors [ Just [], Nothing ]
-unknownNatAllocator i = constructors [ Just [], Just [unknownNatAllocator $ i - 1] ]
 
 knownValueAllocator :: Domain -> Allocator
 knownValueAllocator = kList' . map kBool
