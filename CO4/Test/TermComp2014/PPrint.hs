@@ -9,21 +9,23 @@ import           CO4.Util (fromBinary)
 import           CO4.Test.TermComp2014.Standalone 
   (Domain,Symbol,Trs(..),Rule(..),Term(..),Model,Precedence)
 
-pprintTrs :: Int -> Trs () -> String
-pprintTrs n = pprintTrs' n $ const ""
+pprintTrs :: Trs () -> String
+pprintTrs = pprintTrs' $ const ""
 
-pprintLabeledTrs :: Int -> Trs [Domain] -> String
-pprintLabeledTrs n = pprintTrs' n pprintLabel
+pprintLabeledTrs :: Trs [Domain] -> String
+pprintLabeledTrs = pprintTrs' pprintLabel
 
-pprintTrs' :: Int -> (a -> String) -> Trs a -> String
-pprintTrs' n f (Trs rules) = unlines $ map goRule rules
+pprintTrs' :: (a -> String) -> Trs a -> String
+pprintTrs' f (Trs rules) = unlines $ map goRule rules
   where
     goRule (Rule l r) = concat [ goTerm l, " -> ", goTerm r ]
 
     goTerm (Var v) = pprintSymbol v
 
     goTerm (Node s l args) = 
-      concat [ pprintSymbol s, "^", f l ," (", intercalate ", " (map goTerm args), ")" ]
+      case f l of
+        "" -> concat [ pprintSymbol s          ," (", intercalate ", " (map goTerm args), ")" ]
+        l' -> concat [ pprintSymbol s, "^", l' ," (", intercalate ", " (map goTerm args), ")" ]
 
 pprintValue :: Domain -> String
 pprintValue = show . fromBinary
