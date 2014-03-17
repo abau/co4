@@ -5,10 +5,11 @@ import qualified Data.Map as M
 import           CO4.AllocatorData (Allocator,known,constructors)
 import           CO4.Prelude (kNil,kList',uBool,kBool,kTuple2,uNat)
 import           CO4.Util (binaries,bitWidth)
-import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),Rule(..),Term(..))
+import           CO4.Test.TermComp2014.Standalone 
+  (Symbol,Domain,Trs(..),Rule(..),Term(..),UnlabeledTrs)
 import           CO4.Test.TermComp2014.Util (nodeArities)
 
-modelAllocator :: Int -> Trs () -> Allocator
+modelAllocator :: Int -> UnlabeledTrs -> Allocator
 modelAllocator n = kList' . map goArity . M.toList . nodeArities
   where
     goArity (v,arity)      = kTuple2 (knownSymbolAllocator v) (goInterpretation arity)
@@ -18,7 +19,7 @@ modelAllocator n = kList' . map goArity . M.toList . nodeArities
     goMapping args = kTuple2 (kList' $ map knownValueAllocator args)
                              (unknownValueAllocator n)
 
-precedenceAllocator :: Int -> Trs () -> Allocator
+precedenceAllocator :: Int -> UnlabeledTrs -> Allocator
 precedenceAllocator n trs = kList' $ concatMap goArity $ M.toList arities
   where
     arities                = nodeArities trs
@@ -31,7 +32,7 @@ precedenceAllocator n trs = kList' $ concatMap goArity $ M.toList arities
                        ) 
                        (uNat $ bitWidth numLabeledSymbols)
 
-labeledTrsAllocator :: Int -> Trs () -> Allocator
+labeledTrsAllocator :: Int -> UnlabeledTrs -> Allocator
 labeledTrsAllocator n (Trs rules) = known 0 1 [ kList' $ concatMap goRule rules ]
   where
     factor                  = length $ binaries n

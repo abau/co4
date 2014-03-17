@@ -33,9 +33,9 @@ resultFile bitWidth filePath = do
     >>= \case
           Nothing -> putStrLn "Nothing"
           Just (model,precedence) -> 
-            do putStrLn $ pprintModel               $ unsafeCoerce model
-               putStrLn $ pprintLabeledTrs bitWidth $ unsafeCoerce labeledTrs
-               putStrLn $ pprintPrecedence          $ unsafeCoerce precedence
+            do putStrLn $ pprintModel      $ unsafeCoerce model
+               putStrLn $ pprintLabeledTrs $ unsafeCoerce labeledTrs
+               putStrLn $ pprintPrecedence $ unsafeCoerce precedence
             where
               labeledTrs = makeLabeledTrs model (unsafeCoerce trs) sigmas
 
