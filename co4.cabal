@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.69
+Version:        	0.0.70
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -77,7 +77,7 @@ Library
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
 
-Test-Suite test-co4
+Test-Suite co4-examples
   Type:               exitcode-stdio-1.0
   Main-Is:            CO4/Test.hs
   Build-Depends:      base >= 4.2 && < 5.0
