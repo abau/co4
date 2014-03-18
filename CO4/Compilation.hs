@@ -15,8 +15,6 @@ import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
 import           CO4.THUtil (unqualifiedNames,derive)
 import           CO4.Util (addDeclarations)
-import           CO4.Frontend
-import           CO4.Frontend.HaskellSrcExts ()
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
 import           CO4.Config (MonadConfig,Config(..),configurable,is,fromConfigs)
@@ -29,28 +27,30 @@ import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
 import           CO4.CodeGen (codeGen)
 import           CO4.PPrint (pprint)
+import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
+import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
 
 compileFile :: [Config] -> FilePath -> Q [TH.Dec]
 compileFile configs filePath = 
   TH.runIO (HE.parseFile filePath) >>= \case
     HE.ParseOk _module -> do 
       addDependentFile filePath
-      compile configs _module
+      compile configs $ toTHDeclarations _module
     HE.ParseFailed loc msg -> error $ concat 
                                 [ "Compilation.compileFile: can not compile `"
                                 , filePath, "` (", msg, " at ", show loc, ")" ]
 
-compile :: (ProgramFrontend a) => [Config] -> a -> Q [TH.Dec]
-compile configs a = TH.runIO 
-                  $ configurable configs 
-                  $ runUniqueT 
-                  $ do
+compile :: [Config] -> [TH.Dec] -> Q [TH.Dec]
+compile configs program = TH.runIO 
+                        $ configurable configs 
+                        $ runUniqueT 
+                        $ do
 
   parsedPrelude <- is ImportPrelude >>= \case
                         True  -> parsePrelude
                         False -> return []
 
-  parsedProgram <- parsePreprocessedProgram a 
+  parsedProgram <- parsePreprocessedTHDeclarations program
 
   uniqueProgram <-  return (addDeclarations parsedPrelude parsedProgram)
                 >>= uniqueLocalNames 
