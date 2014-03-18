@@ -8,26 +8,25 @@ module CO4.Example.WCB_Matrix
   (result,ex0)
 where
 
-import Prelude hiding ( sequence )
+import Prelude hiding (sequence)
 
+import           Control.Monad (void,forM)
 import           Language.Haskell.TH (runIO)
+import qualified Data.Map as M
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
-
-import qualified Data.Map as M
-import Control.Monad ( void, forM )
-
-import System.Environment (getArgs)
-import System.IO
+import           System.Environment (getArgs)
+import           System.IO
+import           CO4.Example.WCB_MatrixStandalone
 
 $( compileFile [ ImportPrelude
                -- , DumpAll "/tmp/WCB_Matrix"
                , InstantiationDepth 20
                ] 
-  "CO4/Example/WCB_Matrix.standalone.hs" )
+  "CO4/Example/WCB_MatrixStandalone.hs" )
 
 -- data Base = Base [Bool]
 uBase = known 0 1 [ kList 2 uBool ]

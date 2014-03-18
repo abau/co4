@@ -12,7 +12,7 @@ import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 
-$( [d| data Bool = False | True
+$( [d| data Bool = False | True deriving Show
 
        not x = case x of False -> True
                          True  -> False

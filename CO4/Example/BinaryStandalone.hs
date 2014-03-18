@@ -1,4 +1,4 @@
-module Binary where
+module CO4.Example.BinaryStandalone where
 
 type Bit = Bool
 type Nat = [Bit]

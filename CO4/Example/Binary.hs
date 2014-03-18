@@ -13,8 +13,9 @@ import qualified Satchmo.Core.Decode
 import           CO4
 import           CO4.Prelude
 import           CO4.Util (toBinary,fromBinary)
+import           CO4.Example.BinaryStandalone
 
-$( compileFile [Cache,ImportPrelude] "CO4/Example/Binary.standalone.hs" )
+$( compileFile [Cache,ImportPrelude] "CO4/Example/BinaryStandalone.hs" )
 
 bitWidth  = 8
 uBinary   = uList bitWidth uBool
