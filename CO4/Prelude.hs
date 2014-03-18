@@ -15,7 +15,8 @@ import           Satchmo.Core.Primitive (isConstant)
 import           CO4.Language 
 import           CO4.Algorithms.HindleyMilner.Util (Context,bind,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
-import           CO4.Frontend.HaskellSrcExts (parsePreprocessedProgram)
+import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
+import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.AllocatorData (constructors,known)
@@ -27,9 +28,10 @@ import           CO4.PreludeBool
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]
 parsePrelude = do
-  Program _ decs <- parsePreprocessedProgram $ HE.Module 
-                      (HE.SrcLoc "CO4Prelude" 0 0) (HE.ModuleName "CO4Prelude")
-                      [] Nothing Nothing [] (main : preludeFunctionDeclarations)
+  Program _ decs <- parsePreprocessedTHDeclarations
+                  $ toTHDeclarations 
+                  $ HE.Module (HE.SrcLoc "CO4Prelude" 0 0) (HE.ModuleName "CO4Prelude")
+                              [] Nothing Nothing [] (main : preludeFunctionDeclarations)
   return decs
   where
     -- because parsePreprocessedProgram needs a main function:

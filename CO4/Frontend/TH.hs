@@ -1,40 +1,20 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
--- |Template Haskell front end
 module CO4.Frontend.TH
-  (parseTHDeclaration, module CO4.Frontend)
+  (parsePreprocessedTHDeclarations, parseTHDeclarations)
 where
 
+import           Control.Exception (assert)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util (programFromDeclarations)
-import           CO4.Frontend
 import           CO4.Names
+import           CO4.Unique (MonadUnique)
 import           CO4.Frontend.THCheck (check)
-import           CO4.Frontend.THPreprocess (preprocessExp,preprocessDecs)
+import           CO4.Frontend.THPreprocess (preprocessDecs)
 
-instance ProgramFrontend [TH.Dec] where
-  parseProgram decs = 
-    if check decs then parseTHDeclarations decs 
-    else error "Frontend.TH.parseProgram: check failed"
-
-  parsePreprocessedProgram decs = 
-    if check decs then preprocessDecs decs >>= return . parseTHDeclarations
-    else error "Frontend.TH.parsePreprocessedProgram: check failed"
-
-instance ExpressionFrontend TH.Exp where
-  parseExpression exp = 
-    if check exp then parseTHExpression exp
-    else error "Frontend.TH.parseExpression: check failed"
-
-  parsePreprocessedExpression exp =
-    if check exp then preprocessExp exp >>= return . parseTHExpression
-    else error "Frontend.TH.parsePreprocessedExpression: check failed"
-
-{-
-instance SchemeFrontend TH.Type where
-  parseScheme type_ = parseTHType type_
--}
+parsePreprocessedTHDeclarations :: MonadUnique u => [TH.Dec] -> u Program
+parsePreprocessedTHDeclarations decs = assert (check decs) $
+  preprocessDecs decs >>= return . parseTHDeclarations
 
 parseTHDeclarations :: [TH.Dec] -> Program
 parseTHDeclarations = programFromDeclarations . map parseTHDeclaration

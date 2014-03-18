@@ -20,7 +20,6 @@ Library
                     , CO4.Config
                     , CO4.Encodeable
                     , CO4.EncodedAdt
-                    , CO4.Frontend
                     , CO4.Language
                     , CO4.Monad
                     , CO4.Names
@@ -59,8 +58,8 @@ Library
                     , CO4.CodeGen.DecodeInstance
                     , CO4.CodeGen.EncodeableInstance
                     , CO4.CodeGen.Names
-                    , CO4.Frontend.HaskellSrcExts
                     , CO4.Solve
+                    , CO4.Frontend.HaskellSrcExts
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess
