@@ -9,8 +9,7 @@ type SRS = [ Rule ]
 
 -- * top level constraint
 
-data Looping_Derivation =
-     Looping_Derivation Word [Step] Word
+data Looping_Derivation = Looping_Derivation Word [Step] Word
 
 constraint :: SRS -> Looping_Derivation -> Bool
 constraint srs (Looping_Derivation pre d suf) =

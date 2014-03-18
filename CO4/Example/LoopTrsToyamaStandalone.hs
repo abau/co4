@@ -1,4 +1,4 @@
-module CO4.Example.LoopTrsToyama
+module CO4.Example.LoopTrsToyamaStandalone
 where
 
 import qualified Prelude

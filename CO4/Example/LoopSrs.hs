@@ -9,24 +9,19 @@
 module CO4.Example.LoopSrs
 where
 
+import           System.Environment
+import           Control.Monad ( void, forM )
 import           Data.List (nub)
 import qualified Data.Map as M
-
-
-import           Language.Haskell.TH (runIO)
-
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4 hiding (solve)
 import           CO4.Prelude
-
 import qualified TPDB.Data as TPDB
 import qualified TPDB.Input as TPDB
 import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
-
-import System.Environment
-import Control.Monad ( void, forM )
+import           CO4.Example.LoopSrs.Standalone
 
 $( compileFile [ ImportPrelude, Cache ] "CO4/Example/LoopSrs/Standalone.hs" )
 

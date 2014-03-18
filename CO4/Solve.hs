@@ -8,6 +8,7 @@ where
 
 import           Prelude hiding (and)
 import           System.IO (hFlush,stderr,hPutStrLn,hPutStr)
+import           Unsafe.Coerce (unsafeCoerce)
 import           Satchmo.Core.SAT.Minisat (note,solve')
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert,and)
@@ -21,11 +22,13 @@ type ParamConstraintSystem = EncodedAdt -> ConstraintSystem
 
 -- |Solves a parametrized constraint system and tests the 
 -- found solution against the original constraint system
-solveAndTestP :: (Show a, Show b, Decode SAT EncodedAdt a, Encodeable k) 
+solveAndTestP :: (Decode SAT EncodedAdt a, Encodeable k) 
               => k -> Allocator -> ParamConstraintSystem -> (k -> a -> b) 
               -> IO (Maybe a) 
-solveAndTestP k allocator constraint test =
-  solveP k allocator constraint >>= testSolution (test k)
+solveAndTestP k allocator constraint test = do
+  solution <- solveP k allocator constraint 
+  testSolution (test k) solution
+  return solution
 
 -- |Solves a parametrized constraint system
 solveP :: (Decode SAT EncodedAdt a, Encodeable k)
@@ -43,10 +46,12 @@ solveP k allocator constraint =
 
 -- |Solves an constraint system and tests the found solution
 -- against the original constraint system
-solveAndTest :: (Show a, Show b, Decode SAT EncodedAdt a) 
+solveAndTest :: (Decode SAT EncodedAdt a) 
              => Allocator -> ConstraintSystem -> (a -> b) -> IO (Maybe a)
-solveAndTest allocator constraint test = 
-  solve allocator constraint >>= testSolution test
+solveAndTest allocator constraint test = do
+  solution <- solve allocator constraint
+  testSolution test solution
+  return solution
 
 -- |Solves a constraint system
 solve :: (Decode SAT EncodedAdt a) => Allocator -> ConstraintSystem -> IO (Maybe a)
@@ -59,15 +64,15 @@ solve allocator constraint =
       return (unknown, result)
     handleResult unknown result
 
-testSolution :: (Show a, Show b) => (a -> b) -> Maybe a -> IO (Maybe a)
+testSolution :: (a -> b) -> Maybe a -> IO ()
 testSolution test solution = case solution of
-  Nothing -> do hPutStrLn stderr "No solution found"
-                return Nothing
-  Just s  -> do hPutStrLn stderr $ "Solution: " ++ (show s)
-                hPutStr stderr "Test: "
+  Nothing ->    return ()
+  Just s  -> do hPutStr stderr "Test: "
                 hFlush stderr
-                hPutStrLn stderr $ show $ test s
-                return $ Just s
+                case unsafeCoerce (test s) of
+                  False -> do hPutStrLn stderr $ show False
+                              error "Solve.testSolution: abort due to previous test failure"
+                  True  -> hPutStrLn stderr $ show True
 
 handleResult :: (Decode SAT EncodedAdt a) => EncodedAdt -> EncodedAdt 
                                           -> SAT (Maybe (SAT a))

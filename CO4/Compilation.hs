@@ -13,7 +13,7 @@ import           Language.Haskell.TH.Syntax (Q,addDependentFile)
 import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
-import           CO4.THUtil (unqualifiedNames,derive)
+import           CO4.THUtil (unqualifiedNames)
 import           CO4.Util (addDeclarations)
 import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
@@ -35,7 +35,7 @@ compileFile configs filePath =
   TH.runIO (HE.parseFile filePath) >>= \case
     HE.ParseOk _module -> do 
       addDependentFile filePath
-      compile configs $ toTHDeclarations _module
+      compile (HideSource : configs) $ toTHDeclarations _module
     HE.ParseFailed loc msg -> error $ concat 
                                 [ "Compilation.compileFile: can not compile `"
                                 , filePath, "` (", msg, " at ", show loc, ")" ]
@@ -50,26 +50,27 @@ compile configs program = TH.runIO
                         True  -> parsePrelude
                         False -> return []
 
-  parsedProgram <- parsePreprocessedTHDeclarations program
-
-  uniqueProgram <-  return (addDeclarations parsedPrelude parsedProgram)
-                >>= uniqueLocalNames 
-                >>= extendLambda
-                >>= globalize 
-                >>= saturateApplication
-                >>= hoInstantiation
-                >>= polyInstantiation
+  co4Program <-  parsePreprocessedTHDeclarations program
+             >>= return . addDeclarations parsedPrelude
+             >>= uniqueLocalNames 
+             >>= extendLambda
+             >>= globalize 
+             >>= saturateApplication
+             >>= hoInstantiation
+             >>= polyInstantiation
 
   result <- lift (is NoSatchmo) >>= \case
-    True  -> do dump $ show $ pprint uniqueProgram
-                return $ displayProgram uniqueProgram
+    True  -> do dump $ show $ pprint co4Program
+                return $ displayProgram co4Program
 
-    False -> do satchmoP <- compileToSatchmo uniqueProgram
-                return $ (derive ''Eq . derive ''Show) (displayProgram parsedProgram)
-                      ++ satchmoP
+    False -> do satchmoProgram <- compileToSatchmo co4Program
+                return satchmoProgram
 
   liftIO $ log "Compilation successful"
-  return result
+
+  is HideSource >>= \case
+    False -> return $ program ++ result
+    True  -> return result
 
 compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
                  => Program -> m [TH.Dec]

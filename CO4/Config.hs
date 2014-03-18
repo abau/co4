@@ -16,6 +16,7 @@ data Config  = NoSatchmo
              | ImportPrelude
              | Profile
              | Cache
+             | HideSource
              deriving (Eq,Show)
 
 type Configs      = [Config]
