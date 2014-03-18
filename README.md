@@ -63,10 +63,10 @@ So:
 
 [CO4/Example/Binary.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/Binary.hs)
 loads and compiles 
-[CO4/Example/Binary.standalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/Binary.standalone.hs)
+[CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/BinaryStandalone.hs)
 using Template-Haskell:
 
-    $( compileFile [ImportPrelude] "CO4/Example/Binary.standalone.hs" )
+    $( compileFile [ImportPrelude] "CO4/Example/BinaryStandalone.hs" )
 
 Every definition `d` of the original program is compiled to an encoded
 definition `encD`, i.e. the compiled constraint system is `encConstraint`.
@@ -114,13 +114,18 @@ We call `result` in a ghci session to find a factorization of 143:
     $ ghci CO4/Example/Binary.hs
     *CO4.Example.Binary> result 143
     Start producing CNF
-    Cache hits: 264 (13%), misses: 1743 (86%)
-    CNF finished (#variables: 28141, #clauses: 85830)
+    Cache hits: 164 (10%), misses: 1457 (89%)
+    CNF finished
+    #variables: 7880, #clauses: 24448, #literals: 66292
+    #clauses of length 1:	1
+    #clauses of length 2:	7066
+    #clauses of length 3:	17380
+    #clauses of length 9:	2
+
     Starting solver
-    Solver finished in 0.533333 seconds (result: True)
+    Solver finished in 2.6667e-2 seconds (result: True)
     Starting decoder
     Decoder finished
-    Solution: ([True,False,True,True,False,False],[True,True,False,True,False,False,False,False])
     Test: True
     Just (13,11)
 
