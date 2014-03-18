@@ -20,7 +20,7 @@ cabal during the next step.
 
 ## Running
 
-[CO4/Example/Binary.standalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/Binary.standalone.hs)
+[CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/BinaryStandalone.hs)
 implements addition and multiplication of binary values:
 
     fullAdder :: Bit -> Bit -> Bit -> (Bit,Bit)
