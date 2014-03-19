@@ -15,7 +15,6 @@ import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,runUniqueT)
 import           CO4.THUtil (unqualifiedNames)
 import           CO4.Util (addDeclarations)
-import           CO4.Backend.TH (displayProgram)
 import           CO4.Prelude (parsePrelude)
 import           CO4.Config (MonadConfig,Config(..),configurable,is,fromConfigs)
 import qualified CO4.Config as C
@@ -25,6 +24,7 @@ import           CO4.Algorithms.HigherOrderInstantiation (hoInstantiation)
 import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
+import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.CodeGen (codeGen)
 import           CO4.PPrint (pprint)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
@@ -61,7 +61,7 @@ compile configs program = TH.runIO
 
   result <- lift (is NoSatchmo) >>= \case
     True  -> do dump $ show $ pprint co4Program
-                return $ displayProgram co4Program
+                return $ toTH co4Program
 
     False -> do satchmoProgram <- compileToSatchmo co4Program
                 return satchmoProgram
