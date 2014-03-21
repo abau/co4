@@ -55,7 +55,7 @@ onType :: Type -> Type
 onType = noTupleType
 
 onDecs :: [Dec] -> [Dec]
-onDecs = noSignatureDeclarations . noTypeSynonyms
+onDecs = noTypeSynonyms
 
 -- Preprocessors on `Exp` ------------------------------------------------
 

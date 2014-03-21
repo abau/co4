@@ -34,6 +34,8 @@ parseTHDeclaration dec = case dec of
     in
       DAdt $ Adt n' tVars' cons'
 
+  TH.SigD n t -> DSig $ Signature (untypedName $ fromTHName n) $ parseTHType t
+
   _ -> notSupported "parseTHDeclaration" dec
 
 parseTHConstructor :: TH.Con -> Constructor
@@ -66,9 +68,11 @@ parseTHExpression expression = case expression of
       ELam names' $ parse e
        
   TH.LetE decls e -> 
-    let bindings = map (\d -> case parseTHDeclaration d of DBind b -> b) decls
+    let parseDec d = case parseTHDeclaration d of 
+                       DBind b -> b
+                       DSig  _ -> notSupported "parseTHExpression (local signature)" d
     in
-      ELet bindings $ parse e
+      ELet (map parseDec decls) $ parse e
 
   TH.CaseE e matches -> ECase (parse e) $ map parseTHMatch matches
 
