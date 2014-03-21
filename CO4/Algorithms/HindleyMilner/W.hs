@@ -249,7 +249,7 @@ wBindingGroup context decls = do
                   (s2,rhsT',rhs') <- w extendedContext rhs
                   s3              <- unifyOrFail (substituteN (s1 ++ s2) rhsT) rhsT'
                   return ( concat [s1,s2,s3]
-                         , rhss' ++ [rhs']
+                         , rhss' ++ [substituteN s3 rhs']
                          , substituteN (s2 ++ s3) extendedContext
                          )
              ) ([],[],extendedContext) 
