@@ -15,9 +15,9 @@ import           CO4.Config (MonadConfig,is,Config(ImportPrelude))
 import           CO4.Algorithms.HindleyMilner (HMConfig(..),IntroduceTLamTApp(..))
 import           CO4.Algorithms.HindleyMilner (schemesConfig,initialContext)
 import           CO4.Algorithms.Instantiator
-import           CO4.Util (programFromDeclarations,programDeclarations)
+import           CO4.Util (programFromDeclarations,programDeclarations,removeSignature)
 import           CO4.TypesUtil (quantifiedNames,schemeOfName)
-import           CO4.Names (fromName)
+import           CO4.Names (fromName,untypedName)
 import           CO4.Prelude (unparsedNames)
 
 polyInstantiation :: (MonadConfig u, MonadUnique u) => Program -> u Program 
@@ -25,14 +25,15 @@ polyInstantiation program = do
   typedProgram <- initialContext >>= \c -> schemesConfig (HMConfig IntroduceAllTLamTApp True)
                                                          c program
   let (instantiable,rest) = partition isInstantiableDecl $ programDeclarations typedProgram
+      env                 = initEnv instantiable
+      instantiableNames   = map (untypedName . fst) $ M.toList $ polyBindings env
 
-  (p',state) <- runStateT (runReaderT (runInstantiator $ instantiate rest) 
-                                      (initEnv instantiable)
-                          ) emptyState
+  (p',state) <- runStateT (runReaderT (runInstantiator $ instantiate rest) env) emptyState
 
   let instances = map DBind $ getInstances (map (\(DBind b) -> boundName b) instantiable) state
 
-  return $ programFromDeclarations 
+  return $ flip (foldl $ flip removeSignature) instantiableNames
+         $ programFromDeclarations
          $ p' ++ instances
 
 isInstantiableDecl :: Declaration -> Bool
