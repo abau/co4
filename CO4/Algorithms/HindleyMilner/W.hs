@@ -197,7 +197,7 @@ w context = \case
     return (s5, substituteN s5 resultT, ECase e' matches')
 
   ELet bindings e -> do
-    (s1,bindings') <- wBindingGroup context bindings
+    (s1,bindings') <- wBindingGroup context bindings []
     let context'   =  bindTypedBindings bindings' context
     (s2, eT, e')   <- w context' e
 
@@ -219,25 +219,27 @@ w context = \case
 -- |Annotates the schemes to a program
 wProgram :: MonadUnique u => Context -> Program -> HM u Program
 wProgram context program = do
-  let (typeDecls, valueDecls) = splitDeclarations program
-      bgs                     = bindingGroups valueDecls
-      context'                = foldr bindAdt context typeDecls
+  let (adts, values, signatures) = splitDeclarations program
 
-  (_,_,valueDecls') <-  
-    foldM (\(s1,context,valueDecls') bg -> do
-              (s2,bg')     <- wBindingGroup context bg
+      bgs      = bindingGroups values
+      context' = foldr bindAdt context adts
+
+  (_,_,values') <-  
+    foldM (\(s1,context,values') bg -> do
+              (s2,bg')     <- wBindingGroup context bg signatures
               let context' =  bindTypedBindings bg' context
-              return (s1 ++ s2, context', valueDecls' ++ bg')
+              return (s1 ++ s2, context', values' ++ bg')
           ) ([],context',[]) bgs
 
-  return $ programFromDeclarations $ concat [ map DAdt typeDecls 
-                                            , map DBind valueDecls'
+  return $ programFromDeclarations $ concat [ map DAdt  adts
+                                            , map DBind values'
+                                            , map DSig  signatures
                                             ]
 
 -- |Annotates the schemes to a mutually recursive binding group 
-wBindingGroup :: MonadUnique u => Context -> BindingGroup 
+wBindingGroup :: MonadUnique u => Context -> BindingGroup -> [Signature]
                                -> HM u ([Substitution], BindingGroup)
-wBindingGroup context decls = do
+wBindingGroup context decls signatures = do
   rhsTs   <- forM decls $ const newType
   doIntro <- introduceVarTLamTApp 
 
@@ -245,12 +247,18 @@ wBindingGroup context decls = do
       extendedContext = bindTypes (zip names rhsTs) context
 
   (s1,rhss',_) <- 
-       foldM (\(s1,rhss',extendedContext) (Binding _ rhs, rhsT) -> do
+       foldM (\(s1,rhss',extendedContext) (Binding name rhs, rhsT) -> do
                   (s2,rhsT',rhs') <- w extendedContext rhs
                   s3              <- unifyOrFail (substituteN (s1 ++ s2) rhsT) rhsT'
-                  return ( concat [s1,s2,s3]
-                         , rhss' ++ [rhs']
-                         , substituteN (s2 ++ s3) extendedContext
+                  s4              <- case findSignature (untypedName name) signatures of
+                                      Nothing  -> return []
+                                      Just sig -> do
+                                        sigT <- instantiate sig
+                                        matchOrFail (substituteN s3 rhsT') sigT
+
+                  return ( concat [s1,s2,s3,s4]
+                         , rhss' ++ [substituteN (s3 ++ s4) rhs']
+                         , substituteN (s2 ++ s3 ++ s4) extendedContext
                          )
              ) ([],[],extendedContext) 
                (zip decls rhsTs)

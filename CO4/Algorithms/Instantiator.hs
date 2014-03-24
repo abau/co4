@@ -114,10 +114,17 @@ class Monad m => MonadInstantiator m where
     cons' <- instantiate cons
     return $ Adt name' ts' cons'
 
+  instantiateSignature :: Signature -> m Signature
+  instantiateSignature (Signature name scheme) = do
+    name'   <- instantiate name
+    scheme' <- instantiate scheme
+    return $ Signature name' scheme'
+
   instantiateDeclaration :: Declaration -> m Declaration
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
-    DAdt adt -> instantiateAdt adt >>= return . DAdt
+    DAdt adt -> instantiate adt >>= return . DAdt
+    DSig sig -> instantiate sig >>= return . DSig
 
   instantiateMain :: Binding -> m Binding
   instantiateMain main = do
@@ -179,6 +186,9 @@ instance Instantiable Expression where
 
 instance Instantiable Adt where
   instantiate = instantiateAdt
+
+instance Instantiable Signature where
+  instantiate = instantiateSignature
 
 instance Instantiable Declaration where
   instantiate = instantiateDeclaration

@@ -41,7 +41,7 @@ validDeclaration dec = case dec of
   DataD _ _ _ _ [] -> []
   DataD _ _ _ _ _  -> [Warning "Deriving statements will be ignored"]
   TySynD {}        -> []
-  SigD {}          -> [Warning "Type signatures will be deleted"]
+  SigD {}          -> []
   _                -> [Error "Only function declarations, value declarations and data declarations are allowed"]
 
 noGuardedBody :: Body -> Check

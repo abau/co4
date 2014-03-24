@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromMaybe,mapMaybe)
 import           CO4.Language
-import           CO4.Util (programDeclarations,programFromDeclarations)
+import           CO4.Util (programDeclarations,programFromDeclarations,removeSignature)
 import           CO4.Unique (MonadUnique,newName,originalName)
 import           CO4.Algorithms.Instantiator
 import qualified CO4.Algorithms.HindleyMilner as HM
@@ -121,15 +121,17 @@ hoInstantiation program = do
 
   let (instantiable,rest) = partition isInstantiable $ programDeclarations typedProgram
 
-      initBindings        = M.fromList $ map (\(DBind (Binding n e)) -> (n,e)) instantiable
-      initEnv             = Env initBindings rest maxDepth
+      initBindings        = map (\(DBind (Binding n e)) -> (n,e)) instantiable
+      initEnv             = Env (M.fromList initBindings) rest maxDepth
       initState           = State M.empty []
+      instantiableNames   = map (untypedName . fst) initBindings
 
   (p',state) <- runStateT (runReaderT (runInstantiator $ instantiate rest) initEnv) 
                           initState
   return $ eraseTypedNames
          $ collapseApplications 
          $ collapseAbstractions
+         $ flip (foldl $ flip removeSignature) instantiableNames
          $ programFromDeclarations
          $ p' ++ (map DBind $ instances state)
    

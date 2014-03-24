@@ -6,7 +6,7 @@ module CO4.Algorithms.HindleyMilner.Util
   , substituteN, bind, bindTypes, bindAdt, bindTypedBindings
   , generalize, generalizeAll, gamma
   , emptyContext, lookup, unsafeLookup, hasScheme, toList, instantiateSchemeApp
-  , unifyOrFail, unifyNorFail)
+  , unifyOrFail, unifyNorFail, matchOrFail)
 where
 
 import           Prelude hiding (lookup)
@@ -185,7 +185,7 @@ unify t1 t2 = case (t1,t2) of
   where 
     noUnifierFound = "No unifier found for '" ++ show (pprint t1) ++ "' and '" ++ show (pprint t2) ++ "'"
 
--- | Unifies a lists of types from left to right
+-- |Unifies a lists of types from left to right
 unifyN :: [Type] -> Either String [Substitution]
 unifyN []  = Right []
 unifyN [_] = Right []
@@ -194,3 +194,23 @@ unifyN (t:ts) = foldM (\(s,t1) t2 -> do
                             return (s ++ s', substituteN s' t1)
                       ) ([],t) ts
                       >>= return . fst
+
+-- |Matches two types or fails if they don't match
+matchOrFail :: Monad m => Type -> Type -> m [Substitution]
+matchOrFail t1 t2 = case match t1 t2 of
+  Left msg -> fail msg
+  Right s  -> return s
+
+-- |Matches two types
+match :: Type -> Type -> Either String [Substitution]
+match t1 t2 = case (t1,t2) of
+  (TVar v, _) -> return [(v, t2)]
+   
+  (TCon c1 ts1, TCon c2 ts2) -> 
+     if c1 == c2 && (length ts1 == length ts2)
+     then foldM (\s1 (t1,t2) -> do s2 <- match (substituteN s1 t1) (substituteN s1 t2)
+                                   return $ s1 ++ s2
+                ) [] $ zip ts1 ts2
+     else Left dontMatch
+  where 
+    dontMatch = "Types '" ++ show (pprint t1) ++ "' and '" ++ show (pprint t2) ++ "' don't match"

@@ -1,4 +1,4 @@
-module CO4.Example.WCB_Matrix where
+module CO4.Example.WCB_MatrixStandalone where
 
 import CO4.Prelude
 import Prelude hiding ( sequence)
