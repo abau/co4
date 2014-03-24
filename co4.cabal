@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.69
+Version:        	0.0.70
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -14,13 +14,11 @@ Library
   Exposed-Modules:    CO4
                     , CO4.AllocatorData
                     , CO4.Allocator
-                    , CO4.Backend
                     , CO4.Cache
                     , CO4.Compilation
                     , CO4.Config
                     , CO4.Encodeable
                     , CO4.EncodedAdt
-                    , CO4.Frontend
                     , CO4.Language
                     , CO4.Monad
                     , CO4.Names
@@ -54,13 +52,12 @@ Library
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
-                    , CO4.Backend.TH
                     , CO4.CodeGen
                     , CO4.CodeGen.DecodeInstance
                     , CO4.CodeGen.EncodeableInstance
                     , CO4.CodeGen.Names
-                    , CO4.Frontend.HaskellSrcExts
                     , CO4.Solve
+                    , CO4.Frontend.HaskellSrcExts
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess
@@ -78,7 +75,7 @@ Library
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
 
-Test-Suite test-co4
+Test-Suite co4-examples
   Type:               exitcode-stdio-1.0
   Main-Is:            CO4/Test.hs
   Build-Depends:      base >= 4.2 && < 5.0

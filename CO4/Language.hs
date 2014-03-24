@@ -3,7 +3,7 @@ module CO4.Language
   ( Type (..), Scheme (..)
   , Name (..), UntypedName (..)
   , Pattern (..), Match (..), Binding (..), Expression (..)
-  , Constructor (..), Adt (..), Declaration (..), Program (..)
+  , Constructor (..), Adt (..), Signature (..), Declaration (..), Program (..)
   ) 
 where
 
@@ -71,8 +71,14 @@ data Adt = Adt { adtName          ::  UntypedName
                }
                deriving (Show,Eq,Ord,Data,Typeable)
 
+data Signature = Signature { sigName   :: UntypedName
+                           , sigScheme :: Scheme
+                           }
+               deriving (Show,Eq,Ord,Data,Typeable)
+
 data Declaration = DBind Binding
                  | DAdt  Adt
+                 | DSig  Signature
                 deriving (Show,Eq,Data,Typeable)
 
 data Program = Program { pMain  :: Binding

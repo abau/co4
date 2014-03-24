@@ -1,7 +1,6 @@
 -- |Template Haskell preprocessing
 module CO4.Frontend.THPreprocess
-  ( preprocessExp, preprocessDecs
-  , noSignatureExpression, noSignaturePattern, noSignatureDeclarations)
+  ( preprocessDecs, noSignatureExpression, noSignaturePattern, noSignatureDeclarations)
 where
 
 import           Control.Monad (liftM)
@@ -14,13 +13,6 @@ import           CO4.Names (consName,listName,tupleName)
 import           CO4.Util (extM')
 
 type TypeSynonyms = M.Map Name ([TyVarBndr], Type)
-
-preprocessExp :: MonadUnique u => Exp -> u Exp
-preprocessExp = everywhereM $ extM' onPat 
-                            $ extM' onMatch
-                            $ extM' onClause
-                            $ extM' (return . onExpandedType M.empty)
-                            $ mkM   onExp
 
 preprocessDecs :: MonadUnique u => [Dec] -> u [Dec]
 preprocessDecs decs = everywhereM 
@@ -63,7 +55,7 @@ onType :: Type -> Type
 onType = noTupleType
 
 onDecs :: [Dec] -> [Dec]
-onDecs = noSignatureDeclarations . noTypeSynonyms
+onDecs = noTypeSynonyms
 
 -- Preprocessors on `Exp` ------------------------------------------------
 

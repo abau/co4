@@ -71,19 +71,11 @@ class Monad m => MonadTHInstantiator m where
     e' <- instantiate e
     return $ TH.Match p' (TH.NormalB e') []
 
-  instantiateBinding :: Binding -> m [TH.Dec]
+  instantiateBinding :: Binding -> m TH.Dec
   instantiateBinding (Binding n e) = do
-    sig <- instantiateSignature n
     p'  <- instantiate $ PVar n
     e'  <- instantiate e
-    return $ sig ++ [TH.ValD p' (TH.NormalB e') []]
-
-    where 
-      instantiateSignature (NUntyped _) = return []
-      instantiateSignature n@(NTyped _ s) = do
-        n' <- instantiate n
-        s' <- instantiateScheme s 
-        return [ TH.SigD n' s' ]
+    return $ TH.ValD p' (TH.NormalB e') []
 
   instantiateVar :: Expression -> m TH.Exp
   instantiateVar expression = case expression of
@@ -118,9 +110,8 @@ class Monad m => MonadTHInstantiator m where
     return TH.CaseE `ap` instantiate e `ap` instantiate ms
 
   instantiateLet :: Expression -> m TH.Exp
-  instantiateLet (ELet bs exp) = do
-    bs' <- return concat `ap` instantiate bs
-    return (TH.LetE bs') `ap` instantiate exp
+  instantiateLet (ELet bs exp) =
+    return TH.LetE `ap` instantiate bs `ap` instantiate exp
 
   instantiateUndefined :: m TH.Exp
   instantiateUndefined = return $ TH.VarE 'undefined
@@ -144,7 +135,7 @@ class Monad m => MonadTHInstantiator m where
         t' <- instantiate t
         return $ (TH.NotStrict, t')
 
-  instantiateBind :: Declaration -> m [TH.Dec]
+  instantiateBind :: Declaration -> m TH.Dec
   instantiateBind (DBind b) = instantiateBinding b 
 
   instantiateAdt :: Adt -> m TH.Dec
@@ -154,19 +145,26 @@ class Monad m => MonadTHInstantiator m where
     cons' <- instantiate cons
     return $ TH.DataD [] name' ts' cons' []
 
-  instantiateDeclaration :: Declaration -> m [TH.Dec]
+  instantiateSignature :: Signature -> m TH.Dec
+  instantiateSignature (Signature name scheme) = do
+    name'   <- instantiate name
+    scheme' <- instantiate scheme
+    return $ TH.SigD name' scheme'
+
+  instantiateDeclaration :: Declaration -> m TH.Dec
   instantiateDeclaration decl = case decl of
     DBind {} -> instantiateBind decl
-    DAdt adt -> instantiateAdt adt >>= return . return
+    DAdt adt -> instantiate adt
+    DSig sig -> instantiate sig
 
-  instantiateMain :: Binding -> m [TH.Dec]
+  instantiateMain :: Binding -> m TH.Dec
   instantiateMain main = instantiateDeclaration $ DBind main
 
   instantiateProgram :: Program -> m [TH.Dec]
   instantiateProgram (Program main decls) = do
     main'  <- instantiateMain main
-    decls' <- return concat `ap` mapM instantiateDeclaration decls
-    return $ main' ++ decls'
+    decls' <- mapM instantiateDeclaration decls
+    return $ main' : decls'
 
 instance MonadTHInstantiator Identity
 
@@ -197,13 +195,16 @@ instance THInstantiable Pattern TH.Pat where
 instance THInstantiable Match TH.Match where
   instantiate = instantiateMatch
 
-instance THInstantiable Binding [TH.Dec] where
+instance THInstantiable Binding TH.Dec where
   instantiate = instantiateBinding
 
 instance THInstantiable Adt TH.Dec where
   instantiate = instantiateAdt
 
-instance THInstantiable Declaration [TH.Dec] where
+instance THInstantiable Signature TH.Dec where
+  instantiate = instantiateSignature
+
+instance THInstantiable Declaration TH.Dec where
   instantiate = instantiateDeclaration
 
 instance THInstantiable Constructor TH.Con where

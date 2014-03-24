@@ -13,9 +13,10 @@ import           Data.List (find)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util
+import           CO4.TypesUtil (typeOfScheme,argumentTypes)
 import           CO4.THUtil
 import           CO4.Names 
-import           CO4.Algorithms.THInstantiator
+import           CO4.Algorithms.THInstantiator hiding (instantiateSignature)
 import           CO4.Algorithms.Collector
 import           CO4.Unique
 import           CO4.CodeGen.Names
@@ -74,9 +75,7 @@ isToplevelName name = asks $ elem name . toplevelNames
 
 instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u) where
 
-  instantiateName n = is Profile >>= \case 
-    False -> return $ convertName $ encodedName     n
-    True  -> return $ convertName $ encodedNameProf n
+  instantiateName name = encodedName name >>= return . convertName
 
   instantiateVar (EVar n) = isToplevelName n >>= \case
     True  -> liftM (                            TH.VarE) $ instantiateName n 
@@ -209,19 +208,18 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                                 $ appsE (TH.VarE 'traced) [ stringE name, exp'' ]
         _                      -> appsE (TH.VarE 'traced) [ stringE name, exp' ]
 
-    return [ instantiateSignature name' numArgs, valD' name' profiledExp' ]
-    where
-      numArgs = case exp of
-        ELam ps _ -> length ps
-        _         -> 0
+    return $ valD' name' profiledExp'
 
-instantiateSignature :: (Namelike n) => n -> Int -> TH.Dec
-instantiateSignature name numArgs =
+instantiateSignature :: MonadConfig u => Signature -> u TH.Dec
+instantiateSignature (Signature name scheme) =
   let type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
                     (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
                     (replicate numArgs $ TH.ConT ''EncodedAdt)
-  in
-    sigD' name $ TH.ForallT [] [] type_
+
+      numArgs = length $ argumentTypes $ typeOfScheme scheme
+  in do
+    name' <- encodedName name >>= return . convertName
+    return $ TH.SigD name' $ TH.ForallT [] [] type_
 
 -- |@codeGen p@ transforms a co4 program into a Template-Haskell program.
 -- @p@ must be first-order, fully instantiated and explicitly typed.
@@ -229,7 +227,7 @@ codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
 codeGen program = do
   withPrelude  <- is ImportPrelude
 
-  let (pAdts,pFuns)  = splitDeclarations program 
+  let (pAdts,pValues,pSignatures) = splitDeclarations program
       adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
                                       else pAdts
       pToplevelNames = map boundName $ programToplevelBindings program
@@ -237,12 +235,14 @@ codeGen program = do
                        then pToplevelNames ++ unparsedNames
                        else pToplevelNames
 
-  decls   <- execWriterT $ runAdtInstantiator $ collect adts
-  values' <- liftM concat $ runReaderT 
-                (runExpInstantiator $ instantiate $ map DBind pFuns)
-                (ExpInstantiatorData toplevelNames adts)
+  adts'   <- execWriterT $ runAdtInstantiator $ collect adts
+
+  values' <- runReaderT (runExpInstantiator $ instantiate $ map DBind pValues)
+                        (ExpInstantiatorData toplevelNames adts)
+
+  sigs'   <- mapM instantiateSignature pSignatures
                          
-  return $ {-deleteSignatures $-} decls ++ values'
+  return $ {-deleteSignatures $-} adts' ++ values' ++ sigs'
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and

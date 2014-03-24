@@ -16,8 +16,9 @@ import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
+import           CO4.Example.LoopTrsToyamaStandalone
 
-$( compileFile [] "CO4/Example/LoopTrsToyama.standalone.hs" )
+$( compileFile [] "CO4/Example/LoopTrsToyamaStandalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]

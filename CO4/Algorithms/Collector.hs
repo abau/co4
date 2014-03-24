@@ -78,10 +78,14 @@ class Monad m => MonadCollector m where
   collectAdt :: Adt -> m ()
   collectAdt (Adt name ts cons) = collect name >> collect ts >> collect cons
 
+  collectSignature :: Signature -> m ()
+  collectSignature (Signature name scheme) = collect name >> collect scheme
+
   collectDeclaration :: Declaration -> m ()
   collectDeclaration decl = case decl of
     DBind {} -> collectBind decl
-    DAdt adt -> collectAdt adt
+    DAdt adt -> collect adt
+    DSig sig -> collect sig
 
   collectMain :: Binding -> m ()
   collectMain = collectBinding
@@ -118,6 +122,9 @@ instance Collectable Binding where
 
 instance Collectable Adt where
   collect = collectAdt
+
+instance Collectable Signature where
+  collect = collectSignature
 
 instance Collectable Declaration where
   collect = collectDeclaration

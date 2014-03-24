@@ -42,14 +42,27 @@ toplevelBindingByName :: Name -> Program -> Maybe Binding
 toplevelBindingByName name = find (\(Binding n _) -> n == name) . programToplevelBindings
 
 -- |Splits top-level declarations into type declarations and value declarations
-splitDeclarations :: Program -> ([Adt], [Binding])
-splitDeclarations = foldl split ([],[]) . programDeclarations
-  where split (types, vals) (DAdt  a) = (types ++ [a], vals)
-        split (types, vals) (DBind b) = (types, vals ++ [b])
+splitDeclarations :: Program -> ([Adt], [Binding], [Signature])
+splitDeclarations = foldl split ([],[],[]) . programDeclarations
+  where split (types, vals, sigs) (DAdt  a) = (types ++ [a], vals, sigs)
+        split (types, vals, sigs) (DBind b) = (types, vals ++ [b], sigs)
+        split (types, vals, sigs) (DSig  s) = (types, vals, sigs ++ [s])
 
 -- |Adds declarations to a program
 addDeclarations :: [Declaration] -> Program -> Program
 addDeclarations decls program = program { pDecls = pDecls program ++ decls }
+
+-- |Finds a signature by its name
+findSignature :: UntypedName -> [Signature] -> Maybe Scheme
+findSignature n = fmap (\(Signature _  s) -> s) 
+                . find (\(Signature n' _) -> n == n')
+
+-- |Removes a signature from a program
+removeSignature :: UntypedName -> Program -> Program
+removeSignature name (Program main decls) = Program main $ mapMaybe go decls
+  where
+    go (DSig (Signature name' _)) | name == name' = Nothing
+    go decl                                       = Just decl
 
 -- |Gets all constructor's argument types
 allConstructorsArgumentTypes :: Adt -> [Type]

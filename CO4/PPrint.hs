@@ -92,9 +92,13 @@ instance PPrint Adt where
       $$ (nest 2 $ vcat $ punctuate (text " ;") $ map pprint cons)
       $$ (text "}")
 
+instance PPrint Signature where
+  pprint (Signature n s) = pprint n <+> text "::" <+> pprint s
+
 instance PPrint Declaration where
   pprint (DBind binding) = pprint binding
   pprint (DAdt adt)      = pprint adt
+  pprint (DSig sig)      = pprint sig
 
 instance PPrint Program where 
   pprint (Program main decs) = vcat $ punctuate (text ";") 
