@@ -3,6 +3,7 @@ where
 
 import Prelude hiding (lex,lookup,length)
 import CO4.PreludeNat
+import CO4.PreludeBool (xor2)
 
 type Map k v               = [(k,v)]
 
@@ -26,6 +27,13 @@ type UnlabeledTerm         = Term Symbol Symbol ()
 type UnlabeledRule         = Rule Symbol Symbol ()
 type UnlabeledTrs          = Trs  Symbol Symbol ()
 
+type MarkedSymbol          = (Symbol, Bool)
+
+type DPTerm label          = Term Symbol MarkedSymbol label
+type DPRule label          = Rule Symbol MarkedSymbol label
+data DPTrs label           = DPTrs [ [DPRule label] ]
+                           deriving (Eq,Show)
+
 type LabeledTerm           = Term Symbol Symbol Label
 type LabeledRule           = Rule Symbol Symbol Label
 type LabeledTrs            = Trs  Symbol Symbol Label
@@ -43,27 +51,31 @@ data Order                 = Gr | Eq | NGe
 
 type Precedence sym label  = Map (sym, label) Nat
 
-constraint :: (UnlabeledTrs, Assignments Symbol) -> (Model Symbol, Precedence Symbol Label) -> Bool
+constraint :: (DPTrs (), Assignments Symbol) 
+           -> (Model MarkedSymbol, Precedence MarkedSymbol Label) -> Bool
 constraint (trs,assignments) (model, precedence) = 
-  and [ isModelForTrsUnderAllAssignments model trs assignments 
-      , isMonotoneAccordingLPO (makeLabeledTrs model trs assignments) precedence
-      ]
+  let labeledTrs = makeLabeledTrs model trs assignments
+  in
+    and [ isModelForTrsUnderAllAssignments model trs assignments 
+        , allRulesDecreasing         labeledTrs precedence
+        , existsStrongDecreasingRule labeledTrs precedence
+        ]
 
 -- * search model
 
-isModelForTrsUnderAllAssignments :: Model Symbol -> UnlabeledTrs -> Assignments Symbol -> Bool
+isModelForTrsUnderAllAssignments :: Model MarkedSymbol -> DPTrs () -> Assignments Symbol -> Bool
 isModelForTrsUnderAllAssignments model trs assignments =
   all (isModelForTrs model trs) assignments
 
-isModelForTrs :: Model Symbol -> UnlabeledTrs -> Sigma Symbol -> Bool
-isModelForTrs model (Trs rules) sigma = all (isModelForRule model sigma) rules
+isModelForTrs :: Model MarkedSymbol -> DPTrs () -> Sigma Symbol -> Bool
+isModelForTrs model (DPTrs rules) sigma = all (all (isModelForRule model sigma)) rules
 
-isModelForRule :: Model Symbol -> Sigma Symbol -> UnlabeledRule -> Bool
+isModelForRule :: Model MarkedSymbol -> Sigma Symbol -> DPRule () -> Bool
 isModelForRule model sigma (Rule lhs rhs) = 
   eqValue (valueOfTerm model sigma lhs)
           (valueOfTerm model sigma rhs)
 
-valueOfTerm :: Model Symbol -> Sigma Symbol -> UnlabeledTerm -> Domain
+valueOfTerm :: Model MarkedSymbol -> Sigma Symbol -> DPTerm () -> Domain
 valueOfTerm model sigma term = case term of
   Var v           -> valueOfVar v sigma
   Node sym l args -> case l of 
@@ -71,7 +83,7 @@ valueOfTerm model sigma term = case term of
           in
             valueOfFun sym values model
 
-valueOfFun :: Symbol -> [Domain] -> Model Symbol -> Domain
+valueOfFun :: MarkedSymbol -> [Domain] -> Model MarkedSymbol -> Domain
 valueOfFun s args model = 
   let interp = interpretation s model
   in
@@ -80,32 +92,53 @@ valueOfFun s args model =
 valueOfVar :: Symbol -> Sigma Symbol -> Domain
 valueOfVar = lookup eqSymbol
 
-interpretation :: Symbol -> Model Symbol -> Interpretation
-interpretation = lookup eqSymbol
+interpretation :: MarkedSymbol -> Model MarkedSymbol -> Interpretation
+interpretation = lookup eqMarkedSymbol
 
 -- * make labeled TRS
 
-makeLabeledTrs :: Model Symbol -> UnlabeledTrs -> Assignments Symbol -> LabeledTrs
-makeLabeledTrs model (Trs rules) assignments = 
-  let goRules sigma                 = map (goRule sigma) rules
-      goRule  sigma (Rule lhs rhs)  = Rule (fst (goTerm sigma lhs)) (fst (goTerm sigma rhs))
-      goTerm  sigma term            = case term of
+makeLabeledTrs :: Model MarkedSymbol -> DPTrs () -> Assignments Symbol -> DPTrs Label
+makeLabeledTrs model (DPTrs rules) assignments = 
+  let goRules                       = concatMap (\r -> map (goRule r) assignments)
+      goRule  (Rule lhs rhs) sigma  = Rule (fst (goTerm lhs sigma)) (fst (goTerm rhs sigma))
+      goTerm  term           sigma  = case term of
         Var s         -> (Var s, valueOfVar s sigma)
         Node s l args -> case l of 
-          () -> case unzip (map (goTerm sigma) args) of
+          () -> case unzip (map (\t -> goTerm t sigma) args) of
             (args', argsValues) -> (Node s argsValues args', valueOfFun s argsValues model)
   in
-    Trs (concatMap goRules assignments)
+    DPTrs (map goRules rules)
 
 -- * search precedence
 
-isMonotoneAccordingLPO :: LabeledTrs -> Precedence Symbol Label -> Bool
-isMonotoneAccordingLPO (Trs rules) precedence = 
-  all (\(Rule lhs rhs) -> eqOrder (lpo (ord precedence) lhs rhs) Gr) rules
+allRulesDecreasing :: DPTrs Label -> Precedence MarkedSymbol Label -> Bool
+allRulesDecreasing (DPTrs rules) precedence =
+  all (all (isDecreasingRule precedence)) rules
 
-lpo :: ((Symbol, Label) -> (Symbol, Label) -> Order) -> LabeledTerm -> LabeledTerm -> Order
+isDecreasingRule :: Precedence MarkedSymbol Label -> DPRule Label -> Bool
+isDecreasingRule precedence (Rule lhs rhs) = 
+  case lpo (ord precedence) lhs rhs of
+    Gr  -> True
+    Eq  -> True
+    NGe -> False
+
+existsStrongDecreasingRule :: DPTrs Label -> Precedence MarkedSymbol Label -> Bool
+existsStrongDecreasingRule (DPTrs rules) precedence =
+  exists rules (all (isMarkedStrongDecreasingRule precedence))
+
+isMarkedStrongDecreasingRule :: Precedence MarkedSymbol Label -> DPRule Label -> Bool
+isMarkedStrongDecreasingRule precedence (Rule lhs rhs) = 
+  (isMarked lhs) && (eqOrder (lpo (ord precedence) lhs rhs) Gr)
+
+isMarked :: DPTerm label -> Bool
+isMarked term = case term of 
+  Var _          -> False
+  Node (_,m) _ _ -> m
+
+lpo :: ((MarkedSymbol, Label) -> (MarkedSymbol, Label) -> Order) 
+    -> DPTerm Label -> DPTerm Label -> Order
 lpo ord s t = case t of
-  Var x -> case eqLabeledTerm s t of 
+  Var x -> case eqLabeledDPTerm s t of 
     False -> case varOccurs x s of
                 False -> NGe
                 True  -> Gr
@@ -125,9 +158,9 @@ lpo ord s t = case t of
                              True  -> lex (lpo ord) ss ts
                     NGe -> NGe
 
-ord :: Precedence Symbol Label -> (Symbol, Label) -> (Symbol, Label) -> Order
+ord :: Precedence MarkedSymbol Label -> (MarkedSymbol, Label) -> (MarkedSymbol, Label) -> Order
 ord prec a b = 
-  let key (s,l) (s',l') = (eqSymbol s s') && (eqLabel l l')
+  let key (s,l) (s',l') = (eqMarkedSymbol s s') && (eqLabel l l')
 
       pa = lookup key a prec
       pb = lookup key b prec
@@ -167,8 +200,8 @@ lookup f k map = case map of
       False -> lookup f k ms
       True  -> v
 
-eqLabeledTerm :: LabeledTerm -> LabeledTerm -> Bool
-eqLabeledTerm = eqTerm eqSymbol eqSymbol eqLabel
+eqLabeledDPTerm :: DPTerm Label -> DPTerm Label -> Bool
+eqLabeledDPTerm = eqTerm eqSymbol eqMarkedSymbol eqLabel
 
 eqTerm :: (v -> v -> Bool) -> (n -> n -> Bool) -> (l -> l -> Bool) 
        -> Term v n l -> Term v n l -> Bool
@@ -189,6 +222,9 @@ eqOrder x y = case x of
   Eq  -> case y of { Eq  -> True; _ -> False }
   NGe -> case y of { NGe -> True; _ -> False }
 
+eqMarkedSymbol :: MarkedSymbol -> MarkedSymbol -> Bool
+eqMarkedSymbol (sym,m) (sym',m') = (eqSymbol sym sym') && (eqBool m m')
+
 eqSymbol :: Symbol -> Symbol -> Bool
 eqSymbol = eqList eqBool
 
@@ -203,6 +239,7 @@ eqList f xs ys = case xs of
                      v:vs -> (f u v) && (eqList f us vs)
 
 eqBool :: Bool -> Bool -> Bool
-eqBool x y = case x of
-  False -> not y
-  True  -> y
+eqBool x y = not (xor2 x y)
+
+exists :: [a] -> (a -> Bool) -> Bool
+exists xs f = any f xs

@@ -7,13 +7,12 @@ import           Control.Monad (guard)
 import           Data.Char (ord,isAsciiLower)
 import           Data.List (nub)
 import           Data.Maybe (mapMaybe)
+import           Data.Either (partitionEithers)
 import qualified Data.Map as M
-import           Unsafe.Coerce
 import qualified TPDB.Data as TPDB
 import qualified TPDB.Plain.Read as Read
 import           CO4.Util (toBinary, binaries)
-import           CO4.Test.TermComp2014.Standalone 
-  (Symbol,Assignments,Trs(..),Rule(..),Term(..),UnlabeledTrs)
+import           CO4.Test.TermComp2014.Standalone hiding (ord)
 
 {-
 import TPDB.Plain.Write ()
@@ -83,21 +82,55 @@ definedSymbols (Trs rules) = mapMaybe goRule rules
     goTerm (Var _)      = Nothing
     goTerm (Node s l _) = Just (s,l)
 
-dependecyPair :: (Eq v, Eq n, Eq l)  => Trs v n l -> Trs v (n, Bool) l
-dependecyPair (Trs rules) = Trs $ concatMap goRule rules
+dependencyPairs :: UnlabeledTrs -> DPTrs ()
+dependencyPairs (Trs rules) = DPTrs $ do r <- concatMap goRule rules
+                                         return [r]
   where
     defined = definedSymbols $ Trs rules
 
     goRule (Rule     (Var _)          _  ) = []
     goRule (Rule lhs@(Node ls ll lts) rhs) = do
       (Node us ul uts) <- us
-      return $ Rule (Node (ls,True) ll $ map (markSymbols False) lts)
-                    (Node (us,True) ul $ map (markSymbols False) uts)
+      return $ Rule (Node (ls,True) ll $ map toDpTerm lts)
+                    (Node (us,True) ul $ map toDpTerm uts)
       where
         us = do s@(Node f l _) <- filter (not . isVar) $ subterms rhs
                 guard $ (f,l) `elem` defined
                 guard $ not $ isSubterm s lhs
                 return s
 
-    markSymbols _ (Var v)       = Var v
-    markSymbols m (Node s l ts) = Node (s,m) l $ map (markSymbols m) ts
+dpProblem :: UnlabeledTrs -> DPTrs ()
+dpProblem trs = DPTrs $ original ++ dp
+  where
+    DPTrs original = trsToDp trs
+    DPTrs dp       = dependencyPairs trs
+
+dpToTrs :: DPTrs label -> Trs Symbol MarkedSymbol label
+dpToTrs (DPTrs rules) = Trs $ concat rules
+
+trsToDp :: Trs Symbol Symbol label -> DPTrs label
+trsToDp (Trs rules) = DPTrs $ map (return . goRule) rules
+  where
+    goRule (Rule lhs rhs)  = Rule (toDpTerm lhs) (toDpTerm rhs)
+
+toDpTerm :: Term v n l -> Term v (n,Bool) l
+toDpTerm (Var v)         = Var v
+toDpTerm (Node s l args) = Node (s,False) l $ map toDpTerm args
+
+removeStrongDecreasingRules :: DPTrs () -> DPTrs Label -> Precedence MarkedSymbol Label 
+                            -> (DPTrs (), [DPRule ()])
+removeStrongDecreasingRules (DPTrs rules) (DPTrs labeledRules) precedence = 
+    assert (length rules == length labeledRules) 
+  $ (DPTrs $ map return keep, delete)
+  where
+    (delete, keep) = partitionEithers $ zipWith check rules labeledRules
+  
+    check [rule] labeledRules = 
+      if all (isMarkedStrongDecreasingRule precedence) labeledRules
+      then Left  rule
+      else Right rule
+
+hasMarkedRule :: DPTrs label -> Bool
+hasMarkedRule (DPTrs rules) = any (any goRule) rules
+  where
+    goRule (Rule lhs _) = isMarked lhs
