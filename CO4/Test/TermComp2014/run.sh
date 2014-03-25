@@ -22,7 +22,7 @@ do
   do
     echo Solving ${CMD} ${BITWIDTH} ${NUM_PRECEDENCES} ${FILE}
 
-    timeout --signal=SIGKILL ${TIMEOUT} ${CMD} ${BITWIDTH} ${NUM_PRECEDENCES} ${FILE} &> ${LOG_FILE}
+    /usr/bin/timeout --signal=SIGKILL ${TIMEOUT} ${CMD} ${BITWIDTH} ${NUM_PRECEDENCES} ${FILE} &> ${LOG_FILE}
     if [ $? -eq 0 ]
     then
       echo Terminates
