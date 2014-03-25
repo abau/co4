@@ -12,7 +12,7 @@ import qualified Satchmo.Core.Decode
 import           CO4
 import           CO4.Prelude
 import           CO4.Test.TermComp2014.Util 
-  (parseTrs,assignments,dpProblem,dpToTrs,removeStrongDecreasingRules,hasMarkedRule)
+  (SymbolMap,parseTrs,assignments,dpProblem,dpToTrs,removeStrongDecreasingRules,hasMarkedRule)
 import           CO4.Test.TermComp2014.PPrint
 import           CO4.Test.TermComp2014.Allocators (allocator)
 import           CO4.Test.TermComp2014.Standalone
@@ -26,22 +26,22 @@ main = do
 
 resultFile :: Int -> Int -> FilePath -> IO ()
 resultFile bitWidth numPrecedences filePath = do
-  trs <- parseTrs filePath
+  (trs, symbolMap) <- parseTrs filePath
 
-  putStrLn $ "Parsed:\n" ++ pprintUnlabeledTrs trs
-  putStrLn $ "DP-TRS:\n" ++ pprintDPTrs (const "") (dpProblem trs)
+  putStrLn $ "Parsed:\n" ++ pprintUnlabeledTrs symbolMap trs
+  putStrLn $ "DP-TRS:\n" ++ pprintDPTrs (const "") symbolMap (dpProblem trs)
 
-  iterate 1 bitWidth numPrecedences (dpProblem trs) >>= \case
+  iterate symbolMap 1 bitWidth numPrecedences (dpProblem trs) >>= \case
     False -> putStrLn "don't know"
     True  -> putStrLn "terminates"
 
-iterate :: Int -> Int -> Int -> DPTrs () -> IO Bool
-iterate i bitWidth numPrecedences dp = 
+iterate :: SymbolMap -> Int -> Int -> Int -> DPTrs () -> IO Bool
+iterate symbolMap i bitWidth numPrecedences dp = 
   let sigmas    = assignments bitWidth $ dpToTrs dp
       parameter = (dp, sigmas)
   in do
     putStrLn $ "\n## " ++ show i ++ "st/th iteration ##########################\n"
-    putStrLn $ "TRS:\n" ++ pprintDPTrs (const "") dp
+    putStrLn $ "TRS:\n" ++ pprintDPTrs (const "") symbolMap dp
 
     case hasMarkedRule dp of
       False -> return True
@@ -50,19 +50,19 @@ iterate i bitWidth numPrecedences dp =
              Nothing -> return False
              Just (model,precedences) -> assert (not $ null delete) $ 
                do putStrLn $ "Model:\n" ++
-                           ( pprintModel pprintMarkedSymbol model )
+                           ( pprintModel pprintMarkedSymbol symbolMap model )
 
-                  putStrLn $ "Labeled Trs:\n" ++ ( pprintDPTrs pprintLabel labeledTrs )
+                  putStrLn $ "Labeled Trs:\n" ++ ( pprintDPTrs pprintLabel symbolMap labeledTrs )
 
                   putStrLn $ "Precedences:\n" ++
                            ( unlines $ map 
-                              (pprintPrecedence pprintMarkedSymbol pprintLabel) precedences 
+                              (pprintPrecedence pprintMarkedSymbol pprintLabel symbolMap) precedences 
                            )
 
                   putStrLn $ "\nDeleted:\n" ++
-                           ( unlines $ map (pprintDPRule $ const "") delete )
+                           ( unlines $ map (pprintDPRule (const "") symbolMap) delete )
 
-                  iterate (i+1) bitWidth numPrecedences dp'
+                  iterate symbolMap (i+1) bitWidth numPrecedences dp'
                where
                  (dp', delete) = removeStrongDecreasingRules dp labeledTrs precedences
 
