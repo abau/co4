@@ -24,6 +24,7 @@ do
     ${CMD} ${BITWIDTH} ${NUM_PRECEDENCES} ${FILE} &> ${LOG_FILE}
     if [ $? -eq 0 ]
     then
+      echo Terminates
       break
     fi
   done
