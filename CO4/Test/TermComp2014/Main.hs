@@ -8,6 +8,7 @@
 import           Prelude hiding (lex,lookup,length,iterate)
 import           Control.Exception (assert)
 import           System.Environment (getArgs)
+import           System.Exit (exitSuccess, exitFailure)
 import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Prelude
@@ -32,8 +33,8 @@ resultFile bitWidth numPrecedences filePath = do
   putStrLn $ "DP-TRS:\n" ++ pprintDPTrs (const "") symbolMap (dpProblem trs)
 
   iterate symbolMap 1 bitWidth numPrecedences (dpProblem trs) >>= \case
-    False -> putStrLn "don't know"
-    True  -> putStrLn "terminates"
+    False -> putStrLn "don't know" >> exitFailure
+    True  -> putStrLn "terminates" >> exitSuccess
 
 iterate :: SymbolMap -> Int -> Int -> Int -> DPTrs () -> IO Bool
 iterate symbolMap i bitWidth numPrecedences dp = 
