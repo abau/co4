@@ -21,22 +21,22 @@ $( compileFile [Cache,ImportPrelude] "CO4/Test/TermComp2014/Standalone.hs" )
 
 main :: IO ()
 main = do
-  [n, filePath] <- getArgs
-  resultFile (read n) filePath
+  [bitWidth, numPrecedences, filePath] <- getArgs
+  resultFile (read bitWidth) (read numPrecedences) filePath
 
-resultFile :: Int -> FilePath -> IO ()
-resultFile bitWidth filePath = do
+resultFile :: Int -> Int -> FilePath -> IO ()
+resultFile bitWidth numPrecedences filePath = do
   trs <- parseTrs filePath
 
   putStrLn $ "Parsed:\n" ++ pprintUnlabeledTrs trs
   putStrLn $ "DP-TRS:\n" ++ pprintDPTrs (const "") (dpProblem trs)
 
-  iterate 1 bitWidth (dpProblem trs) >>= \case
+  iterate 1 bitWidth numPrecedences (dpProblem trs) >>= \case
     False -> putStrLn "don't know"
     True  -> putStrLn "terminates"
 
-iterate :: Int -> Int -> DPTrs () -> IO Bool
-iterate i bitWidth dp = 
+iterate :: Int -> Int -> Int -> DPTrs () -> IO Bool
+iterate i bitWidth numPrecedences dp = 
   let sigmas    = assignments bitWidth $ dpToTrs dp
       parameter = (dp, sigmas)
   in do
@@ -45,23 +45,25 @@ iterate i bitWidth dp =
 
     case hasMarkedRule dp of
       False -> return True
-      _     -> solveAndTestP parameter (allocator bitWidth dp) encConstraint constraint
+      _     -> solveAndTestP parameter (allocator bitWidth numPrecedences dp) encConstraint constraint
        >>= \case
              Nothing -> return False
-             Just (model,precedence) -> assert (not $ null delete) $ 
+             Just (model,precedences) -> assert (not $ null delete) $ 
                do putStrLn $ "Model:\n" ++
                            ( pprintModel pprintMarkedSymbol model )
 
                   putStrLn $ "Labeled Trs:\n" ++ ( pprintDPTrs pprintLabel labeledTrs )
 
-                  putStrLn $ "Precedence:\n" ++
-                           ( pprintPrecedence pprintMarkedSymbol pprintLabel precedence )
+                  putStrLn $ "Precedences:\n" ++
+                           ( unlines $ map 
+                              (pprintPrecedence pprintMarkedSymbol pprintLabel) precedences 
+                           )
 
                   putStrLn $ "\nDeleted:\n" ++
                            ( unlines $ map (pprintDPRule $ const "") delete )
 
-                  iterate (i+1) bitWidth dp'
+                  iterate (i+1) bitWidth numPrecedences dp'
                where
-                 (dp', delete) = removeStrongDecreasingRules dp labeledTrs precedence
+                 (dp', delete) = removeStrongDecreasingRules dp labeledTrs precedences
 
                  labeledTrs = makeLabeledTrs model dp sigmas

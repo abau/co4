@@ -117,16 +117,16 @@ toDpTerm :: Term v n l -> Term v (n,Bool) l
 toDpTerm (Var v)         = Var v
 toDpTerm (Node s l args) = Node (s,False) l $ map toDpTerm args
 
-removeStrongDecreasingRules :: DPTrs () -> DPTrs Label -> Precedence MarkedSymbol Label 
+removeStrongDecreasingRules :: DPTrs () -> DPTrs Label -> [Precedence MarkedSymbol Label]
                             -> (DPTrs (), [DPRule ()])
-removeStrongDecreasingRules (DPTrs rules) (DPTrs labeledRules) precedence = 
+removeStrongDecreasingRules (DPTrs rules) (DPTrs labeledRules) precedences = 
     assert (length rules == length labeledRules) 
   $ (DPTrs $ map return keep, delete)
   where
     (delete, keep) = partitionEithers $ zipWith check rules labeledRules
   
     check [rule] labeledRules = 
-      if all (isMarkedStrongDecreasingRule precedence) labeledRules
+      if all (isMarkedStrongDecreasingRule precedences) labeledRules
       then Left  rule
       else Right rule
 
