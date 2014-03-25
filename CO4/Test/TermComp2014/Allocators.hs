@@ -9,9 +9,10 @@ import           CO4.Util (binaries,bitWidth)
 import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),DPTrs(..),MarkedSymbol,Label)
 import           CO4.Test.TermComp2014.Util (nodeArities,dpToTrs)
 
-allocator :: Int -> DPTrs () -> Allocator
-allocator n dpTrs = kTuple2 (modelAllocator      kMarkedSymbolAllocator n trs)
-                            (precedenceAllocator kMarkedSymbolAllocator n trs)
+allocator :: Int -> Int -> DPTrs () -> Allocator
+allocator bitWidth numPrecedences dpTrs = 
+  kTuple2 (modelAllocator kMarkedSymbolAllocator bitWidth trs)
+          (kList numPrecedences $ precedenceAllocator kMarkedSymbolAllocator bitWidth trs)
   where
     trs = dpToTrs dpTrs
 

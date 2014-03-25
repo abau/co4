@@ -52,13 +52,13 @@ data Order                 = Gr | Eq | NGe
 type Precedence sym label  = Map (sym, label) Nat
 
 constraint :: (DPTrs (), Assignments Symbol) 
-           -> (Model MarkedSymbol, Precedence MarkedSymbol Label) -> Bool
-constraint (trs,assignments) (model, precedence) = 
+           -> (Model MarkedSymbol, [Precedence MarkedSymbol Label]) -> Bool
+constraint (trs,assignments) (model, precedences) = 
   let labeledTrs = makeLabeledTrs model trs assignments
   in
     and [ isModelForTrsUnderAllAssignments model trs assignments 
-        , allRulesDecreasing         labeledTrs precedence
-        , existsStrongDecreasingRule labeledTrs precedence
+        , allRulesDecreasing         labeledTrs precedences
+        , existsStrongDecreasingRule labeledTrs precedences
         ]
 
 -- * search model
@@ -111,24 +111,28 @@ makeLabeledTrs model (DPTrs rules) assignments =
 
 -- * search precedence
 
-allRulesDecreasing :: DPTrs Label -> Precedence MarkedSymbol Label -> Bool
-allRulesDecreasing (DPTrs rules) precedence =
-  all (all (isDecreasingRule precedence)) rules
+allRulesDecreasing :: DPTrs Label -> [Precedence MarkedSymbol Label] -> Bool
+allRulesDecreasing (DPTrs rules) precedences =
+  all (all (isDecreasingRule precedences)) rules
 
-isDecreasingRule :: Precedence MarkedSymbol Label -> DPRule Label -> Bool
-isDecreasingRule precedence (Rule lhs rhs) = 
-  case lpo (ord precedence) lhs rhs of
-    Gr  -> True
-    Eq  -> True
-    NGe -> False
+isDecreasingRule :: [Precedence MarkedSymbol Label] -> DPRule Label -> Bool
+isDecreasingRule precedences (Rule lhs rhs) = 
+  exists precedences (\p ->
+    case lpo (ord p) lhs rhs of
+      Gr  -> True
+      Eq  -> True
+      NGe -> False
+  )
 
-existsStrongDecreasingRule :: DPTrs Label -> Precedence MarkedSymbol Label -> Bool
-existsStrongDecreasingRule (DPTrs rules) precedence =
-  exists rules (all (isMarkedStrongDecreasingRule precedence))
+existsStrongDecreasingRule :: DPTrs Label -> [Precedence MarkedSymbol Label] -> Bool
+existsStrongDecreasingRule (DPTrs rules) precedences =
+  exists rules (all (isMarkedStrongDecreasingRule precedences))
 
-isMarkedStrongDecreasingRule :: Precedence MarkedSymbol Label -> DPRule Label -> Bool
-isMarkedStrongDecreasingRule precedence (Rule lhs rhs) = 
-  (isMarked lhs) && (eqOrder (lpo (ord precedence) lhs rhs) Gr)
+isMarkedStrongDecreasingRule :: [Precedence MarkedSymbol Label] -> DPRule Label -> Bool
+isMarkedStrongDecreasingRule precedences (Rule lhs rhs) = 
+  exists precedences (\p ->
+    (isMarked lhs) && (eqOrder (lpo (ord p) lhs rhs) Gr)
+  )
 
 isMarked :: DPTerm label -> Bool
 isMarked term = case term of 
