@@ -205,6 +205,7 @@ matchOrFail t1 t2 = case match t1 t2 of
 match :: Type -> Type -> Either String [Substitution]
 match t1 t2 = case (t1,t2) of
   (TVar v, _) -> return [(v, t2)]
+  (_, TVar _) -> Left dontMatch
    
   (TCon c1 ts1, TCon c2 ts2) -> 
      if c1 == c2 && (length ts1 == length ts2)
