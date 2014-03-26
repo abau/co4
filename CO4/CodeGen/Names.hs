@@ -18,6 +18,8 @@ encodedName name = is Profile >>= \case
 
   True  -> return $ mapName (\case n | n == mainName           -> enc n
                                    n | n == deprecatedMainName -> enc n
+                                   "&&"                        -> "encAnd2Prof"
+                                   "||"                        -> "encOr2Prof"
                                    n                           -> enc n ++ "Prof") name
   where
     enc (n:ns) = "enc" ++ (toUpper n : ns)
