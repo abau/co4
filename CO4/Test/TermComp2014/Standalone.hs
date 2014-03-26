@@ -3,59 +3,79 @@ where
 
 import Prelude hiding (lex,lookup,length)
 import CO4.PreludeNat
+import CO4.PreludeBool (xor2)
 
-type Map k v        = [(k,v)]
+type Map k v               = [(k,v)]
 
-type Symbol         = [Bool]
+type Symbol                = [Bool]
 
-type Domain         = [Bool]
+type Domain                = [Bool]
 
-data Term label     = Var  Symbol
-                    | Node Symbol label [Term label]
-                    deriving (Eq,Show)
+type Label                 = [Domain]
 
-data Rule label     = Rule (Term label) (Term label)
-                    deriving (Eq,Show)
+data Term var node label   = Var  var
+                           | Node node label [Term var node label]
+                           deriving (Eq,Show)
 
-data Trs label      = Trs [Rule label]
-                    deriving (Eq,Show)
+data Rule var node label   = Rule (Term var node label) (Term var node label)
+                           deriving (Eq,Show)
 
-type Interpretation = Map [Domain] Domain
+data Trs var node label    = Trs [Rule var node label]
+                           deriving (Eq,Show)
 
-type Model          = Map Symbol Interpretation
+type UnlabeledTerm         = Term Symbol Symbol ()
+type UnlabeledRule         = Rule Symbol Symbol ()
+type UnlabeledTrs          = Trs  Symbol Symbol ()
 
-type Sigma          = Map Symbol Domain
+type MarkedSymbol          = (Symbol, Bool)
 
-type Assignments    = [Sigma]
+type DPTerm label          = Term Symbol MarkedSymbol label
+type DPRule label          = Rule Symbol MarkedSymbol label
+data DPTrs label           = DPTrs [ [DPRule label] ]
+                           deriving (Eq,Show)
 
-data Order          = Gr | Eq | NGe
-                    deriving (Eq,Show)
+type LabeledTerm           = Term Symbol Symbol Label
+type LabeledRule           = Rule Symbol Symbol Label
+type LabeledTrs            = Trs  Symbol Symbol Label
 
-type PrecedenceKey  = (Symbol, [Domain])
+type Interpretation        = Map [Domain] Domain
 
-type Precedence     = Map PrecedenceKey Nat
+type Model sym             = Map sym Interpretation
 
-constraint :: (Trs (),Assignments) -> (Model,Precedence) -> Bool
-constraint (trs,assignments) (model, precedence) = 
-  and [ isModelForTrsUnderAllAssignments model trs assignments 
-      , isMonotoneAccordingLPO (makeLabeledTrs model trs assignments) precedence
-      ]
+type Sigma sym             = Map sym Domain
+
+type Assignments sym       = [Sigma sym]
+
+data Order                 = Gr | Eq | NGe
+                           deriving (Eq,Show)
+
+type Precedence sym label  = Map (sym, label) Nat
+
+constraint :: (DPTrs (), Assignments Symbol) 
+           -> (Model MarkedSymbol, [Precedence MarkedSymbol Label]) -> Bool
+constraint (trs,assignments) (model, precedences) = 
+  let labeledTrs = makeLabeledTrs model trs assignments
+  in
+    and [ isModelForTrsUnderAllAssignments model trs assignments 
+        , allRulesDecreasing         labeledTrs precedences
+        , existsStrongDecreasingRule labeledTrs precedences
+        ]
 
 -- * search model
 
-isModelForTrsUnderAllAssignments :: Model -> Trs () -> Assignments -> Bool
+isModelForTrsUnderAllAssignments :: Model MarkedSymbol -> DPTrs () -> Assignments Symbol -> Bool
 isModelForTrsUnderAllAssignments model trs assignments =
   all (isModelForTrs model trs) assignments
 
-isModelForTrs :: Model -> Trs () -> Sigma -> Bool
-isModelForTrs model (Trs rules) sigma = all (isModelForRule model sigma) rules
+isModelForTrs :: Model MarkedSymbol -> DPTrs () -> Sigma Symbol -> Bool
+isModelForTrs model (DPTrs rules) sigma = all (all (isModelForRule model sigma)) rules
 
-isModelForRule :: Model -> Sigma -> Rule () -> Bool
+isModelForRule :: Model MarkedSymbol -> Sigma Symbol -> DPRule () -> Bool
 isModelForRule model sigma (Rule lhs rhs) = 
   eqValue (valueOfTerm model sigma lhs)
           (valueOfTerm model sigma rhs)
 
-valueOfTerm :: Model -> Sigma -> Term () -> Domain
+valueOfTerm :: Model MarkedSymbol -> Sigma Symbol -> DPTerm () -> Domain
 valueOfTerm model sigma term = case term of
   Var v           -> valueOfVar v sigma
   Node sym l args -> case l of 
@@ -63,41 +83,66 @@ valueOfTerm model sigma term = case term of
           in
             valueOfFun sym values model
 
-valueOfFun :: Symbol -> [Domain] -> Model -> Domain
+valueOfFun :: MarkedSymbol -> [Domain] -> Model MarkedSymbol -> Domain
 valueOfFun s args model = 
   let interp = interpretation s model
   in
     lookup (\xs ys -> and (zipWith eqValue xs ys)) args interp
 
-valueOfVar :: Symbol -> Sigma -> Domain
+valueOfVar :: Symbol -> Sigma Symbol -> Domain
 valueOfVar = lookup eqSymbol
 
-interpretation :: Symbol -> Model -> Interpretation
-interpretation = lookup eqSymbol
+interpretation :: MarkedSymbol -> Model MarkedSymbol -> Interpretation
+interpretation = lookup eqMarkedSymbol
 
 -- * make labeled TRS
 
-makeLabeledTrs :: Model -> Trs () -> Assignments -> Trs [Domain]
-makeLabeledTrs model (Trs rules) assignments = 
-  let goRules sigma                 = map (goRule sigma) rules
-      goRule  sigma (Rule lhs rhs)  = Rule (fst (goTerm sigma lhs)) (fst (goTerm sigma rhs))
-      goTerm  sigma term            = case term of
+makeLabeledTrs :: Model MarkedSymbol -> DPTrs () -> Assignments Symbol -> DPTrs Label
+makeLabeledTrs model (DPTrs rules) assignments = 
+  let goRules                       = concatMap (\r -> map (goRule r) assignments)
+      goRule  (Rule lhs rhs) sigma  = Rule (fst (goTerm lhs sigma)) (fst (goTerm rhs sigma))
+      goTerm  term           sigma  = case term of
         Var s         -> (Var s, valueOfVar s sigma)
         Node s l args -> case l of 
-          () -> case unzip (map (goTerm sigma) args) of
+          () -> case unzip (map (\t -> goTerm t sigma) args) of
             (args', argsValues) -> (Node s argsValues args', valueOfFun s argsValues model)
   in
-    Trs (concatMap goRules assignments)
+    DPTrs (map goRules rules)
 
 -- * search precedence
 
-isMonotoneAccordingLPO :: Trs [Domain] -> Precedence -> Bool
-isMonotoneAccordingLPO (Trs rules) precedence = 
-  all (\(Rule lhs rhs) -> eqOrder (lpo (ord precedence) lhs rhs) Gr) rules
+allRulesDecreasing :: DPTrs Label -> [Precedence MarkedSymbol Label] -> Bool
+allRulesDecreasing (DPTrs rules) precedences =
+  all (all (isDecreasingRule precedences)) rules
 
-lpo :: (PrecedenceKey -> PrecedenceKey -> Order) -> Term [Domain] -> Term [Domain] -> Order
+isDecreasingRule :: [Precedence MarkedSymbol Label] -> DPRule Label -> Bool
+isDecreasingRule precedences (Rule lhs rhs) = 
+  exists precedences (\p ->
+    case lpo (ord p) lhs rhs of
+      Gr  -> True
+      Eq  -> True
+      NGe -> False
+  )
+
+existsStrongDecreasingRule :: DPTrs Label -> [Precedence MarkedSymbol Label] -> Bool
+existsStrongDecreasingRule (DPTrs rules) precedences =
+  exists rules (all (isMarkedStrongDecreasingRule precedences))
+
+isMarkedStrongDecreasingRule :: [Precedence MarkedSymbol Label] -> DPRule Label -> Bool
+isMarkedStrongDecreasingRule precedences (Rule lhs rhs) = 
+  exists precedences (\p ->
+    (isMarked lhs) && (eqOrder (lpo (ord p) lhs rhs) Gr)
+  )
+
+isMarked :: DPTerm label -> Bool
+isMarked term = case term of 
+  Var _          -> False
+  Node (_,m) _ _ -> m
+
+lpo :: ((MarkedSymbol, Label) -> (MarkedSymbol, Label) -> Order) 
+    -> DPTerm Label -> DPTerm Label -> Order
 lpo ord s t = case t of
-  Var x -> case eqTerm eqLabel s t of 
+  Var x -> case eqLabeledDPTerm s t of 
     False -> case varOccurs x s of
                 False -> NGe
                 True  -> Gr
@@ -117,10 +162,12 @@ lpo ord s t = case t of
                              True  -> lex (lpo ord) ss ts
                     NGe -> NGe
 
-ord :: Precedence -> PrecedenceKey -> PrecedenceKey -> Order
+ord :: Precedence MarkedSymbol Label -> (MarkedSymbol, Label) -> (MarkedSymbol, Label) -> Order
 ord prec a b = 
-  let pa = lookup eqPrecedenceKey a prec
-      pb = lookup eqPrecedenceKey b prec
+  let key (s,l) (s',l') = (eqMarkedSymbol s s') && (eqLabel l l')
+
+      pa = lookup key a prec
+      pb = lookup key b prec
   in
     ordNat pa pb
 
@@ -131,7 +178,7 @@ ordNat a b = case eqNat a b of
     True  -> Gr
     False -> NGe
 
-varOccurs :: Symbol -> Term a -> Bool
+varOccurs :: Symbol -> Term Symbol node label -> Bool
 varOccurs var term = case term of
   Var var'    -> eqSymbol var var'
   Node _ _ ts -> any (varOccurs var) ts
@@ -157,16 +204,20 @@ lookup f k map = case map of
       False -> lookup f k ms
       True  -> v
 
-eqTerm :: (a -> a -> Bool) -> Term a -> Term a -> Bool
-eqTerm f x y = case x of
-  Var u     -> case y of { Var v -> eqSymbol u v; _ -> False }
+eqLabeledDPTerm :: DPTerm Label -> DPTerm Label -> Bool
+eqLabeledDPTerm = eqTerm eqSymbol eqMarkedSymbol eqLabel
+
+eqTerm :: (v -> v -> Bool) -> (n -> n -> Bool) -> (l -> l -> Bool) 
+       -> Term v n l -> Term v n l -> Bool
+eqTerm f_var f_node f_label x y = case x of
+  Var u     -> case y of { Var v -> f_var u v; _ -> False }
   Node u lu us -> case y of
-    Node v lv vs -> and [ eqSymbol u v
-                        , f lu lv
-                        , eqList (eqTerm f) us vs ]
+    Node v lv vs -> and [ f_node u v
+                        , f_label lu lv
+                        , eqList (eqTerm f_var f_node f_label) us vs ]
     _            -> False
 
-eqLabel :: [Domain] -> [Domain] -> Bool
+eqLabel :: Label -> Label -> Bool
 eqLabel = eqList eqValue
 
 eqOrder :: Order -> Order -> Bool
@@ -175,8 +226,8 @@ eqOrder x y = case x of
   Eq  -> case y of { Eq  -> True; _ -> False }
   NGe -> case y of { NGe -> True; _ -> False }
 
-eqPrecedenceKey :: PrecedenceKey -> PrecedenceKey -> Bool
-eqPrecedenceKey (s,l) (s',l') = (eqSymbol s s') && (eqLabel l l')
+eqMarkedSymbol :: MarkedSymbol -> MarkedSymbol -> Bool
+eqMarkedSymbol (sym,m) (sym',m') = (eqSymbol sym sym') && (eqBool m m')
 
 eqSymbol :: Symbol -> Symbol -> Bool
 eqSymbol = eqList eqBool
@@ -192,6 +243,7 @@ eqList f xs ys = case xs of
                      v:vs -> (f u v) && (eqList f us vs)
 
 eqBool :: Bool -> Bool -> Bool
-eqBool x y = case x of
-  False -> not y
-  True  -> y
+eqBool x y = not (xor2 x y)
+
+exists :: [a] -> (a -> Bool) -> Bool
+exists xs f = any f xs
