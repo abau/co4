@@ -160,7 +160,7 @@ uBool             = constructors [ Just [], Just [] ]
 kBool False       = known 0 2 []
 kBool True        = known 1 2 []
 
-uList 0 _         = constructors [ Just [], Nothing ]
+uList 0 _         = known 0 2 []
 uList i a         = constructors [ Just [], Just [ a, uList (i-1) a ] ]
 kList 0 _         = known 0 2 []
 kList i a         = known 1 2 [a, kList (i-1) a]
