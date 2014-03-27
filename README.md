@@ -116,14 +116,14 @@ We call `result` in a ghci session to find a factorization of 143:
     Start producing CNF
     Cache hits: 164 (10%), misses: 1457 (89%)
     CNF finished
-    #variables: 7880, #clauses: 24448, #literals: 66292
+    #variables: 3602, #clauses: 11614, #literals: 32068
     #clauses of length 1:	1
-    #clauses of length 2:	7066
-    #clauses of length 3:	17380
+    #clauses of length 2:	2788
+    #clauses of length 3:	8824
     #clauses of length 9:	2
 
     Starting solver
-    Solver finished in 2.6667e-2 seconds (result: True)
+    Solver finished in 1.6667e-2 seconds (result: True)
     Starting decoder
     Decoder finished
     Test: True
