@@ -11,7 +11,7 @@ import           Data.Either (partitionEithers)
 import           Data.Tuple (swap)
 import qualified Data.Map as M
 import qualified TPDB.Data as TPDB
-import qualified TPDB.XTC.Read as Read
+import qualified TPDB.Input as Input
 import           CO4.Util (toBinary, binaries)
 import           CO4.Test.TermComp2014.Standalone hiding (ord)
 
@@ -24,10 +24,10 @@ import Debug.Trace
 type SymbolMap = M.Map Symbol String
 
 parseTrs :: FilePath -> IO (UnlabeledTrs, SymbolMap)
-parseTrs path = Read.readProblems path >>= \case
-  [TPDB.Problem _ trs _ _] -> 
-    do {-putStrLn (show $ pretty trs)-}
-       return $ goTrs trs
+parseTrs path = Input.get path >>= \case
+  Left trs -> do {-putStrLn (show $ pretty trs)-}
+                 return $ goTrs trs
+  Right _  -> error "Util.parseTrs: SRS"
   where
     goTrs :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> (UnlabeledTrs, SymbolMap)
     goTrs trs = (Trs rules', M.fromList $ map swap $ M.toList symbolMap)
