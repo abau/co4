@@ -15,7 +15,8 @@ import           Prelude hiding (and,undefined)
 import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (forM)
-import           Data.List (transpose,genericIndex,genericLength)
+import           Data.Function (on)
+import           Data.List (transpose,genericIndex,genericLength,maximumBy)
 import           Data.Maybe (fromMaybe,catMaybes,fromJust)
 import           Data.Tree (Tree (..),drawTree)
 import           Text.PrettyPrint (Doc,(<+>),vcat,int,text,nest,empty,($$))
@@ -211,8 +212,7 @@ caseOf adt branches =
     Just i  -> Exception.assert (i < genericLength branches) 
              $ return $ branches `genericIndex` i
     Nothing -> do 
-      [branchDef] <- caseOfBits fs 
-                   $ map (Just . return . definedness)        branches
+      [branchDef] <- caseOfBits fs $ map (Just . return . definedness) branches
 
       def'        <- and [branchDef, definedness adt]
       id'         <- newId
@@ -220,8 +220,8 @@ caseOf adt branches =
 
       let adt'    = EncodedAdt id' def' fs (fromJust $ arguments adt) origin'
 
-      flags'      <- caseOfBits fs $ map flags     branches
-      arguments'  <- caseOfArguments adt'     $ map arguments branches
+      flags'      <- caseOfBits fs $ map flags branches
+      arguments'  <- caseOfArguments adt' $ map arguments branches
 
       return $ EncodedAdt id' def' flags' arguments' origin'
   where
@@ -283,12 +283,12 @@ caseOfBits flags branchBits =
         Nothing -> forM (transpose branchBits') mergeN 
         Just i  -> return $ branchBits' `genericIndex` i
     where
-      numCons        = genericLength branchBits
-      nonEmptyBits   = catMaybes branchBits
-      branchBitWidth = maximum $ map length nonEmptyBits 
-      branchBits'    = for branchBits $ \case
-        Nothing -> replicate branchBitWidth $ constant False
-        Just bs -> bs ++ replicate (branchBitWidth - (length bs)) (constant False)
+      numCons             = genericLength branchBits
+      nonEmptyBits        = catMaybes branchBits
+      longestNonEmptyBits = maximumBy (compare `on` length) nonEmptyBits
+      branchBits'         = for branchBits $ \case
+        Nothing -> longestNonEmptyBits
+        Just bs -> bs ++ drop (length bs) longestNonEmptyBits
 
       equalBits bs = all (\b -> b == head bs) bs
 
