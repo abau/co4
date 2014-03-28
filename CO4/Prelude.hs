@@ -4,6 +4,7 @@ module CO4.Prelude
   , uBool, uList, kList, kNil, kList', kBool, kTuple2, kTuple3, kTuple4, kTuple5, kUnit
   , assertKnown, encAssertKnownProf, encAssertKnown
   , assertDefined, encAssertDefined, encAssertDefinedProf
+  , dumpEncoded, encDumpEncoded, encDumpEncodedProf
   , module CO4.PreludeNat
   , module CO4.PreludeBool
   )
@@ -12,6 +13,7 @@ where
 import qualified Language.Haskell.Exts as HE
 import           Language.Haskell.Exts.QQ (dec)
 import           Satchmo.Core.Primitive (isConstant)
+import           Satchmo.Core.MonadSAT (note)
 import           CO4.Language 
 import           CO4.Algorithms.HindleyMilner.Util (Context,bind,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
@@ -134,6 +136,7 @@ unparsedPreludeContext = bind (
   , ("xorNat"        , SType $ functionType [natT,natT] natT)
   , ("assertKnown"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("assertDefined" , SForall a $ SType $ functionType [TVar a] $ TVar a)
+  , ("dumpEncoded"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("&&"            , SType $ functionType [boolT,boolT] boolT)
   , ("||"            , SType $ functionType [boolT,boolT] boolT)
   , ("not"           , SType $ functionType [boolT] boolT)
@@ -198,3 +201,12 @@ encAssertDefined e =
   else abortWithTraces "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
                        [("origin", show $ origin e)]
 encAssertDefinedProf = traced "assertDefined" . encAssertDefined
+
+dumpEncoded :: a -> a
+dumpEncoded = id
+
+encDumpEncoded,encDumpEncodedProf :: EncodedAdt -> CO4 EncodedAdt
+encDumpEncoded adt = do
+  note $ "dumpEncoded: " ++ show adt
+  return adt
+encDumpEncodedProf = traced "dumpEncoded" . encDumpEncoded
