@@ -23,11 +23,11 @@ $( compileFile [Cache,ImportPrelude] "CO4/Test/TermComp2014/Standalone.hs" )
 
 main :: IO ()
 main = do
-  [bitWidth, numPrecedences, filePath] <- getArgs
-  resultFile (read bitWidth) (read numPrecedences) filePath
+  [bitWidth, numPrecedences, numPatterns, filePath] <- getArgs
+  resultFile (read bitWidth) (read numPrecedences) (read numPatterns) filePath
 
-resultFile :: Int -> Int -> FilePath -> IO ()
-resultFile bitWidth numPrecedences filePath = do
+resultFile :: Int -> Int -> Int -> FilePath -> IO ()
+resultFile bitWidth numPrecedences numPatterns filePath = do
   (trs, symbolMap) <- parseTrs filePath
 
   putStrLn $ "Parsed:" 
@@ -39,14 +39,15 @@ resultFile bitWidth numPrecedences filePath = do
   putStrLn $ "Symbol Map:"
   putStrLn $ show symbolMap
 
-  iterate symbolMap 1 bitWidth numPrecedences (dpProblem trs) >>= \case
+  iterate symbolMap 1 bitWidth numPrecedences numPatterns (dpProblem trs) >>= \case
     False -> putStrLn "don't know" >> exitFailure
     True  -> putStrLn "terminates" >> exitSuccess
 
-iterate :: SymbolMap -> Int -> Int -> Int -> DPTrs () -> IO Bool
-iterate symbolMap i bitWidth numPrecedences dp = 
+iterate :: SymbolMap -> Int -> Int -> Int -> Int -> DPTrs () -> IO Bool
+iterate symbolMap i bitWidth numPrecedences numPatterns dp = 
   let sigmas    = assignments bitWidth $ dpToTrs dp
       parameter = (dp, sigmas)
+      alloc     = allocator bitWidth numPrecedences numPatterns dp
   in do
     putStrLn $ "\n## " ++ show i ++ ". Iteration ##########################\n"
     putStrLn $ "TRS:"
@@ -54,7 +55,7 @@ iterate symbolMap i bitWidth numPrecedences dp =
 
     case hasMarkedRule dp of
       False -> return True
-      _     -> solveAndTestP parameter (allocator bitWidth numPrecedences dp) encConstraint constraint
+      _     -> solveAndTestP parameter alloc encConstraint constraint
        >>= \case
              Nothing -> return False
              Just (model,filterAndPrecedences) -> assert (not $ null delete) $ 
@@ -80,7 +81,7 @@ iterate symbolMap i bitWidth numPrecedences dp =
                   putStrLn $ "\nDeleted:"
                   putStrLn $ unlines $ map (pprintDPRule (const "") symbolMap) delete
 
-                  iterate symbolMap (i+1) bitWidth numPrecedences dp'
+                  iterate symbolMap (i+1) bitWidth numPrecedences numPatterns dp'
                where
                  (dp', delete) = removeStrongDecreasingRules dp labeledTrs filterAndPrecedences
 

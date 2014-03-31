@@ -3,7 +3,6 @@ module CO4.Test.TermComp2014.Util
 where
 
 import           Control.Exception (assert)
-import           Control.Monad (guard)
 import           Control.Monad.State
 import           Data.List (nub)
 import           Data.Maybe (mapMaybe)
