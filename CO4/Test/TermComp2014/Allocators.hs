@@ -3,38 +3,46 @@ where
 
 import           Control.Exception (assert)
 import qualified Data.Map as M
-import           CO4.AllocatorData (Allocator)
-import           CO4.Prelude (kList,kList',uBool,kBool,kTuple2,uNat)
+import           CO4.AllocatorData (Allocator,constructors,known)
+import           CO4.Prelude (kList,kList',uBool,kBool,kTuple2,kTuple3,uNat)
 import           CO4.Util (binaries,bitWidth)
 import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),DPTrs(..),MarkedSymbol,Label)
 import           CO4.Test.TermComp2014.Util (nodeArities,dpToTrs)
 
 allocator :: Int -> Int -> DPTrs () -> Allocator
 allocator bitWidth numPrecedences dpTrs = 
-  kTuple2 (modelAllocator kMarkedSymbolAllocator bitWidth trs)
-          (kList numPrecedences $ precedenceAllocator kMarkedSymbolAllocator bitWidth trs)
+  kTuple2 (modelAllocator bitWidth trs)
+          (kList numPrecedences $ kTuple2 (filterAllocator trs)
+                                          (precedenceAllocator bitWidth trs))
   where
     trs = dpToTrs dpTrs
 
-modelAllocator :: Ord s => (s -> Allocator) -> Int -> Trs v s () -> Allocator
-modelAllocator allocSymbol n = kList' . map goArity . M.toList . nodeArities
+filterAllocator :: Trs v MarkedSymbol () -> Allocator
+filterAllocator = kList' . map goArity . M.toList . nodeArities
   where
-    goArity (v,arity)      = kTuple2 (allocSymbol v) (goInterpretation arity)
+    goArity (s,arity) = kTuple2 (kMarkedSymbolAllocator s) (kList arity $ goIndex $ arity - 1)
+    goIndex 0         = known 0 2 [ ]
+    goIndex i         = constructors [ Just [], Just [ goIndex $ i - 1 ] ]
+
+modelAllocator :: Int -> Trs v MarkedSymbol () -> Allocator
+modelAllocator n = kList' . map goArity . M.toList . nodeArities
+  where
+    goArity (s,arity)      = kTuple2 (kMarkedSymbolAllocator s) (goInterpretation arity)
     goInterpretation arity = kList' $ do args <- sequence $ replicate arity $ binaries n
                                          return $ goMapping args
     
     goMapping args = kTuple2 (kList' $ map kValueAllocator args)
                              (uValueAllocator n)
 
-precedenceAllocator :: Ord s => (s -> Allocator) -> Int -> Trs v s () -> Allocator
-precedenceAllocator allocSymbol n trs = kList' $ concatMap goArity $ M.toList arities
+precedenceAllocator :: Int -> Trs v MarkedSymbol () -> Allocator
+precedenceAllocator n trs = kList' $ concatMap goArity $ M.toList arities
   where
     arities                = nodeArities trs
     labels                 = binaries n
     numLabeledSymbols      = (M.size arities) * (length labels)
     goArity (symbol,arity) = do
       args <- sequence $ replicate arity labels
-      return $ kTuple2 (kTuple2 (allocSymbol symbol) 
+      return $ kTuple2 (kTuple2 (kMarkedSymbolAllocator symbol) 
                                 (kLabelAllocator args)
                        ) 
                        (uNat $ bitWidth numLabeledSymbols)

@@ -6,6 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 import           Prelude hiding (lex,lookup,length,iterate)
+import           Control.Monad (forM_)
 import           Control.Exception (assert)
 import           System.Environment (getArgs)
 import           System.Exit (exitSuccess, exitFailure)
@@ -18,7 +19,7 @@ import           CO4.Test.TermComp2014.PPrint
 import           CO4.Test.TermComp2014.Allocators (allocator)
 import           CO4.Test.TermComp2014.Standalone
 
-$( compileFile [Cache,ImportPrelude] "CO4/Test/TermComp2014/Standalone.hs" )
+$( compileFile [Dump "/tmp/termcomp",Cache,ImportPrelude] "CO4/Test/TermComp2014/Standalone.hs" )
 
 main :: IO ()
 main = do
@@ -29,8 +30,14 @@ resultFile :: Int -> Int -> FilePath -> IO ()
 resultFile bitWidth numPrecedences filePath = do
   (trs, symbolMap) <- parseTrs filePath
 
-  putStrLn $ "Parsed:\n" ++ pprintUnlabeledTrs symbolMap trs
-  putStrLn $ "DP-TRS:\n" ++ pprintDPTrs (const "") symbolMap (dpProblem trs)
+  putStrLn $ "Parsed:" 
+  putStrLn $ pprintUnlabeledTrs symbolMap trs
+
+  putStrLn $ "DP-TRS:"
+  putStrLn $ pprintDPTrs (const "") symbolMap (dpProblem trs)
+
+  putStrLn $ "Symbol Map:"
+  putStrLn $ show symbolMap
 
   iterate symbolMap 1 bitWidth numPrecedences (dpProblem trs) >>= \case
     False -> putStrLn "don't know" >> exitFailure
@@ -41,30 +48,40 @@ iterate symbolMap i bitWidth numPrecedences dp =
   let sigmas    = assignments bitWidth $ dpToTrs dp
       parameter = (dp, sigmas)
   in do
-    putStrLn $ "\n## " ++ show i ++ "st/th iteration ##########################\n"
-    putStrLn $ "TRS:\n" ++ pprintDPTrs (const "") symbolMap dp
+    putStrLn $ "\n## " ++ show i ++ ". Iteration ##########################\n"
+    putStrLn $ "TRS:"
+    putStrLn $ pprintDPTrs (const "") symbolMap dp
 
     case hasMarkedRule dp of
       False -> return True
       _     -> solveAndTestP parameter (allocator bitWidth numPrecedences dp) encConstraint constraint
        >>= \case
              Nothing -> return False
-             Just (model,precedences) -> assert (not $ null delete) $ 
-               do putStrLn $ "Model:\n" ++
-                           ( pprintModel pprintMarkedSymbol symbolMap model )
+             Just (model,filterAndPrecedences) -> assert (not $ null delete) $ 
+               do putStrLn $ "Model:"
+                  putStrLn $ pprintModel pprintMarkedSymbol symbolMap model
 
-                  putStrLn $ "Labeled Trs:\n" ++ ( pprintDPTrs pprintLabel symbolMap labeledTrs )
+                  putStrLn $ "Labeled Trs:"
+                  putStrLn $ pprintDPTrs pprintLabel symbolMap labeledTrs
 
-                  putStrLn $ "Precedences:\n" ++
-                           ( unlines $ map 
-                              (pprintPrecedence pprintMarkedSymbol pprintLabel symbolMap) precedences 
-                           )
+                  forM_ (zip [1..] filterAndPrecedences) $ \(i,(filter,precedence)) -> do
 
-                  putStrLn $ "\nDeleted:\n" ++
-                           ( unlines $ map (pprintDPRule (const "") symbolMap) delete )
+                    putStrLn $ show i ++ ". Argument Filter:"
+                    putStrLn $ pprintArgFilter pprintMarkedSymbol symbolMap filter
+
+
+                    putStrLn $ show i ++ ". Filtered Trs:"
+                    putStrLn $ pprintDPTrs pprintLabel symbolMap 
+                             $ filterArgumentsDPTrs filter labeledTrs
+
+                    putStrLn $ show i ++ ". Precedence:"
+                    putStrLn $ pprintPrecedence pprintMarkedSymbol pprintLabel symbolMap precedence
+
+                  putStrLn $ "\nDeleted:"
+                  putStrLn $ unlines $ map (pprintDPRule (const "") symbolMap) delete
 
                   iterate symbolMap (i+1) bitWidth numPrecedences dp'
                where
-                 (dp', delete) = removeStrongDecreasingRules dp labeledTrs precedences
+                 (dp', delete) = removeStrongDecreasingRules dp labeledTrs filterAndPrecedences
 
                  labeledTrs = makeLabeledTrs model dp sigmas
