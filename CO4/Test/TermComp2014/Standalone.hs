@@ -2,11 +2,14 @@ module CO4.Test.TermComp2014.Standalone
 where
 
 import Prelude hiding (lex,lookup,length)
-import CO4.Prelude (assertKnown,dumpEncoded)
 import CO4.PreludeNat
 import CO4.PreludeBool (xor2)
 
 type Map k v                 = [(k,v)]
+
+data Pattern p               = Any
+                             | Exactly p
+                             deriving (Eq,Show)
 
 type Symbol                  = [Bool]
 
@@ -39,7 +42,7 @@ type LabeledTerm             = Term Symbol Symbol Label
 type LabeledRule             = Rule Symbol Symbol Label
 type LabeledTrs              = Trs  Symbol Symbol Label
 
-type Interpretation          = Map [Domain] Domain
+type Interpretation          = Map [Pattern Domain] Domain
 
 type Model sym               = Map sym Interpretation
 
@@ -107,9 +110,10 @@ valueOfTerm model sigma term = case term of
 
 valueOfFun :: MarkedSymbol -> [Domain] -> Model MarkedSymbol -> Domain
 valueOfFun s args model = 
-  let interp = interpretation s model
+  let interp     = interpretation s model
+      argPattern = map Exactly args
   in
-    lookup (\xs ys -> and (zipWith eqValue xs ys)) args interp
+    lookup (\xs ys -> and (zipWith (eqPattern eqValue) xs ys)) argPattern interp
 
 valueOfVar :: Symbol -> Sigma Symbol -> Domain
 valueOfVar v = lookup eqSymbol (v)
@@ -276,6 +280,13 @@ eqList f xs ys = case xs of
 
 eqBool :: Bool -> Bool -> Bool
 eqBool x y = not (xor2 x y)
+
+eqPattern :: (k -> k -> Bool) -> Pattern k -> Pattern k -> Bool
+eqPattern f x y = case x of
+  Any        -> True
+  Exactly x' -> case y of
+    Any        -> True
+    Exactly y' -> f x' y'
 
 exists :: [a] -> (a -> Bool) -> Bool
 exists xs f = any f xs

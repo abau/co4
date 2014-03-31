@@ -55,7 +55,13 @@ pprintModel f symbolMap = unlines . intersperse "" . map pprintInterpretation
     pprintInterpretation (s,i) = unlines $ map (pprintMapping $ f symbolMap s) i
       where
         pprintMapping s (xs, y) = 
-          concat [ s, " ", intercalate " " (map pprintValue xs), " |-> ", pprintValue y ]
+          concat [ s, " ", intercalate " " (map (pprintPattern pprintValue) xs)
+                 , " |-> ", pprintValue y ]
+
+pprintPattern :: (k -> String) -> Pattern k -> String
+pprintPattern f pattern = case pattern of
+  Any       -> "*"
+  Exactly k -> f k
 
 pprintLabel :: Label -> String
 pprintLabel vs = "[" ++ (intercalate ", " $ map pprintValue vs) ++ "]"
