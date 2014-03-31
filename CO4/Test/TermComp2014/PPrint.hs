@@ -68,3 +68,12 @@ pprintPrecedence goS goL symbolMap = intercalate " > "
                                    . reverse
                                    . sortBy  (compare `on` snd)
                                    . map     (\((s,l),n) -> (goS symbolMap s ++ "^" ++ goL l, value n))
+
+pprintArgFilter :: (SymbolMap -> s -> String) -> SymbolMap -> ArgFilter s -> String
+pprintArgFilter goS symbolMap = unlines . map go
+  where
+    go (s,indices) = goS symbolMap s ++ (" [" ++ (intercalate ", " $ map (show . goIndex) indices)
+                                              ++ "]")
+    goIndex This     = 0
+    goIndex (Next i) = 1 + (goIndex i)
+
