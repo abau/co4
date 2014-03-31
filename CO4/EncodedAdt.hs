@@ -7,7 +7,7 @@ module CO4.EncodedAdt
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
   , arguments, arguments', constructorArgument, origin
-  , onValidDiscriminant, ifReachable, caseOf, toIntermediateAdt, caseOfBits, trimFlags
+  , onValidDiscriminant, ifReachable, caseOf, toIntermediateAdt, trimFlags
   )
 where
 
@@ -277,11 +277,8 @@ caseOfBits :: [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
 caseOfBits flags branchBits = 
     Exception.assert (not $ null nonEmptyBits) 
   $ Exception.assert (discriminates numCons flags) 
-  $ case all equalBits (transpose branchBits') of
-      True  -> return $ head $ branchBits'
-      False -> case primitivesToDecimal numCons flags of
-        Nothing -> forM (transpose branchBits') mergeN 
-        Just i  -> return $ branchBits' `genericIndex` i
+  $ Exception.assert (primitivesToDecimal numCons flags == Nothing)
+  $ forM (transpose branchBits') mergeN 
     where
       numCons             = genericLength branchBits
       nonEmptyBits        = catMaybes branchBits
@@ -300,6 +297,7 @@ caseOfBits flags branchBits =
                 let pattern = invNumeric numCons i
                     fs      = zipWith select pattern flags
                     
+                -- fs => (r <=> b)
                 assert ( r : P.not b : map P.not fs  )
                 assert ( P.not r :  b : map P.not fs  )
            return r
