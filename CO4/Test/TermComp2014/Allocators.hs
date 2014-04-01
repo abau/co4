@@ -33,7 +33,7 @@ modelAllocator n numPatterns = kList' . map goArity . M.toList . nodeArities
                              then completeInterpretation
                              else incompleteInterpretation
       where
-        interpretationSize = arity ^ (length $ binaries n)
+        interpretationSize = (length $ binaries n) ^ arity
 
         completeInterpretation = kList' $ do args <- sequence $ replicate arity $ binaries n
                                              return $ goMapping args
