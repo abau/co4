@@ -13,6 +13,7 @@ NUM_PRECEDENCES=$4
 NUM_PATTERNS=$5
 
 NUM_TERMINATES=0
+DONT_KNOW=""
 
 shift 5
 
@@ -32,8 +33,17 @@ do
       NUM_TERMINATES=`expr 1 + ${NUM_TERMINATES}`
       break
     fi
+
+    if [ ${BITWIDTH} -eq ${UPPER_BITWIDTH} ]
+    then
+      DONT_KNOW="${DONT_KNOW}\n${FILE}"
+    fi
   done
   shift 1
 done
 
 echo ${NUM_TERMINATES} terminations
+if [ ! -z ${DONT_KNOW} ]
+then
+  echo -e "\nUnknown ${DONT_KNOW}"
+fi
