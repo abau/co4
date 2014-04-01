@@ -4,7 +4,7 @@ where
 import           Control.Exception (assert)
 import qualified Data.Map as M
 import           CO4.AllocatorData (Allocator,constructors,known)
-import           CO4.Prelude (kList,kList',uBool,kBool,kTuple2,uNat)
+import           CO4.Prelude (kList,uList,kList',uBool,kBool,kTuple2,uNat)
 import           CO4.Util (binaries,bitWidth)
 import           CO4.Test.TermComp2014.Standalone (Symbol,Domain,Trs(..),DPTrs(..),MarkedSymbol,Label)
 import           CO4.Test.TermComp2014.Util (nodeArities,dpToTrs)
@@ -20,7 +20,7 @@ allocator bitWidth numPrecedences numPatterns dpTrs =
 filterAllocator :: Trs v MarkedSymbol () -> Allocator
 filterAllocator = kList' . map goArity . M.toList . nodeArities
   where
-    goArity (s,arity) = kTuple2 (kMarkedSymbolAllocator s) (kList arity $ goIndex $ arity - 1)
+    goArity (s,arity) = kTuple2 (kMarkedSymbolAllocator s) (uList arity $ goIndex $ arity - 1)
     goIndex 0         = known 0 2 [ ]
     goIndex i         = constructors [ Just [], Just [ goIndex $ i - 1 ] ]
 
