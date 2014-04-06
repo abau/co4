@@ -26,7 +26,7 @@ $( compileFile [ ImportPrelude
                -- , DumpAll "/tmp/WCB_Matrix"
                , InstantiationDepth 20
                ] 
-  "CO4/Example/WCB_MatrixStandalone.hs" )
+  "test/CO4/Example/WCB_MatrixStandalone.hs" )
 
 -- data Base = Base [Bool]
 uBase = known 0 1 [ kList 2 uBool ]
