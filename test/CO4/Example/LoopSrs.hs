@@ -23,7 +23,7 @@ import qualified TPDB.Pretty as TPDB
 import qualified TPDB.Plain.Write as TPDB
 import           CO4.Example.LoopSrs.Standalone
 
-$( compileFile [ ImportPrelude, Cache ] "CO4/Example/LoopSrs/Standalone.hs" )
+$( compileFile [ ImportPrelude, Cache ] "test/CO4/Example/LoopSrs/Standalone.hs" )
 
 cSymbol xs = case xs of
     [] -> known 0 2 []

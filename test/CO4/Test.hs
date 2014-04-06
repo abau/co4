@@ -33,13 +33,13 @@ main = do
     prelude = simpleTest "CO4.Example.Prelude" $ CO4.Example.Prelude.result
     simple  = simpleTest "CO4.Example.Simple"  $ CO4.Example.Simple.result
     loopSrs = do simpleTest "CO4.Example.Loop: gebhardt-03"  
-                  $ CO4.Example.LoopSrs.solve 16 16 "CO4/Example/LoopSrs/gebhardt-03.xml"
+                  $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/gebhardt-03.xml"
                  simpleTest "CO4.Example.Loop: gebhardt-08"  
-                  $ CO4.Example.LoopSrs.solve 16 16 "CO4/Example/LoopSrs/gebhardt-08.xml"
+                  $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/gebhardt-08.xml"
                  simpleTest "CO4.Example.Loop: zantema_z042"  
-                  $ CO4.Example.LoopSrs.solve 16 16 "CO4/Example/LoopSrs/zantema_z042.xml"
+                  $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/zantema_z042.xml"
                  simpleTest "CO4.Example.Loop: zantema_loop1"  
-                  $ CO4.Example.LoopSrs.solve 16 16 "CO4/Example/LoopSrs/zantema_loop1.xml"
+                  $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/zantema_loop1.xml"
 
     loopTrs = simpleTest "CO4.Example.Loop: toyama" $ CO4.Example.LoopTrsToyama.result
 

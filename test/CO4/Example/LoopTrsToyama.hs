@@ -18,7 +18,7 @@ import qualified Satchmo.Core.Decode
 import           CO4
 import           CO4.Example.LoopTrsToyamaStandalone
 
-$( compileFile [] "CO4/Example/LoopTrsToyamaStandalone.hs" )
+$( compileFile [] "test/CO4/Example/LoopTrsToyamaStandalone.hs" )
 
 uBool      = constructors [ M.Just [] , M.Just [] ]
 uList 0 _  = constructors [ M.Just [] , M.Nothing ]
