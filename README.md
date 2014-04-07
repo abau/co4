@@ -129,7 +129,7 @@ We call `result` in a ghci session to find a factorization of 143:
     Test: True
     Just (13,11)
 
-For more examples see [CO4/Example] (https://github.com/apunktbau/co4/tree/master/CO4/Example).
+For more examples see [test/CO4/Example] (https://github.com/apunktbau/co4/tree/master/test/CO4/Example).
 
 ## Applications
 
