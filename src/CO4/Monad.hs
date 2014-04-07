@@ -7,10 +7,12 @@ module CO4.Monad
 where
 
 import           Control.Monad.State.Strict
+import           Data.List (nub)
 import qualified Satchmo.Core.SAT.Minisat 
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
+import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache 
-import           CO4.Profiling
+import           CO4.Profiling as P
 import           CO4.Stack
 import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithStackTrace)
 
@@ -95,8 +97,8 @@ instance MonadSAT CO4 where
     liftSAT $! emit c
 
   note         = liftSAT . note
-  numVariables = liftSAT numVariables
-  numClauses   = liftSAT numClauses
+  numVariables = liftSAT MonadSAT.numVariables
+  numClauses   = liftSAT MonadSAT.numClauses
 
 runCO4 :: CO4 a -> SAT a
 runCO4 p = do
@@ -134,24 +136,20 @@ withAdtCache key@(d,fs,args) = gets (retrieve key . adtCache) >>= \case
 traced :: String -> CO4 a -> CO4 a
 traced name action = do
   setProfileRun
-  previous <- gets $ currentFunction . profile
-                     
-  modify $! onProfile ( setCurrentFunction name 
-                      . onCurrentInner incNumCalls
-                      . writeCurrentInner 
-                      )
+  previousFun   <- gets $ currentFunction . profile
+  previousInner <- gets $ currentInner    . profile
 
+  modify $! onProfile   $! callFunction name . resetCurrentInner
   modify $! onCallStack $! pushToStack name
 
-  v1     <- numVariables
-  c1     <- numClauses
   result <- action
-  v2     <- numVariables
-  c2     <- numClauses
 
-  modify $! onProfile ( incInnerUnderBy 1 (v2 - v1) (c2 - c1) name
-                      . setCurrentFunction previous 
-                      . writeCurrentInner 
-                      )
+  vs     <- gets $ P.numVariables . currentInner . profile
+  cs     <- gets $ P.numClauses   . currentInner . profile
+  trace' <- getCallStackTrace >>= return . nub
+
+  modify $! onProfile $ \p -> foldr (incInnerUnderBy vs cs) p trace'
+  modify $! onProfile $ returnTo previousFun previousInner
+
   modify $! onCallStack $! popFromStack
   return result

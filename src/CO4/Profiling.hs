@@ -1,11 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Profiling 
-  ( Profile, emptyProfile, incNumCalls, incNumVariables, incNumClauses
-  , onInnerUnder, onInner, onCurrentInner, currentFunction, setCurrentFunction
-  , writeCurrentInner, incInnerUnderBy, printProfile
+  ( ProfileData, numCalls, numVariables, numClauses, incNumVariables, incNumClauses
+  , Profile, currentFunction, currentInner, emptyProfile, onCurrentInner
+  , resetCurrentInner, callFunction, returnTo, incInnerUnderBy, printProfile
   )
 where
 
+import           Control.Exception (assert)
 import           Control.Monad.IO.Class
 import           Control.Monad (when)
 import           Data.List (sortBy)
@@ -22,6 +23,9 @@ data ProfileData = ProfileData { numCalls     :: ! Int
 
 emptyProfileData :: ProfileData
 emptyProfileData = ProfileData 0 0 0
+
+isEmptyProfileData :: ProfileData -> Bool
+isEmptyProfileData d = and [ numCalls d == 0, numVariables d == 0, numClauses d == 0 ]
 
 incNumCalls,incNumVariables,incNumClauses :: ProfileData -> ProfileData
 incNumCalls     c = c { numCalls     = 1 + numCalls     c }
@@ -43,39 +47,54 @@ data Profile = Profile { innerUnder      :: ! ProfileMap
                        , currentInner    :: ! ProfileData
                        }
 
-emptyProfile :: Profile
-emptyProfile = Profile M.empty M.empty "__init" emptyProfileData
+initName :: String
+initName = "__init"
 
-onInnerUnder,onInner :: (ProfileMap -> ProfileMap) -> Profile -> Profile
-onInnerUnder   f p = p { innerUnder   = f $ innerUnder   p }
-onInner        f p = p { inner        = f $ inner        p }
+emptyProfile :: Profile
+emptyProfile = Profile M.empty M.empty initName emptyProfileData
 
 onCurrentInner :: (ProfileData -> ProfileData) -> Profile -> Profile
 onCurrentInner f p = p { currentInner = f $ currentInner p }
 
-setCurrentFunction :: String -> Profile -> Profile
-setCurrentFunction name p = p { currentFunction = name }
+resetCurrentInner :: Profile -> Profile
+resetCurrentInner p = p { currentInner = emptyProfileData }
 
-writeCurrentInner :: Profile -> Profile
-writeCurrentInner p = 
-  p { inner = M.alter (\case 
-        Nothing -> Just i
-        Just d  -> Just $ d { numCalls     = numCalls     d + numCalls     i
-                            , numVariables = numVariables d + numVariables i
-                            , numClauses   = numClauses   d + numClauses   i
-                            }) (currentFunction p)
-                               (inner           p)
-
-    , currentInner = emptyProfileData
+callFunction :: String -> Profile -> Profile
+callFunction name p = assert (isEmptyProfileData $ currentInner p) $
+  p { currentFunction = name 
+    , innerUnder      = M.alter (\case 
+                          Nothing -> Just $ emptyProfileData { numCalls = 1 }
+                          Just d  -> Just $ incNumCalls d
+                        ) name $ innerUnder p
+    , currentInner    = emptyProfileData { numCalls = 1 }
     }
-  where
-    i = currentInner p
 
-incInnerUnderBy :: Int -> Int -> Int -> String -> Profile -> Profile
-incInnerUnderBy calls vars clauses name p = 
+returnTo :: String -> ProfileData -> Profile -> Profile
+returnTo previousName previousInner = returnTo' . writeCurrentInner
+  where
+    returnTo' p = 
+      p { currentFunction = previousName
+        , currentInner    = previousInner
+        }
+
+    writeCurrentInner p = assert (numCalls i == 1) $
+      p { inner = M.alter (\case 
+            Nothing -> Just i
+            Just d  -> Just $ d { numCalls     = numCalls     d + numCalls     i
+                                , numVariables = numVariables d + numVariables i
+                                , numClauses   = numClauses   d + numClauses   i
+                                }) (currentFunction p)
+                                   (inner           p)
+        }
+      where
+        i = currentInner p
+
+incInnerUnderBy :: Int -> Int -> String -> Profile -> Profile
+incInnerUnderBy vars clauses name p = 
   p { innerUnder = M.alter (\case
-        Nothing -> Just $ ProfileData calls vars clauses 
-        Just d  -> Just $ incAllBy calls vars clauses d
+          Nothing | name == initName -> Nothing
+          Nothing -> error $ "Profiling.incInnerUnderBy: '" ++ name ++ "'"
+          Just d  -> Just $ incAllBy 0 vars clauses d
         ) name $ innerUnder p 
     }
 
