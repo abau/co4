@@ -68,10 +68,10 @@ Library
                     , template-haskell == 2.8.*
                     , containers == 0.5.*
                     , mtl == 2.1.*
-                    , syb == 0.4.*
+                    , syb == 0.3.*
                     , pretty == 1.1.*
                     , satchmo-core == 0.7.*
-                    , haskell-src-exts == 1.13.*
+                    , haskell-src-exts == 1.14.*
                     , haskell-src-exts-qq == 0.6.*
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
@@ -84,10 +84,10 @@ Test-Suite co4-examples
                     , template-haskell == 2.8.*
                     , containers == 0.5.*
                     , mtl == 2.1.*
-                    , syb == 0.4.*
+                    , syb == 0.3.*
                     , pretty == 1.1.*
                     , satchmo-core == 0.7.*
-                    , haskell-src-exts == 1.13.*
+                    , haskell-src-exts == 1.14.*
                     , haskell-src-exts-qq == 0.6.*
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
@@ -102,10 +102,10 @@ Executable termcomp2014
                     , template-haskell == 2.8.*
                     , containers == 0.5.*
                     , mtl == 2.1.*
-                    , syb == 0.4.*
+                    , syb == 0.3.*
                     , pretty == 1.1.*
                     , satchmo-core == 0.7.*
-                    , haskell-src-exts == 1.13.*
+                    , haskell-src-exts == 1.14.*
                     , haskell-src-exts-qq == 0.6.*
                     , haskell-src-meta == 0.6.*
                     , transformers == 0.3.*
