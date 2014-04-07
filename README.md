@@ -20,7 +20,7 @@ cabal during the next step.
 
 ## Running
 
-[CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/BinaryStandalone.hs)
+[test/CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/test/CO4/Example/BinaryStandalone.hs)
 implements addition and multiplication of binary values:
 
     fullAdder :: Bit -> Bit -> Bit -> (Bit,Bit)
@@ -61,12 +61,12 @@ So:
                             , not carry
                             ]
 
-[CO4/Example/Binary.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/Binary.hs)
+[test/CO4/Example/Binary.hs] (https://github.com/apunktbau/co4/tree/master/test/CO4/Example/Binary.hs)
 loads and compiles 
-[CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/CO4/Example/BinaryStandalone.hs)
+[test/CO4/Example/BinaryStandalone.hs] (https://github.com/apunktbau/co4/tree/master/test/CO4/Example/BinaryStandalone.hs)
 using Template-Haskell:
 
-    $( compileFile [ImportPrelude] "CO4/Example/BinaryStandalone.hs" )
+    $( compileFile [ImportPrelude] "test/CO4/Example/BinaryStandalone.hs" )
 
 Every definition `d` of the original program is compiled to an encoded
 definition `encD`, i.e. the compiled constraint system is `encConstraint`.
@@ -111,7 +111,7 @@ If there is a factorization, we want to decode the factors to decimal numbers:
   
 We call `result` in a ghci session to find a factorization of 143:
 
-    $ ghci CO4/Example/Binary.hs
+    $ ghci -isrc -itest test/CO4/Example/Binary.hs
     *CO4.Example.Binary> result 143
     Start producing CNF
     Cache hits: 164 (10%), misses: 1457 (89%)
