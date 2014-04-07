@@ -9,6 +9,7 @@ where
 import           Prelude hiding (and)
 import           System.IO (hFlush,stderr,hPutStrLn,hPutStr)
 import           Unsafe.Coerce (unsafeCoerce)
+import           Satchmo.Core.MonadSAT (traced)
 import           Satchmo.Core.SAT.Minisat (note,solve')
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (Primitive,assert,and)
@@ -36,7 +37,7 @@ solveP :: (Decode SAT EncodedAdt a, Encodeable k)
 solveP k allocator constraint = 
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 
-      unknown <- encode allocator
+      unknown <- traced "Allocator:" $ encode allocator
       param   <- encode k
       --note $ "Encoded parameter:\n" ++ show param
       --note $ "Encoded unknown:\n" ++ show unknown
@@ -58,7 +59,7 @@ solve :: (Decode SAT EncodedAdt a) => Allocator -> ConstraintSystem -> IO (Maybe
 solve allocator constraint =
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 
-      unknown <- encode allocator
+      unknown <- traced "Allocator:" $ encode allocator
       --note $ "Encoded unknown:\n" ++ show unknown
       result <- constraint unknown
       return (unknown, result)
@@ -92,7 +93,7 @@ handleResult unknown result = do
           note "Known result: valid"
           return Nothing
 
-        Nothing -> do
+        Nothing -> traced "Toplevel:" $ do
           formula <- and [ flag , definedness result ]
           assert [ formula ]
           return $ Just $ decode unknown 
