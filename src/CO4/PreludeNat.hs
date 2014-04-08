@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  (Nat, value, nat, trimNat, uNat, kNat
+  (Nat, value, nat, trimNat, uNat, kNat, kNat'
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat
   , maxNat, minNat, timesNat
@@ -73,6 +73,9 @@ uNat = BuiltInUnknown
 
 kNat :: Int -> Integer -> Allocator
 kNat w i = BuiltInKnown $ toBinary (Just w) i 
+
+kNat' :: Nat -> Allocator
+kNat' n = kNat (width n) (value n)
 
 -- * Plain functions on naturals
 
