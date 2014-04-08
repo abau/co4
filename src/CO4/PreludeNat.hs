@@ -65,13 +65,16 @@ instance Decode SAT EncodedAdt Nat where
   decode p = case fmap length (flags p) of
     Just n -> decode (definedness p) >>= \case
       False -> error $ "Can not decode 'undefined' to data of type 'Nat'"
-      True  -> decode (flags' p) >>= return . Nat n . fromBinary 
+      True  -> decode (flags' p) >>= \case
+        [] | n == 0 -> return $ Nat 0 0
+        fs          -> return $ Nat n $ fromBinary fs
     Nothing -> error "Missing flags while decoding 'Nat'"
 
 uNat :: Int -> Allocator
 uNat = BuiltInUnknown
 
 kNat :: Int -> Integer -> Allocator
+kNat 0 0 = BuiltInKnown []
 kNat w i = BuiltInKnown $ toBinary (Just w) i 
 
 kNat' :: Nat -> Allocator
@@ -149,6 +152,7 @@ onValue2' f a b = if width a == width b
 -- * Encoded functions on naturals
 
 encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
+encNat     0 0 = make (constant True) [] []
 encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) []
 encNatProf w i = traced "nat" $ encNat w i
 
