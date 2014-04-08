@@ -81,7 +81,10 @@ Test-Suite co4-examples
   Type:               exitcode-stdio-1.0
   Main-Is:            CO4/Test.hs
   Build-Depends:      base >= 4.2 && < 5.0
+                    , template-haskell == 2.8.*
                     , containers == 0.5.*
+                    , satchmo-core == 0.7.*
+                    , tpdb == 0.8.*
                     , co4
 
 Executable termcomp2014
