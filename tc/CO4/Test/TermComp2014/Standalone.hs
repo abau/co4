@@ -52,12 +52,18 @@ type Assignments sym           = [Sigma sym]
 data Order                     = Gr | Eq | NGe
                                deriving (Eq,Show)
 
-type Precedence key            = Map key Nat
+data Precedence key            = EmptyPrecedence
+                               | Precedence (Map key Nat)
+     deriving (Eq, Show )
 
 data Index                     = This | Next Index
     deriving (Eq, Show)
 
-type ArgFilter key             = Map key [Index]
+data Filter = Selection [ Index ]
+            | Projection Index
+    deriving (Eq, Show )
+
+type ArgFilter key             = Map key Filter
 
 type Variable = Symbol
 
@@ -143,9 +149,12 @@ filterArgumentsDPTerm :: ArgFilter MSL -> DPTerm Label -> DPTerm Label
 filterArgumentsDPTerm filter term = case term of
   Var v         -> Var v
   Node s l args -> 
-    let indices = lookup eqMarkedLabeledSymbol (s,l) filter
-    in
+    let flt = lookup eqMarkedLabeledSymbol (s,l) filter
+    in  case flt of
+     Selection indices -> 
       Node s l (map (\i -> filterArgumentsDPTerm filter (atIndex i args)) indices)
+     Projection i -> 
+      filterArgumentsDPTerm filter (atIndex i args)
 
 -- * search precedence
 
@@ -259,11 +268,15 @@ lpo precedence s t = case t of
                     NGe -> NGe
 
 ord :: Precedence MSL -> MSL -> MSL -> Order
-ord prec a b = 
-  let pa = lookup eqMarkedLabeledSymbol a prec
-      pb = lookup eqMarkedLabeledSymbol b prec
-  in
-    ordNat pa pb
+ord precedence a b = case precedence of
+    EmptyPrecedence -> case eqMarkedLabeledSymbol a b of
+        True -> Eq
+        False -> NGe
+    Precedence prec -> 
+        let pa = lookup eqMarkedLabeledSymbol a prec
+            pb = lookup eqMarkedLabeledSymbol b prec
+        in
+            ordNat pa pb
 
 ordNat :: Nat -> Nat -> Order
 ordNat a b = case eqNat a b of
