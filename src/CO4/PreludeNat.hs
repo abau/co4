@@ -2,20 +2,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  (Nat, value, nat, trimNat, uNat, kNat, kNat'
+  (Nat, value, nat, uNat, kNat, kNat'
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat
   , maxNat, minNat, timesNat
   , plusNat, plus'Nat, plusCLANat, plus'CLANat
   , invertNat, shiftLNat, shiftRNat, andNat, orNat, xorNat
 
-  , encNat, encTrimNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
+  , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
   , encIsZeroNat
   , encMaxNat, encMinNat, encTimesNat
   , encPlusNat, encPlus'Nat, encPlusCLANat, encPlus'CLANat
   , encInvertNat, encShiftLNat, encShiftRNat, encAndNat, encOrNat, encXorNat
 
-  , encNatProf, encTrimNatProf
+  , encNatProf
   , encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf, encLtNatProf
   , encIsZeroNatProf
   , encMaxNatProf, encMinNatProf, encTimesNatProf
@@ -29,6 +29,7 @@ where
 
 import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
+import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM, when)
 import           Data.Bits ((.&.),complement,(.|.))
 import qualified Data.Bits as B
@@ -41,7 +42,7 @@ import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator (BuiltInKnown,BuiltInUnknown))
-import           CO4.Util (toBinary,fromBinary)
+import           CO4.Util (toBinary,fromBinary,bitWidth)
 
 --import qualified CO4.PreludeNat.Opt as Opt
 
@@ -66,8 +67,8 @@ instance Decode SAT EncodedAdt Nat where
     Just n -> decode (definedness p) >>= \case
       False -> error $ "Can not decode 'undefined' to data of type 'Nat'"
       True  -> decode (flags' p) >>= \case
-        [] | n == 0 -> return $ Nat 0 0
-        fs          -> return $ Nat n $ fromBinary fs
+        [] | n == 0 -> return $ nat 0 0
+        fs          -> return $ nat n $ fromBinary fs
     Nothing -> error "Missing flags while decoding 'Nat'"
 
 uNat :: Int -> Allocator
@@ -83,10 +84,7 @@ kNat' n = kNat (width n) (value n)
 -- * Plain functions on naturals
 
 nat :: Int -> Integer -> Nat
-nat w = trimNat w . Nat w
-
-trimNat :: Int -> Nat -> Nat
-trimNat w n = Nat w $ value n .&. (2^w - 1)
+nat w n = Exception.assert (w >= (bitWidth $ n + 1)) $ Nat w n
 
 gtNat,geNat,eqNat,leNat,ltNat :: Nat -> Nat -> Bool
 gtNat = onValue2' (>)
@@ -132,13 +130,13 @@ xorNat = onValue2 B.xor
 
 onValue :: (Integer -> Integer) -> Nat -> Nat
 onValue f a = if value a >= 0 
-  then trimNat (width a) $ Nat (width a) $ f $ value a
+  then nat (width a) $ f $ value a
   else error $ "PreludeNat.onValue: negative value " ++ show a
 
 onValue2 :: (Integer -> Integer -> Integer) -> Nat -> Nat -> Nat
 onValue2 f a b =
   if value a >= 0 && value b >= 0
-  then trimNat w $ Nat w $ f (value a) (value b)
+  then nat w $ f (value a) (value b)
   else error $ "PreludeNat.onValue2: negative values " ++ show (a,b)
   where
     w = max (width a) (width b)
@@ -155,10 +153,6 @@ encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
 encNat     0 0 = make (constant True) [] []
 encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) []
 encNatProf w i = traced "nat" $ encNat w i
-
-encTrimNat,encTrimNatProf :: Int -> EncodedAdt -> CO4 EncodedAdt
-encTrimNat     w n = return $ trimFlags w n
-encTrimNatProf w   = traced "trimNat" . encTrimNat w
 
 encGtNat,encGeNat,encEqNat,encLeNat,encLtNat,encMaxNat,encMinNat
   ,encGtNatProf,encGeNatProf,encEqNatProf,encLeNatProf,encLtNatProf

@@ -94,10 +94,6 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           n | n == natName -> case args of
             [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
             _               -> error $ "Algorithms.Eitherize.instantiateApp: nat"
-          n | n == trimNatName -> case args of
-            [ECon i, _] -> bindAndApplyArgs (\[arg'] -> 
-                            appsE (varE fName') [nameToIntE i,arg']) [args' !! 1]
-            _           -> error $ "Algorithms.Eitherize.instantiateApp: trimNat"
 
           _ | cache  -> bindAndApplyArgs (\args'' -> 
                           appsE (TH.VarE 'withCallCache) 

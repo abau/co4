@@ -4,7 +4,7 @@
 module CO4.Names 
   ( Namelike (..), convertName, funName, listName, consName, tupleName
   , maybeName, eitherName, orderingName
-  , natName, natTypeName, trimNatName, intName, boolName, unitName
+  , natName, natTypeName, intName, boolName, unitName
   , mainName, deprecatedMainName
   )
 where
@@ -74,9 +74,6 @@ natTypeName = readName "Nat"
 
 natName :: Namelike n => n
 natName = readName "nat"
-
-trimNatName :: Namelike n => n
-trimNatName = readName "trimNat"
 
 intName :: Namelike n => n
 intName = readName "Int"

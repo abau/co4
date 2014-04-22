@@ -114,7 +114,6 @@ preludeAdtDeclarations = [
 unparsedPreludeContext :: Context
 unparsedPreludeContext = bind (
   [ (natName         , SType $ functionType [TCon intName [],TCon intName []] natT)
-  , (trimNatName     , SType $ functionType [TCon intName [],natT] natT)
   , ("gtNat"         , SType $ functionType [natT,natT] boolT)
   , ("geNat"         , SType $ functionType [natT,natT] boolT)
   , ("eqNat"         , SType $ functionType [natT,natT] boolT)
