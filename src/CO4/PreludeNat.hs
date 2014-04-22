@@ -7,21 +7,20 @@ module CO4.PreludeNat
   , isZeroNat
   , maxNat, minNat, timesNat
   , plusNat, plus'Nat, plusCLANat, plus'CLANat
-  , invertNat, shiftLNat, shiftRNat, andNat, orNat, xorNat
+  , shiftLNat, shiftRNat, andNat, orNat, xorNat
 
   , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
   , encIsZeroNat
   , encMaxNat, encMinNat, encTimesNat
   , encPlusNat, encPlus'Nat, encPlusCLANat, encPlus'CLANat
-  , encInvertNat, encShiftLNat, encShiftRNat, encAndNat, encOrNat, encXorNat
+  , encShiftLNat, encShiftRNat, encAndNat, encOrNat, encXorNat
 
   , encNatProf
   , encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf, encLtNatProf
   , encIsZeroNatProf
   , encMaxNatProf, encMinNatProf, encTimesNatProf
   , encPlusNatProf, encPlus'NatProf, encPlusCLANatProf, encPlus'CLANatProf
-  , encInvertNatProf, encShiftLNatProf, encShiftRNatProf, encAndNatProf, encOrNatProf
-    , encXorNatProf
+  , encShiftLNatProf, encShiftRNatProf, encAndNatProf, encOrNatProf, encXorNatProf
 
   , onFlags, catchInvalid, onFlags2, catchInvalid2
   )
@@ -31,7 +30,7 @@ import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM, when)
-import           Data.Bits ((.&.),complement,(.|.))
+import           Data.Bits ((.&.),(.|.))
 import qualified Data.Bits as B
 import           Data.Function (on)
 import qualified Data.Map.Strict as M
@@ -109,9 +108,6 @@ plusCLANat  = plusNat
 -- |`plus'CLANat = plusNat` but `encPlus'CLANat` implements a 
 -- carry-look-ahead adder that ignores carry overflows
 plus'CLANat = plusNat
-
-invertNat :: Nat -> Nat
-invertNat = onValue complement
 
 shiftLNat :: Nat -> Nat
 shiftLNat = onValue $ flip B.shiftL 1
@@ -524,10 +520,6 @@ halfAdder p1 p2 = do
   c <- and [ p1, p2 ]
   r <- xor [ p1, p2 ]
   return (r,c)
-
-encInvertNat,encInvertNatProf  :: EncodedAdt -> CO4 EncodedAdt
-encInvertNat     = catchInvalid $ onFlags $ return . map not
-encInvertNatProf = traced "invertNat" . encInvertNat
 
 encShiftLNat,encShiftLNatProf :: EncodedAdt -> CO4 EncodedAdt
 encShiftLNat = catchInvalid $ onFlags $ \a -> 
