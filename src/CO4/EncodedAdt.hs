@@ -283,9 +283,10 @@ caseOfBits flags branchBits =
       numCons             = genericLength branchBits
       nonEmptyBits        = catMaybes branchBits
       longestNonEmptyBits = maximumBy (compare `on` length) nonEmptyBits
+      branchWidth         = length longestNonEmptyBits
       branchBits'         = for branchBits $ \case
-        Nothing -> longestNonEmptyBits
-        Just bs -> bs ++ drop (length bs) longestNonEmptyBits
+        Nothing -> replicate branchWidth $ constant False
+        Just bs -> bs ++ (replicate (branchWidth - length bs) $ constant False)
 
       equalBits bs = all (\b -> b == head bs) bs
 
