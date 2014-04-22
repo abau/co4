@@ -219,7 +219,8 @@ binaries i = do
 
 -- |@bitWidth n@ returns the number of bits needed to encode @n@ different states
 bitWidth :: Integral i => i -> Int
-bitWidth = ceiling . logBase 2 . fromIntegral 
+bitWidth 0 = 0
+bitWidth n = ceiling $ logBase 2 $ fromIntegral n
 
 -- |Checks whether a string represents an integer
 isInt :: String -> Bool
