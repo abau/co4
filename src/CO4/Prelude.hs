@@ -127,7 +127,6 @@ unparsedPreludeContext = bind (
   , ("plusCLANat"    , SType $ functionType [natT,natT] natT)
   , ("plus'CLANat"   , SType $ functionType [natT,natT] natT)
   , ("timesNat"      , SType $ functionType [natT,natT] natT)
-  , ("invertNat"     , SType $ functionType [natT] natT)
   , ("shiftLNat"     , SType $ functionType [natT] natT)
   , ("shiftRNat"     , SType $ functionType [natT] natT)
   , ("andNat"        , SType $ functionType [natT,natT] natT)
