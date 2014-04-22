@@ -136,18 +136,18 @@ onValue f a = if value a >= 0
   else error $ "PreludeNat.onValue: negative value " ++ show a
 
 onValue2 :: (Integer -> Integer -> Integer) -> Nat -> Nat -> Nat
-onValue2 f a b = if width a == width b
-  then if value a >= 0 && value b >= 0
-       then trimNat (width a) $ Nat (width a) $ f (value a) (value b)
-       else error $ "PreludeNat.onValue2: negative values " ++ show (a,b)
-  else error $ "PreludeNat.onValue2: diverging widths " ++ show (a,b)
+onValue2 f a b =
+  if value a >= 0 && value b >= 0
+  then trimNat w $ Nat w $ f (value a) (value b)
+  else error $ "PreludeNat.onValue2: negative values " ++ show (a,b)
+  where
+    w = max (width a) (width b)
 
 onValue2' :: (Integer -> Integer -> a) -> Nat -> Nat -> a
-onValue2' f a b = if width a == width b 
-  then if value a >= 0 && value b >= 0
-       then f (value a) (value b)
-       else error $ "PreludeNat.onValue2': negative values " ++ show (a,b)
-  else error $ "PreludeNat.onValue2': diverging widths " ++ show (a,b)
+onValue2' f a b = 
+  if value a >= 0 && value b >= 0
+  then f (value a) (value b)
+  else error $ "PreludeNat.onValue2': negative values " ++ show (a,b)
 
 -- * Encoded functions on naturals
 
@@ -566,12 +566,15 @@ onFlags f a = case flags a of
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
          -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 onFlags2 f a b = case (flags a, flags b) of
-  (Just as, Just bs) -> 
-    if length as == length bs
-    then do flags'       <- f as bs
-            definedness' <- and [definedness a, definedness b]
-            make definedness' flags' []
-    else abortWithTraces ("PreludeNat.onFlags2: diverging number of flags (" ++ show (length as) ++ " /= " ++ show (length bs) ++ ")") []
+  (Just as, Just bs) -> do
+      flags'       <- f as' bs'
+      definedness' <- and [definedness a, definedness b]
+      make definedness' flags' []
+    where
+      las = length as
+      lbs = length bs
+      as' = as ++ (replicate (lbs - las) $ constant False)
+      bs' = bs ++ (replicate (las - lbs) $ constant False)
   _ -> abortWithTraces "PreludeNat.onFlags2: missing flags" []
 
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
