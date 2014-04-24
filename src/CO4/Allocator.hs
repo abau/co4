@@ -6,7 +6,8 @@ where
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM_)
 import           Data.List (transpose,genericLength)
-import           Satchmo.Core.Primitive (primitive,constant,antiSelect,assert)
+import           Satchmo.Core.Primitive (primitive,constant,antiSelect,select,assert)
+import qualified Satchmo.Core.Primitive as P
 import           CO4.AllocatorData 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt (Primitive,EncodedAdt,flags',arguments',make)
@@ -17,7 +18,7 @@ import           CO4.Prefixfree (invNumeric)
 instance Encodeable Allocator where
   encode alloc = do
     result <- encodeOverlapping [alloc]
-    excludeEmpty result alloc
+    postprocessFlags result alloc
     return result
 
 encodeOverlapping :: [Allocator] -> CO4 EncodedAdt
@@ -56,8 +57,10 @@ encodeOverlapping allocs = do
       BuiltInKnown _   -> 0
       BuiltInUnknown _ -> 0
 
-excludeEmpty :: EncodedAdt -> Allocator -> CO4 ()
-excludeEmpty = go [] []
+-- 1. excludes patterns that lead to Empty (end of recursions)
+-- 2. implies constant flags from parental patterns
+postprocessFlags :: EncodedAdt -> Allocator -> CO4 ()
+postprocessFlags = go [] []
   where
     go flags pattern adt (Known 0 1 args') =
         Exception.assert (length args >= length args') 
@@ -69,7 +72,8 @@ excludeEmpty = go [] []
     go flags pattern adt (Known i n args') =
         Exception.assert (length args >= length args') 
       $ Exception.assert (bitWidth n <= length fs)
-      $ zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
+      $ do (flags,pattern) `implyPattern` (thisFlags, thisPattern)
+           zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
         where
           args            = arguments' adt
           fs              = flags' adt
@@ -102,3 +106,10 @@ excludePattern :: [Primitive] -> [Bool] -> CO4 ()
 excludePattern []    []      = return ()
 excludePattern flags pattern = Exception.assert (length flags == length pattern)
                              $ assert $ zipWith antiSelect pattern flags 
+
+implyPattern :: ([Primitive],[Bool]) -> ([Primitive],[Bool]) -> CO4 ()
+implyPattern premise conclusion = do
+  p <- P.and $ zipWith select (snd premise)    (fst premise)
+  c <- P.and $ zipWith select (snd conclusion) (fst conclusion)
+  r <- P.implies p c
+  assert [r]
