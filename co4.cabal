@@ -97,3 +97,16 @@ Executable termcomp2014
                     , satchmo-core
                     , tpdb
                     , co4
+
+Executable matchbox2014
+  hs-source-dirs: tc
+  Main-is:            MB.hs
+  Ghc-options:        -W -fno-warn-incomplete-patterns
+  Build-Depends:      base
+                    , containers
+                    , mtl
+                    , satchmo-core
+                    , tpdb >= 0.9
+                    , co4
+                    , satchmo-smt > 0.4, satchmo >= 2.8
+                    , transformer-combinators, array, hashable, HaXml
