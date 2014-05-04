@@ -5,7 +5,7 @@ through transformation into a satisfiability problem in propositional logic.
 
 ## Prerequisites
 
-- [Haskell plattform] (http://www.haskell.org/platform/) with `ghc >= 7.6.1`
+- [Haskell plattform] (http://www.haskell.org/platform/) with `ghc >= 7.8.2`
 - [Minisat] (https://github.com/niklasso/minisat.git)
 - [Minisat C bindings] (https://github.com/niklasso/minisat-c-bindings)
 - [Minisat Haskell bindings] (https://github.com/niklasso/minisat-haskell-bindings)

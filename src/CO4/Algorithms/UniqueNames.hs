@@ -4,6 +4,7 @@ module CO4.Algorithms.UniqueNames
 where
 
 import           Control.Monad (forM)
+import           Control.Applicative (Applicative)
 import           CO4.Language
 import           CO4.Unique 
 import           CO4.Algorithms.Instantiator
@@ -11,7 +12,7 @@ import           CO4.Algorithms.Rename (renameList)
 import           CO4.Algorithms.Bound (boundInPattern,boundToplevel)
 
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
-  deriving (Monad, MonadUnique)
+  deriving (Functor, Applicative, Monad, MonadUnique)
 
 instance MonadUnique u => MonadInstantiator (Instantiator u) where
   instantiateLam (ELam names e) = do

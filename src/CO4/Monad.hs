@@ -7,6 +7,7 @@ module CO4.Monad
 where
 
 import           Control.Monad.State.Strict
+import           Control.Applicative (Applicative)
 import           Data.List (nub)
 import qualified Satchmo.Core.SAT.Minisat 
 import           Satchmo.Core.MonadSAT (MonadSAT (..))
@@ -35,7 +36,7 @@ emptyData :: CO4Data
 emptyData = CO4Data 0 emptyCache emptyCache emptyProfile emptyStack False
 
 newtype CO4 a = CO4 { unCO4 :: StateT CO4Data SAT a }
-  deriving (Monad, MonadState CO4Data)
+  deriving (Functor, Applicative, Monad, MonadState CO4Data)
 
 liftSAT :: SAT a -> CO4 a
 liftSAT sat = CO4 $! StateT $! \s -> sat >>= \r -> return (r,s)

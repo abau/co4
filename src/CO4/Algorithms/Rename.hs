@@ -5,6 +5,7 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Identity
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import           CO4.Algorithms.Instantiator
@@ -14,7 +15,7 @@ type MappingM m = Name -> m Name
 type Mapping    = Name ->   Name
 
 newtype Instantiator m a = Instantiator { runInstantiator :: ReaderT (MappingM m) m a }
-  deriving (Monad, MonadReader (MappingM m))
+  deriving (Functor, Applicative, Monad, MonadReader (MappingM m))
 
 instance Monad m => MonadInstantiator (Instantiator m) where
   instantiateName name = do

@@ -11,6 +11,7 @@ where
 
 import           Prelude hiding (lookup)
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import           Text.PrettyPrint ((<+>),hsep,text,nest,vcat)
 import qualified Data.Map.Strict as M
 import           Data.List ((\\),nub)
@@ -62,7 +63,7 @@ instance PPrint Context where
 
 -- Expression substitution is done by an Instantiator monad
 newtype Substituter a = Substituter { runSubstituter :: Reader Substitution a }
-  deriving (Monad, MonadReader Substitution)
+  deriving (Functor, Applicative, Monad, MonadReader Substitution)
 
 instance MonadInstantiator Substituter where
   instantiateScheme scheme = do

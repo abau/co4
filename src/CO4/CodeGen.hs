@@ -9,6 +9,7 @@ where
 import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
+import           Control.Applicative (Applicative)
 import           Data.List (find)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
@@ -31,7 +32,7 @@ import           CO4.Prelude (preludeAdtDeclarations,unparsedNames)
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
-  deriving (Monad, MonadConfig, MonadWriter [TH.Dec], MonadUnique)
+  deriving (Functor, Applicative, Monad, MonadConfig, MonadWriter [TH.Dec], MonadUnique)
 
 instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) where
 
@@ -68,7 +69,7 @@ data ExpInstantiatorData = ExpInstantiatorData
 
 newtype ExpInstantiator u a = ExpInstantiator 
   { runExpInstantiator :: ReaderT ExpInstantiatorData u a } 
-  deriving (Monad, MonadUnique, MonadConfig, MonadReader ExpInstantiatorData)
+  deriving (Functor, Applicative, Monad, MonadUnique, MonadConfig, MonadReader ExpInstantiatorData)
 
 isToplevelName :: Monad u => ToplevelName -> ExpInstantiator u Bool
 isToplevelName name = asks $ elem name . toplevelNames

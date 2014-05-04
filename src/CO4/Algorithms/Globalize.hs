@@ -4,6 +4,7 @@ module CO4.Algorithms.Globalize
 where
 
 import           Control.Monad.State.Strict
+import           Control.Applicative (Applicative)
 import           Data.List (partition,(\\),nub)
 import qualified Data.Map as M
 import           CO4.Language
@@ -24,7 +25,7 @@ data Env = Env { callGlobal       :: M.Map Name Expression
                }
 
 newtype Globalizer u a = Globalizer { runGlobalizer :: StateT Env u a }
-  deriving (Monad, MonadState Env, MonadUnique)
+  deriving (Functor, Applicative, Monad, MonadState Env, MonadUnique)
 
 instance MonadUnique u => MonadInstantiator (Globalizer u) where
 

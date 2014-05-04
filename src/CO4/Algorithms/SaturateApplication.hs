@@ -5,6 +5,7 @@ where
 
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           CO4.Language
 import           CO4.Unique
@@ -23,7 +24,7 @@ type Cache      = M.Map CacheKey CacheValue
 newtype Instantiator u a = Instantiator { 
     runInstantiator :: StateT Cache (WriterT [Declaration] u) a 
   }
-  deriving ( Monad, MonadUnique, MonadConfig, MonadWriter [Declaration]
+  deriving ( Functor, Applicative, Monad, MonadUnique, MonadConfig, MonadWriter [Declaration]
            , MonadState Cache)
 
 instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
