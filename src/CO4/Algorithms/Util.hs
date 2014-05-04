@@ -9,6 +9,7 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Identity
+import           Control.Applicative (Applicative)
 import           CO4.Language
 import           CO4.Names (untypedName)
 import           CO4.Util (nTyped,nUntyped)
@@ -16,7 +17,7 @@ import qualified CO4.Algorithms.HindleyMilner.Util as HM
 import           CO4.Algorithms.Instantiator
 
 newtype IntroTypedNames a = IntroTypedNames { introTypedNames :: Reader HM.Context a }
-  deriving (Monad, MonadReader HM.Context)
+  deriving (Functor, Applicative, Monad, MonadReader HM.Context)
 
 instance MonadInstantiator IntroTypedNames where
   instantiateName name = do
@@ -30,7 +31,7 @@ introduceTypedNames :: Instantiable a => HM.Context -> a -> a
 introduceTypedNames context a = runReader (introTypedNames $ instantiate a) context
 
 newtype EraseTypedNames a = EraseTypedNames { eraseTypedNames_ :: Identity a }
-  deriving (Monad)
+  deriving (Functor, Applicative, Monad)
 
 instance MonadInstantiator EraseTypedNames where
   instantiateName = return . nUntyped
@@ -40,7 +41,7 @@ eraseTypedNames :: Instantiable a => a -> a
 eraseTypedNames = runIdentity . eraseTypedNames_ . instantiate  
 
 newtype CollapseApps a = CollapseApps { collapseApps :: Identity a }
-  deriving (Monad)
+  deriving (Functor, Applicative, Monad)
 
 instance MonadInstantiator CollapseApps where
   instantiateApp (EApp (EApp f xs) ys) = instantiate $ EApp f $ xs ++ ys
@@ -52,7 +53,7 @@ collapseApplications :: Instantiable a => a -> a
 collapseApplications = runIdentity . collapseApps . instantiate
 
 newtype CollapseAbs a = CollapseAbs { collapseAbs :: Identity a }
-  deriving (Monad)
+  deriving (Functor, Applicative, Monad)
 
 instance MonadInstantiator CollapseAbs where
   instantiateLam (ELam xs (ELam ys e)) = instantiate $ ELam (xs ++ ys) e
@@ -68,7 +69,7 @@ sanitize :: Instantiable a => a -> a
 sanitize = collapseApplications . collapseAbstractions 
 
 newtype EraseTLamTApp a = EraseTLamTApp { eraseTLamTApp_ :: Identity a }
-  deriving (Monad)
+  deriving (Functor, Applicative, Monad)
 
 instance MonadInstantiator EraseTLamTApp where
   instantiateTApp (ETApp e _) = return e

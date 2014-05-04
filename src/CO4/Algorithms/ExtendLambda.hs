@@ -4,6 +4,7 @@ module CO4.Algorithms.ExtendLambda
 where
 
 import           Control.Monad (forM)
+import           Control.Applicative (Applicative)
 import           CO4.Language
 import           CO4.Unique
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)
@@ -21,7 +22,7 @@ extendLambda program =
   >>= return . sanitize . eraseTypedNames
 
 newtype Instantiator u a = Instantiator { runInstantiator :: u a }
-  deriving (Monad, MonadUnique, MonadConfig)
+  deriving (Functor, Applicative, Monad, MonadUnique, MonadConfig)
 
 instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
   

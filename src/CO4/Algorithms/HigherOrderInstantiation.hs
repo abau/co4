@@ -6,6 +6,7 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict hiding (State)
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromMaybe,mapMaybe)
@@ -39,7 +40,7 @@ data State = State { cache     :: Cache
 
 newtype Instantiator u a = Instantiator 
   { runInstantiator :: ReaderT Env (StateT State u) a }
-  deriving (Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
+  deriving (Functor, Applicative, Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
 
 writeInstance :: MonadUnique u => Binding -> Instantiator u ()
 writeInstance instance_ = 

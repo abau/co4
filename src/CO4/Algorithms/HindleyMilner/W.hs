@@ -10,6 +10,7 @@ where
 import           Prelude hiding (lookup)
 import           Control.Monad.Identity
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           CO4.Util 
@@ -102,7 +103,7 @@ schemesConfig hmConfig context program = do
 -- The final type application consists of the substituted variables:
 -- @map <Bool,Bool> not xs@.
 newtype TypeApplicator a = TypeApplicator { runTypeApp :: Identity a }
-  deriving (Monad)
+  deriving (Functor, Applicative, Monad)
 
 instance MonadInstantiator TypeApplicator where
   instantiateTApp (ETApp f@(EVar (NTyped _ fScheme)) [instantiatedType]) = 

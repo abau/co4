@@ -4,6 +4,7 @@ module CO4.Algorithms.Replace
 where
 
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           CO4.Algorithms.Instantiator
 import           CO4.Language
@@ -11,7 +12,7 @@ import           CO4.Language
 type Mapping = M.Map Expression Expression
 
 newtype Replacer a = Replacer { runReplacer :: Reader Mapping a }
-  deriving (Monad, MonadReader Mapping)
+  deriving (Functor, Applicative, Monad, MonadReader Mapping)
 
 instance MonadInstantiator Replacer where
   instantiateExpression exp = do

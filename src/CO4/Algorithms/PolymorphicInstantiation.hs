@@ -7,6 +7,7 @@ where
 import           Control.Exception (assert)
 import           Control.Monad.State.Strict hiding (State)
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           Data.List (partition)
 import           CO4.Language
@@ -106,7 +107,7 @@ addPolyBindings bindings env = env { polyBindings = M.union (M.fromList bs) $ po
     bs = map (\(Binding n e) -> (n,e)) bindings
 
 newtype Instantiator u a = Instantiator { runInstantiator :: ReaderT Env (StateT State u) a }
-  deriving (Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
+  deriving (Functor, Applicative, Monad, MonadReader Env, MonadState State, MonadUnique, MonadConfig)
 
 instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) where
 
