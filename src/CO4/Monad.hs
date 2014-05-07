@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Monad
-  ( CO4, SAT, newId, getCallStackTrace, isProfileRun, setProfileRun, abortWithTraces
+  ( CO4, SAT, newId, getCallStackTrace, isProfileRun, setProfileRun, abortWithStackTrace
   , runCO4, withCallCache, withAdtCache, traced
   )
 where
@@ -15,10 +15,10 @@ import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache 
 import           CO4.Profiling as P
 import           CO4.Stack
-import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithStackTrace)
+import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithId)
 
 type SAT          = Satchmo.Core.SAT.Minisat.SAT
-type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt])
+type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt], Bool)
 type CallCacheKey = (String, [EncodedAdt])
 type AdtCache     = Cache AdtCacheKey  Int
 type CallCache    = Cache CallCacheKey EncodedAdt
@@ -74,15 +74,15 @@ isProfileRun = gets profileRun
 setProfileRun :: CO4 ()
 setProfileRun = modify $! \c -> c { profileRun = True }
 
-abortWithTraces :: String -> [(String,String)] -> CO4 a
-abortWithTraces msg traces = do
+abortWithStackTrace :: String -> CO4 a
+abortWithStackTrace msg = do
   stackTrace <- getCallStackTrace
 
-  let traces' = if null stackTrace 
-                then ("stack trace", "no stack trace available") : traces
-                else ("stack trace", unlines stackTrace) : traces
+  let trace = if null stackTrace 
+              then format ("stack trace", "no stack trace available")
+              else format ("stack trace", unlines stackTrace)
 
-  error $ unlines $ msg : map format traces'
+  error $ unlines [ msg, trace ]
   where
     format (header,trace) = 
       concat ["## ", header, " ", replicate (20 - length header) '#', "\n"] 
@@ -124,15 +124,13 @@ withCallCache key action =
     return result
 
 withAdtCache :: AdtCacheKey -> CO4 EncodedAdt
-withAdtCache key@(d,fs,args) = gets (retrieve key . adtCache) >>= \case
+withAdtCache key@(d,fs,args,pf) = gets (retrieve key . adtCache) >>= \case
   (Just id, c) -> do modify (setAdtCache c) 
-                     trace <- getCallStackTrace
-                     return $ makeWithStackTrace id d fs args trace
+                     return $ makeWithId id d fs args pf
   (Nothing, c) -> do 
-    id    <- newId
-    trace <- getCallStackTrace
+    id     <- newId
     modify $! setAdtCache $! cache key id c
-    return $ makeWithStackTrace id d fs args trace
+    return $  makeWithId id d fs args pf
 
 traced :: String -> CO4 a -> CO4 a
 traced name action = do

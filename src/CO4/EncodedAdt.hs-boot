@@ -1,9 +1,8 @@
 module CO4.EncodedAdt
-  (EncodedAdt,Primitive,makeWithStackTrace)
+  (EncodedAdt,Primitive,makeWithId)
 where
 
 import Satchmo.Core.Boolean (Boolean)
-import CO4.Stack (CallStackTrace)
 
 type Primitive = Boolean
 data EncodedAdt
@@ -11,5 +10,4 @@ data EncodedAdt
 instance Eq  EncodedAdt
 instance Ord EncodedAdt
 
-makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> CallStackTrace
-                   -> EncodedAdt
+makeWithId :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> Bool -> EncodedAdt

@@ -23,8 +23,8 @@ import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.AllocatorData (constructors,known)
 import           CO4.PreludeNat
-import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,origin,flags')
-import           CO4.Monad (CO4,traced,abortWithTraces)
+import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,flags')
+import           CO4.Monad (CO4,traced,abortWithStackTrace)
 import           CO4.PreludeBool
 
 -- |Parses prelude's function definitions
@@ -185,8 +185,7 @@ encAssertKnown e | isInvalid e = return e
 encAssertKnown e = 
   if all isConstant (flags' e)
   then return e
-  else abortWithTraces "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
-                       [("origin", show $ origin e)]
+  else abortWithStackTrace "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
 encAssertKnownProf = traced "assertKnown" . encAssertKnown
 
 assertDefined :: a -> a
@@ -196,8 +195,7 @@ encAssertDefined,encAssertDefinedProf  :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e
-  else abortWithTraces "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
-                       [("origin", show $ origin e)]
+  else abortWithStackTrace "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
 encAssertDefinedProf = traced "assertDefined" . encAssertDefined
 
 dumpEncoded :: a -> a
