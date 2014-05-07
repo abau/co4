@@ -40,7 +40,7 @@ encodeOverlapping allocs = do
     [BuiltInKnown fs] -> return $ map constant fs
     _                 -> sequence $ replicate maxFlags primitive
 
-  make (constant True) flags args
+  make (constant True) flags args prefixfree
 
   where 
     maxFlags = maximum $ for allocs $ \case 
@@ -56,6 +56,12 @@ encodeOverlapping allocs = do
         AllocateEmpty            -> 0
       BuiltInKnown _   -> 0
       BuiltInUnknown _ -> 0
+
+    prefixfree = and $ for allocs $ \case
+      Known          {} -> True
+      Unknown        {} -> True
+      BuiltInKnown   {} -> False
+      BuiltInUnknown {} -> False
 
 -- 1. excludes patterns that lead to Empty (end of recursions)
 -- 2. implies constant flags from parental patterns

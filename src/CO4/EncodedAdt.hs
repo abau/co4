@@ -2,12 +2,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 module CO4.EncodedAdt
   ( Primitive, EncodedAdt, IntermediateAdt (..)
-  , make, makeWithStackTrace, encUndefined, encEmpty, encodedConstructor
+  , make, makeWithId, encUndefined, encEmpty, encodedConstructor
   , isEmpty, isDefined, isUndefined, isConstantlyDefined, isConstantlyUndefined
   , isValid, isInvalid
   , flags, flags', constantConstructorIndex, definedness
-  , arguments, arguments', constructorArgument, origin
-  , onValidDiscriminant, ifReachable, caseOf, toIntermediateAdt, trimFlags
+  , arguments, arguments', isPrefixfree, isPrefixfree', constructorArgument
+  , onValidDiscriminant, ifReachable, prefixfreeBranches, caseOf, toIntermediateAdt, trimFlags
   )
 where
 
@@ -19,24 +19,22 @@ import           Data.Function (on)
 import           Data.List (transpose,genericIndex,genericLength,maximumBy)
 import           Data.Maybe (fromMaybe,catMaybes,fromJust)
 import           Data.Tree (Tree (..),drawTree)
-import           Text.PrettyPrint (Doc,(<+>),vcat,int,text,nest,empty,($$))
 import           Satchmo.Core.Primitive (constant,select,primitive,assert,and)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
 import           CO4.Util (bitWidth,for)
-import           CO4.Stack (CallStackTrace)
 import           CO4.Prefixfree (numeric,invNumeric,discriminates)
 
 -- See EncodedAdt.hs-boot
 type Primitive = Boolean
 
-data EncodedAdt = EncodedAdt { _id          :: ! Int
-                             , _definedness :: ! Primitive
-                             , _flags       :: ! [Primitive] 
-                             , _arguments   :: ! [EncodedAdt] 
-                             , _origin      :: ! Doc
+data EncodedAdt = EncodedAdt { _id           :: ! Int
+                             , _definedness  :: ! Primitive
+                             , _flags        :: ! [Primitive] 
+                             , _arguments    :: ! [EncodedAdt] 
+                             , _isPrefixfree :: ! Bool
                              }
                 | Empty
 
@@ -60,34 +58,33 @@ instance Show EncodedAdt where
   show = drawTree . toTree 
     where
       toTree adt | isConstantlyUndefined adt = Node "undefined" []
-      toTree (EncodedAdt id def fs conss o)      = 
-        Node (concat [ "id: ", show id
+      toTree (EncodedAdt id def fs conss pf) = 
+        Node (concat [ "id: "           , show id
                      , ", definedness: ", show def
-                     , ", flags: ", show fs
-                     , ", origin: ", show o]
-                     ) 
+                     , ", flags: "      , show fs
+                     , ", prefixfree: " , show pf
+                     ]
+             ) 
              (map toTree conss)
       toTree Empty  = Node "empty" [] 
 
 -- * Constructors
 
-make :: Primitive -> [Primitive] -> [EncodedAdt] -> CO4 EncodedAdt
-make definedness flags arguments = withAdtCache (definedness, flags, arguments)
+make :: Primitive -> [Primitive] -> [EncodedAdt] -> Bool -> CO4 EncodedAdt
+make definedness flags arguments pfFree = withAdtCache (definedness, flags, arguments, pfFree)
 
-makeWithStackTrace :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> CallStackTrace
-                   -> EncodedAdt
-makeWithStackTrace i d f a o = EncodedAdt i d f a $ vcat $ map text o
-
+makeWithId :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> Bool -> EncodedAdt
+makeWithId = EncodedAdt
 
 encUndefined :: EncodedAdt
-encUndefined = makeWithStackTrace (-1) (constant False) [] [] ["undefined"]
+encUndefined = makeWithId (-1) (constant False) [] [] True
 
 encEmpty :: EncodedAdt
 encEmpty = Empty
 
 encodedConstructor :: Integer -> Integer -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
-                            $ withAdtCache (constant True,flags,args)
+                            $ withAdtCache (constant True,flags,args,True)
   where
     flags = case n of 1 -> []
                       _ -> map constant $ invNumeric n i
@@ -128,7 +125,7 @@ flags' e = case flags e of
 
 constantConstructorIndex :: Integer -> EncodedAdt -> Maybe Integer
 constantConstructorIndex n adt = case flags adt of
-  Nothing -> error "EncodedAdt.constantConstructorIndex: no flags"
+  Nothing -> error "EncodedAdt.constantConstructorIndex: missing flags"
   Just fs -> primitivesToDecimal n fs
 
 definedness :: EncodedAdt -> Primitive
@@ -138,6 +135,16 @@ definedness = \case Empty -> constant True
 arguments :: EncodedAdt -> Maybe [EncodedAdt]
 arguments adt | isInvalid adt = Nothing
 arguments adt                 = Just $ _arguments adt 
+
+isPrefixfree :: EncodedAdt -> Maybe Bool
+isPrefixfree = \case 
+  Empty -> Nothing
+  adt   -> Just $ _isPrefixfree adt
+
+isPrefixfree' :: EncodedAdt -> Bool
+isPrefixfree' adt = case isPrefixfree adt of
+  Nothing -> error "EncodedAdt.isPrefixfree': empty"
+  Just pf -> pf
 
 -- |Unsafe version of `arguments`
 arguments' :: EncodedAdt -> [EncodedAdt]
@@ -158,10 +165,6 @@ constructorArgument n i j adt =
     Just _            -> encEmpty
   where
     args = _arguments adt
-
-origin :: EncodedAdt -> Doc
-origin Empty = text "empty"
-origin adt    = _origin adt
 
 -- * Utilities
 
@@ -197,6 +200,12 @@ ifReachable d i n b = Exception.assert (isValidDiscriminant d n) $
     Just j | i == j -> b
     Just _          -> return encEmpty
 
+-- |Holds if branch flags are encoded using a prefixfree encoding
+prefixfreeBranches :: [EncodedAdt] -> Bool
+prefixfreeBranches branches = case catMaybes (map isPrefixfree branches) of
+  [] -> error "EncodedAdt.prefixfreeBranches: no defined branch present"
+  bs -> Prelude.and bs
+
 -- |Case distinction between encoded ADTs
 caseOf :: EncodedAdt -> [EncodedAdt] -> CO4 EncodedAdt
 caseOf adt branches | isConstantlyUndefined adt 
@@ -212,37 +221,21 @@ caseOf adt branches =
     Just i  -> Exception.assert (i < genericLength branches) 
              $ return $ branches `genericIndex` i
     Nothing -> do 
-      [branchDef] <- caseOfBits fs $ map (Just . return . definedness) branches
+      [branchDef] <- caseOfBits True fs $ map (Just . return . definedness) branches
 
       def'        <- and [branchDef, definedness adt]
       id'         <- newId
-      origin'     <- mergeOrigins branches
 
-      let adt'    = EncodedAdt id' def' fs (fromJust $ arguments adt) origin'
+      let adt'    = EncodedAdt id' def' fs (fromJust $ arguments adt) pffree
 
-      flags'      <- caseOfBits fs $ map flags branches
+      flags'      <- caseOfBits pffree fs $ map flags branches
       arguments'  <- caseOfArguments adt' $ map arguments branches
 
-      return $ EncodedAdt id' def' flags' arguments' origin'
+      return $ EncodedAdt id' def' flags' arguments' pffree
   where
     numCons = genericLength branches
     fs      = flags' adt
-
-mergeOrigins :: [EncodedAdt] -> CO4 Doc
-mergeOrigins branches =
-  isProfileRun >>= \case
-    False -> return empty
-    True  -> do
-      trace <- getCallStackTrace
-      return $ merged trace
-      where
-        merged trace = vcat $
-            (text "merge")
-          : (nest 2 $ vcat $ (text "merge-trace") : map (nest 2 . text) trace)
-          : zipWith (\i branch -> nest 2 
-                                $ (text "merge-branch" <+> int i)
-                               $$ (nest 2 $ origin branch)
-                    ) [0..] branches
+    pffree  = prefixfreeBranches branches
 
 -- |Case distinction between encoded arguments of ADTs
 caseOfArguments :: EncodedAdt -> [Maybe [EncodedAdt]] -> CO4 [EncodedAdt]
@@ -259,7 +252,8 @@ toIntermediateAdt :: (Decode m Primitive Bool)
                   => EncodedAdt -> Integer -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
 toIntermediateAdt Empty _                           = return IntermediateEmpty
-toIntermediateAdt (EncodedAdt _ definedness flags args _) n = 
+toIntermediateAdt (EncodedAdt _ _ _ _ False) _      = error "EncodedAdt.toIntermediateAdt: ADTs must be encoded using prefixfree encoding"
+toIntermediateAdt (EncodedAdt _ definedness flags args True) n = 
   Exception.assert (length flags >= bitWidth n) $ do
     decode definedness >>= \case 
       False -> return IntermediateUndefined
@@ -273,8 +267,8 @@ primitivesToDecimal n ps =
   then Just $ numeric n $ map (fromJust . P.evaluateConstant) ps
   else Nothing
 
-caseOfBits :: [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
-caseOfBits flags branchBits = 
+caseOfBits :: Bool -> [Primitive] -> [Maybe [Primitive]] -> CO4 [Primitive]
+caseOfBits prefixfree flags branchBits = 
     Exception.assert (not $ null nonEmptyBits) 
   $ Exception.assert (discriminates numCons flags) 
   $ Exception.assert (primitivesToDecimal numCons flags == Nothing)
@@ -285,8 +279,10 @@ caseOfBits flags branchBits =
       longestNonEmptyBits = maximumBy (compare `on` length) nonEmptyBits
       branchWidth         = length longestNonEmptyBits
       branchBits'         = for branchBits $ \case
-        Nothing -> replicate branchWidth $ constant False
-        Just bs -> bs ++ (replicate (branchWidth - length bs) $ constant False)
+        Nothing | prefixfree -> longestNonEmptyBits
+        Nothing              -> replicate branchWidth $ constant False
+        Just bs | prefixfree -> bs ++ (drop (length bs) longestNonEmptyBits)
+        Just bs              -> bs ++ (replicate (branchWidth - length bs) $ constant False)
 
       equalBits bs = all (\b -> b == head bs) bs
 

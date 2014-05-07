@@ -37,7 +37,7 @@ import qualified Data.Map.Strict as M
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive 
   (primitive,constant,assert,not,and,xor,or,equals)
-import           CO4.Monad (CO4,SAT,traced,abortWithTraces)
+import           CO4.Monad (CO4,SAT,traced,abortWithStackTrace)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.AllocatorData (Allocator (BuiltInKnown,BuiltInUnknown))
@@ -146,8 +146,8 @@ onValue2' f a b =
 -- * Encoded functions on naturals
 
 encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
-encNat     0 0 = make (constant True) [] []
-encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) []
+encNat     0 0 = make (constant True) [] [] False
+encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) [] False
 encNatProf w i = traced "nat" $ encNat w i
 
 encGtNat,encGeNat,encEqNat,encLeNat,encLtNat,encMaxNat,encMinNat
@@ -546,8 +546,8 @@ encXorNatProf a b = traced "xorNat" $ encXorNat a b
 onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
 onFlags f a = case flags a of
   Just as -> do flags' <- f as 
-                make (definedness a) flags' []
-  _       -> abortWithTraces "PreludeNat.onFlags: missing flags" []
+                make (definedness a) flags' [] $ isPrefixfree' a
+  _       -> abortWithStackTrace "PreludeNat.onFlags: missing flags"
 
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
          -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
@@ -555,13 +555,13 @@ onFlags2 f a b = case (flags a, flags b) of
   (Just as, Just bs) -> do
       flags'       <- f as' bs'
       definedness' <- and [definedness a, definedness b]
-      make definedness' flags' []
+      make definedness' flags' [] $ prefixfreeBranches [a,b]
     where
       las = length as
       lbs = length bs
       as' = as ++ (replicate (lbs - las) $ constant False)
       bs' = bs ++ (replicate (las - lbs) $ constant False)
-  _ -> abortWithTraces "PreludeNat.onFlags2: missing flags" []
+  _ -> abortWithStackTrace "PreludeNat.onFlags2: missing flags"
 
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid f a = 
