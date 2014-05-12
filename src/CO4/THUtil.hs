@@ -32,9 +32,6 @@ conE = TH.ConE . toTHName
 appsE :: TH.Exp -> [TH.Exp] -> TH.Exp
 appsE = foldl TH.AppE 
 
-appsE' :: [TH.Exp] -> TH.Exp -> TH.Exp
-appsE' = flip $ foldr TH.AppE 
-
 lamE' :: Namelike n => [n] -> TH.Exp -> TH.Exp
 lamE' ns = TH.LamE $ map varP ns
 
