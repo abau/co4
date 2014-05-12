@@ -13,8 +13,8 @@ Description:      Complexity concerned constraint compiler
 Library
   hs-source-dirs: src
   Exposed-Modules:    CO4
-                    , CO4.AllocatorData
                     , CO4.Allocator
+                    , CO4.Allocator.Data
                     , CO4.Cache
                     , CO4.Compilation
                     , CO4.Config

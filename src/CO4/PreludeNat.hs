@@ -40,7 +40,7 @@ import           Satchmo.Core.Primitive
 import           CO4.Monad (CO4,SAT,traced,abortWithStackTrace)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.AllocatorData (Allocator (BuiltInKnown,BuiltInUnknown))
+import           CO4.Allocator.Data (Allocator (BuiltInKnown,BuiltInUnknown))
 import           CO4.Util (toBinary,fromBinary,bitWidth)
 
 --import qualified CO4.PreludeNat.Opt as Opt

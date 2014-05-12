@@ -26,7 +26,7 @@ import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
 import           CO4.Monad (CO4,withCallCache,traced)
-import           CO4.AllocatorData (known)
+import           CO4.Allocator.Data (known)
 import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 

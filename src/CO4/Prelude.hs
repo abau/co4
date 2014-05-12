@@ -21,7 +21,7 @@ import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
-import           CO4.AllocatorData (constructors,known)
+import           CO4.Allocator.Data (constructors,known)
 import           CO4.PreludeNat
 import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,flags')
 import           CO4.Monad (CO4,traced,abortWithStackTrace)

@@ -1,4 +1,4 @@
-module CO4.AllocatorData
+module CO4.Allocator.Data
   ( Allocator (..), AllocateConstructor (..), constructors, known )
 where
 
