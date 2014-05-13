@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import           Data.Generics (everywhere,everywhereM,mkT,mkM)
 import           Language.Haskell.TH 
 import           CO4.Unique (MonadUnique,newString)
-import           CO4.Names (consName,listName,tupleName)
+import           CO4.Names (nilName,consName)
 import           CO4.Util (extM')
 
 type TypeSynonyms = M.Map Name ([TyVarBndr], Type)
@@ -84,12 +84,12 @@ noParensExpression e = case e of
 
 noListExpression :: Exp -> Exp
 noListExpression exp = case exp of
-  ListE xs -> foldr (\x -> AppE $ AppE (ConE consName) x) (ConE listName) xs
+  ListE xs -> foldr (\x -> AppE $ AppE (ConE consName) x) (ConE nilName) xs
   _        -> exp
 
 noTupleExpression :: Exp -> Exp
 noTupleExpression exp = case exp of
-  TupE xs -> foldl AppE (ConE $ tupleName $ length xs) xs
+  TupE xs -> foldl AppE (ConE $ tupleDataName $ length xs) xs
   _       -> exp
 
 noSignatureExpression :: Exp -> Exp
@@ -129,12 +129,12 @@ noWildcardPattern pat = case pat of
 
 noListPattern :: Pat -> Pat
 noListPattern pat = case pat of
-  ListP xs -> foldr (\x y -> ConP consName [x,y]) (ConP listName []) xs
+  ListP xs -> foldr (\x y -> ConP consName [x,y]) (ConP nilName []) xs
   _        -> pat
 
 noTuplePattern :: Pat -> Pat
 noTuplePattern pat = case pat of
-  TupP xs -> ConP (tupleName $ length xs) xs
+  TupP xs -> ConP (tupleDataName $ length xs) xs
   _       -> pat
 
 noSignaturePattern :: Pat -> Pat
@@ -169,7 +169,7 @@ noNestedPatternsInClauseParameters (Clause ps (NormalB e) d) = do
 
 noTupleType :: Type -> Type
 noTupleType ty = case ty of
-  TupleT i -> ConT (tupleName i)
+  TupleT i -> ConT (tupleTypeName i)
   _        -> ty
 
 expandTypeSynonyms :: TypeSynonyms -> Type -> Type

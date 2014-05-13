@@ -1,9 +1,10 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 -- |Namelike definitions
 module CO4.Names 
-  ( Namelike (..), convertName, funName, listName, consName, tupleName
-  , maybeName, eitherName, orderingName
+  ( Namelike (..), convertName, funName, listName, nilName, consName
+  , tupleTypeName, tupleDataName, maybeName, eitherName, orderingName
   , natName, natTypeName, intName, boolName, unitName
   , mainName, deprecatedMainName
   )
@@ -49,25 +50,31 @@ convertName :: (Namelike n,Namelike m) => n -> m
 convertName = readName . fromName
 
 funName :: Namelike n => n
-funName = readName "->"
+funName = convertName $ TH.nameBase ''(->)
 
 listName :: Namelike n => n
-listName = readName "[]"
+listName = convertName $ TH.nameBase ''[]
+
+nilName :: Namelike n => n
+nilName = convertName $ TH.nameBase '[]
 
 consName :: Namelike n => n
-consName = readName ":"
+consName = convertName $ TH.nameBase '(:)
 
 maybeName :: Namelike n => n
-maybeName = readName "Maybe"
+maybeName = convertName $ TH.nameBase ''Maybe
 
 eitherName :: Namelike n => n
-eitherName = readName "Either"
+eitherName = convertName $ TH.nameBase ''Either
 
 orderingName :: Namelike n => n
-orderingName = readName "Ordering"
+orderingName = convertName $ TH.nameBase ''Ordering
 
-tupleName :: Namelike n => Int -> n
-tupleName i = readName $ "(" ++ replicate (i-1) ',' ++ ")"
+tupleDataName :: Namelike n => Int -> n
+tupleDataName = convertName . TH.nameBase . TH.tupleDataName
+
+tupleTypeName :: Namelike n => Int -> n
+tupleTypeName = convertName . TH.nameBase . TH.tupleTypeName
 
 natTypeName :: Namelike n => n
 natTypeName = readName "Nat"
@@ -76,13 +83,13 @@ natName :: Namelike n => n
 natName = readName "nat"
 
 intName :: Namelike n => n
-intName = readName "Int"
+intName = convertName $ TH.nameBase ''Int
 
 boolName :: Namelike n => n
-boolName = readName "Bool"
+boolName = convertName $ TH.nameBase ''Bool
 
 unitName :: Namelike n => n
-unitName = readName "()"
+unitName = convertName $ TH.nameBase ''()
 
 mainName :: Namelike n => n
 mainName = readName "constraint"
