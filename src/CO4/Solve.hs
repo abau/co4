@@ -15,7 +15,7 @@ import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (assert,and)
 import           CO4.Monad (CO4,SAT,runCO4)
 import           CO4.EncodedAdt (EncodedAdt,flags,definedness,constantConstructorIndex)
-import           CO4.Allocator (Allocator (..))
+import           CO4.Allocator (TAllocator)
 import           CO4.Encodeable (Encodeable(..))
 
 type ConstraintSystem      = EncodedAdt -> CO4 EncodedAdt 
@@ -24,7 +24,7 @@ type ParamConstraintSystem = EncodedAdt -> ConstraintSystem
 -- |Solves a parametrized constraint system and tests the 
 -- found solution against the original constraint system
 solveAndTestP :: (Decode SAT EncodedAdt a, Encodeable k) 
-              => k -> Allocator -> ParamConstraintSystem -> (k -> a -> b) 
+              => k -> TAllocator a -> ParamConstraintSystem -> (k -> a -> b) 
               -> IO (Maybe a) 
 solveAndTestP k allocator constraint test = do
   solution <- solveP k allocator constraint 
@@ -33,7 +33,7 @@ solveAndTestP k allocator constraint test = do
 
 -- |Solves a parametrized constraint system
 solveP :: (Decode SAT EncodedAdt a, Encodeable k)
-       => k -> Allocator -> ParamConstraintSystem -> IO (Maybe a)
+       => k -> TAllocator a -> ParamConstraintSystem -> IO (Maybe a)
 solveP k allocator constraint = 
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 
@@ -48,14 +48,14 @@ solveP k allocator constraint =
 -- |Solves an constraint system and tests the found solution
 -- against the original constraint system
 solveAndTest :: (Decode SAT EncodedAdt a) 
-             => Allocator -> ConstraintSystem -> (a -> b) -> IO (Maybe a)
+             => TAllocator a -> ConstraintSystem -> (a -> b) -> IO (Maybe a)
 solveAndTest allocator constraint test = do
   solution <- solve allocator constraint
   testSolution test solution
   return solution
 
 -- |Solves a constraint system
-solve :: (Decode SAT EncodedAdt a) => Allocator -> ConstraintSystem -> IO (Maybe a)
+solve :: (Decode SAT EncodedAdt a) => TAllocator a -> ConstraintSystem -> IO (Maybe a)
 solve allocator constraint =
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 

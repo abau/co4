@@ -38,6 +38,9 @@ lamE' ns = TH.LamE $ map varP ns
 letE' :: Namelike n => [(n,TH.Exp)] -> TH.Exp -> TH.Exp
 letE' bindings = TH.LetE $ map (uncurry valD') bindings
 
+caseE :: TH.Exp -> [(TH.Pat,TH.Exp)] -> TH.Exp
+caseE d = TH.CaseE d . map (\(p,m) -> TH.Match p (TH.NormalB m) [])
+
 intE :: Integral a => a -> TH.Exp
 intE = TH.LitE . TH.IntegerL . toInteger
 

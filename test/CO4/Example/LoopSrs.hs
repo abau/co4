@@ -33,28 +33,26 @@ cSymbol xs = case xs of
                   ]
 
 -- should be kList !
-uSymbol bits = uList bits uBool
+uSymbol bits = uList bits completeBool
 
 -- this is indeed uList
 uWord width bits = uList width (uSymbol bits)
 
 uRule width bits = 
-    known 0 1 [ uWord width bits, uWord width bits ]
+    knownTuple2 (uWord width bits) (uWord width bits)
 
 uStep rwidth bits wwidth =
-    known 0 1 [ uWord wwidth bits
-              , uRule rwidth bits
-              , uWord wwidth bits
-              ]
+    knownStep (uWord wwidth bits)
+              (uRule rwidth bits)
+              (uWord wwidth bits)
 
 uDeriv rwidth bits wwidth dlength =
     uList dlength ( uStep rwidth bits wwidth)
 
 uLoopDeriv rwidth bits wwidth dlength =
-    known 0 1 [ uWord wwidth bits
-              , uDeriv rwidth bits wwidth dlength 
-              , uWord wwidth bits
-              ]
+    knownLooping_Derivation (uWord wwidth bits)
+                            (uDeriv rwidth bits wwidth dlength)
+                            (uWord wwidth bits)
 
 toBin :: Int -> [Bool]
 toBin x = 

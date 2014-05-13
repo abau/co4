@@ -18,8 +18,8 @@ import           CO4.Example.BinaryStandalone
 $( compileFile [Cache,ImportPrelude] "test/CO4/Example/BinaryStandalone.hs" )
 
 bitWidth  = 8
-uBinary   = uList bitWidth uBool
-allocator = kTuple2 uBinary uBinary
+uBinary   = uList bitWidth completeBool
+allocator = knownTuple2 uBinary uBinary
 
 result :: Int -> IO (Maybe (Int,Int))
 result x = do

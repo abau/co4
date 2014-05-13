@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Allocator
-  (module CO4.Allocator.Data)
+  (module CO4.Allocator.Data, module CO4.Allocator.Typed)
 where
 
 import qualified Control.Exception as Exception
@@ -9,11 +9,15 @@ import           Data.List (transpose,genericLength)
 import           Satchmo.Core.Primitive (primitive,constant,antiSelect,select,assert)
 import qualified Satchmo.Core.Primitive as P
 import           CO4.Allocator.Data 
+import           CO4.Allocator.Typed
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt (Primitive,EncodedAdt,flags',arguments',make)
 import           CO4.Util (for,bitWidth)
 import           CO4.Monad (CO4)
 import           CO4.Prefixfree (invNumeric)
+
+instance Encodeable (TAllocator t) where
+  encode = encode . toAllocator
 
 instance Encodeable Allocator where
   encode alloc = do

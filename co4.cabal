@@ -15,6 +15,7 @@ Library
   Exposed-Modules:    CO4
                     , CO4.Allocator
                     , CO4.Allocator.Data
+                    , CO4.Allocator.Typed
                     , CO4.Cache
                     , CO4.Compilation
                     , CO4.Config
@@ -57,6 +58,7 @@ Library
                     , CO4.CodeGen.DecodeInstance
                     , CO4.CodeGen.EncodeableInstance
                     , CO4.CodeGen.Names
+                    , CO4.CodeGen.TypedAllocator
                     , CO4.Solve
                     , CO4.Frontend.HaskellSrcExts
                     , CO4.Frontend.THCheck

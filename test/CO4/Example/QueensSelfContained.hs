@@ -92,11 +92,12 @@ $( [d|  data Bool   = False | True            deriving Show
    |] >>= compile [Cache]
   )
 
-natAllocator 0 = known 0 2 []
-natAllocator i = constructors [ M.Just [] , M.Just [natAllocator (i-1)] ]
+natAllocator 0 = knownZ
+natAllocator i = unsafeTAllocator 
+                (constructors [ M.Just [] , M.Just [toAllocator (natAllocator (i-1))]])
 
-listAllocator 0 _ = known 0 2 []
-listAllocator i a = known 1 2 [ a, listAllocator (i-1) a ]
+listAllocator 0 _ = knownNil
+listAllocator i a = knownCons a (listAllocator (i-1) a)
 
 result :: Int -> IO (M.Maybe Board)
 result i = solveAndTest (listAllocator i (natAllocator i)) encConstraint constraint

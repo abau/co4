@@ -25,7 +25,7 @@ import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
 import           CO4.Algorithms.THInstantiator (toTH)
-import           CO4.CodeGen (codeGen)
+import           CO4.CodeGen (codeGen,codeGenAllocators)
 import           CO4.PPrint (pprint)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
@@ -50,32 +50,35 @@ compile configs program = TH.runIO
                         True  -> parsePrelude
                         False -> return []
 
-  co4Program <-  parsePreprocessedTHDeclarations program
-             >>= return . addDeclarations parsedPrelude
-             >>= uniqueLocalNames 
-             >>= extendLambda
-             >>= globalize 
-             >>= saturateApplication
-             >>= hoInstantiation
-             >>= polyInstantiation
+  inputProgram  <- parsePreprocessedTHDeclarations program
+                     >>= return . addDeclarations parsedPrelude
 
-  result <- is NoSatchmo >>= \case
-    True  -> do dump $ show $ pprint co4Program
-                return $ toTH co4Program
+  is OnlyAllocators >>= \case
+    True  -> runCodeGenerator codeGenAllocators inputProgram
+    False -> do
+      co4Program <-  uniqueLocalNames inputProgram
+                 >>= extendLambda
+                 >>= globalize 
+                 >>= saturateApplication
+                 >>= hoInstantiation
+                 >>= polyInstantiation
 
-    False -> do satchmoProgram <- compileToSatchmo co4Program
-                return satchmoProgram
+      result <- is NoSatchmo >>= \case
+        True  -> do dump $ show $ pprint co4Program
+                    return $ toTH co4Program
 
-  liftIO $ log "Compilation successful"
+        False -> runCodeGenerator codeGen co4Program
 
-  is HideSource >>= \case
-    False -> return $ program ++ result
-    True  -> return result
+      liftIO $ log "Compilation successful"
 
-compileToSatchmo :: (MonadUnique m, MonadIO m, MonadConfig m) 
-                 => Program -> m [TH.Dec]
-compileToSatchmo program = do
-  thProgram <- codeGen program 
+      is HideSource >>= \case
+        False -> return $ program ++ result
+        True  -> return result
+
+runCodeGenerator :: (MonadUnique m, MonadIO m, MonadConfig m) 
+        => (Program -> m [TH.Dec]) -> Program -> m [TH.Dec]
+runCodeGenerator generator program = do
+  thProgram <- generator program 
   dump $ show $ TH.ppr $ unqualifiedNames thProgram
   return thProgram
 

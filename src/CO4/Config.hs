@@ -17,6 +17,8 @@ data Config  = NoSatchmo
              | Profile
              | Cache
              | HideSource
+             | OnlyAllocators
+             | NoAllocators
              deriving (Eq,Show)
 
 type Configs      = [Config]

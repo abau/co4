@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  (Nat, value, nat, uNat, kNat, kNat'
+  ( Nat, width, value, nat, uNat, knownNat, completeNat
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat
   , maxNat, minNat, timesNat
@@ -40,7 +40,7 @@ import           Satchmo.Core.Primitive
 import           CO4.Monad (CO4,SAT,traced,abortWithStackTrace)
 import           CO4.EncodedAdt 
 import           CO4.Encodeable (Encodeable (..))
-import           CO4.Allocator.Data (Allocator (BuiltInKnown,BuiltInUnknown))
+import           CO4.Allocator
 import           CO4.Util (toBinary,fromBinary,bitWidth)
 
 --import qualified CO4.PreludeNat.Opt as Opt
@@ -70,15 +70,18 @@ instance Decode SAT EncodedAdt Nat where
         fs          -> return $ nat n $ fromBinary fs
     Nothing -> error "Missing flags while decoding 'Nat'"
 
-uNat :: Int -> Allocator
-uNat = BuiltInUnknown
+instance FromKnown Nat where
+  fromKnown n = knownNat (width n) (value n)
 
-kNat :: Int -> Integer -> Allocator
-kNat 0 0 = BuiltInKnown []
-kNat w i = BuiltInKnown $ toBinary (Just w) i 
+uNat :: Int -> TAllocator Nat
+uNat = unsafeTAllocator . BuiltInUnknown
 
-kNat' :: Nat -> Allocator
-kNat' n = kNat (width n) (value n)
+knownNat :: Int -> Integer -> TAllocator Nat
+knownNat 0 0 = unsafeTAllocator $ BuiltInKnown []
+knownNat w i = unsafeTAllocator $ BuiltInKnown $ toBinary (Just w) i 
+
+completeNat :: TAllocator Nat
+completeNat = uNat maxBound
 
 -- * Plain functions on naturals
 

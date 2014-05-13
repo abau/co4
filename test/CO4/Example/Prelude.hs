@@ -30,8 +30,9 @@ $( [d|
    |] >>= compile [ImportPrelude] 
   )
 
-uColor 0 = constructors [ Just [], Just [], Just [], Nothing ]
-uColor i = constructors [ Just [], Just [], Just [], Just [ uList 3 (uColor (i-1)) ] ]
+uColor 0 = unsafeTAllocator $ constructors [ Just [], Just [], Just [], Nothing ]
+uColor i = unsafeTAllocator $ constructors [ Just [], Just [], Just []
+                                           , Just [ toAllocator $ uList 3 (uColor (i-1)) ] ]
 
 allocator = uColor 1
 

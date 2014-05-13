@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.CodeGen.Names
-  (encodedConsName, encodedName, allocatorName)
+  (encodedConsName, encodedName)
 where
 
 import Data.Char (toUpper)
@@ -23,7 +23,3 @@ encodedName name = is Profile >>= \case
                                    n                           -> enc n ++ "Prof") name
   where
     enc (n:ns) = "enc" ++ (toUpper n : ns)
-
-allocatorName :: Namelike a => a -> a
-allocatorName = mapName (\(n:ns) -> "alloc" ++ (toUpper n : ns)) 
-

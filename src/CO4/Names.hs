@@ -6,7 +6,7 @@ module CO4.Names
   ( Namelike (..), convertName, funName, listName, nilName, consName
   , tupleTypeName, tupleDataName, maybeName, eitherName, orderingName
   , natName, natTypeName, intName, boolName, unitName
-  , mainName, deprecatedMainName
+  , mainName, deprecatedMainName, toValidTypeIdentifier, toValidDataIdentifier
   )
 where
 
@@ -96,3 +96,32 @@ mainName = readName "constraint"
 
 deprecatedMainName :: Namelike n => n
 deprecatedMainName = readName "main"
+
+toValidTypeIdentifier :: (Eq n, Namelike n) => n -> n
+toValidTypeIdentifier name = case name of
+  n | n == listName        -> readName "List"
+  n | n == tupleDataName 2 -> readName "Tuple2"
+  n | n == tupleDataName 3 -> readName "Tuple3"
+  n | n == tupleDataName 4 -> readName "Tuple4"
+  n | n == tupleDataName 5 -> readName "Tuple5"
+  n | n == tupleTypeName 2 -> readName "Tuple2"
+  n | n == tupleTypeName 3 -> readName "Tuple3"
+  n | n == tupleTypeName 4 -> readName "Tuple4"
+  n | n == tupleTypeName 5 -> readName "Tuple5"
+  n | n == unitName        -> readName "Unit"
+  n                        -> n
+
+toValidDataIdentifier :: (Eq n, Namelike n) => n -> n
+toValidDataIdentifier name = case name of
+  n | n == nilName         -> readName "Nil"
+  n | n == consName        -> readName "Cons"
+  n | n == tupleDataName 2 -> readName "Tuple2"
+  n | n == tupleDataName 3 -> readName "Tuple3"
+  n | n == tupleDataName 4 -> readName "Tuple4"
+  n | n == tupleDataName 5 -> readName "Tuple5"
+  n | n == tupleTypeName 2 -> readName "Tuple2"
+  n | n == tupleTypeName 3 -> readName "Tuple3"
+  n | n == tupleTypeName 4 -> readName "Tuple4"
+  n | n == tupleTypeName 5 -> readName "Tuple5"
+  n | n == unitName        -> readName "Unit"
+  n                        -> n

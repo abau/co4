@@ -3,7 +3,7 @@
 {-# language LambdaCase #-}
 
 module CO4.CodeGen
-  (codeGen)
+  (codeGen, codeGenAllocators)
 where
 
 import           Prelude hiding (undefined)
@@ -23,11 +23,11 @@ import           CO4.Unique
 import           CO4.CodeGen.Names
 import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
+import           CO4.CodeGen.TypedAllocator (allocators)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
 import           CO4.Monad (CO4,withCallCache,traced)
-import           CO4.Allocator.Data (known)
-import           CO4.Config (MonadConfig,is,Config(ImportPrelude,Profile,Cache))
+import           CO4.Config (MonadConfig,is,Config(..))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 
 newtype AdtInstantiator u a = AdtInstantiator 
@@ -37,24 +37,27 @@ newtype AdtInstantiator u a = AdtInstantiator
 instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) where
 
   collectAdt adt = do
-    forM_ (zip [0..] $ adtConstructors adt) $ \constructor -> do
-      mkAllocator constructor
-      mkEncodedConstructor constructor
+    is OnlyAllocators >>= \case
+      False -> do
+        zipWithM_ mkEncodedConstructor [0..] $ adtConstructors adt
 
-    decodeInstance adt     >>= tellOne
-    encodeableInstance adt >>= tellOne
+        decodeInstance adt     >>= tellOne
+        encodeableInstance adt >>= tellOne
+
+        is NoAllocators >>= \case
+          True  -> return ()
+          False -> allocators adt >>= tell
+
+      True -> allocators adt >>= tell
     where 
-      mkAllocator          = withConstructor allocatorName   'known
-      mkEncodedConstructor = withConstructor encodedConsName 'encodedConstructor
-
-      withConstructor bindTo callThis (i,CCon name args) = do
+      mkEncodedConstructor i (CCon name args) = do
         paramNames <- forM args $ const $ newName ""
 
-        let exp = appsE (TH.VarE callThis) 
+        let exp = appsE (TH.VarE 'encodedConstructor) 
                       [ intE i
                       , intE $ length $ adtConstructors adt
                       , TH.ListE $ map varE paramNames ]
-        tellOne $ valD' (bindTo name) 
+        tellOne $ valD' (encodedConsName name) 
                 $ if null args 
                   then exp
                   else lamE' paramNames exp
@@ -240,6 +243,17 @@ codeGen program = do
   sigs'   <- mapM instantiateSignature pSignatures
                          
   return $ {-deleteSignatures $-} adts' ++ values' ++ sigs'
+
+-- |@codeGenAllocators p@ only generates all allocators for the types in a co4 program.
+codeGenAllocators :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+codeGenAllocators program = do
+  withPrelude  <- is ImportPrelude
+
+  let (pAdts,_,_) = splitDeclarations program
+      adts        = if withPrelude then pAdts ++ preludeAdtDeclarations
+                                   else pAdts
+
+  execWriterT $ runAdtInstantiator $ collect adts
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and

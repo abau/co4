@@ -31,9 +31,9 @@ trsAck =
     , (a [s [x], s [y]], a [x, a [s [x], y]])
     ]
 
-allocator = kList' [ kTuple2 (kNat' aSym) (uNat 2)
-                   , kTuple2 (kNat' sSym) (uNat 2)
-                   , kTuple2 (kNat' nSym) (uNat 2)
-                   ]
+allocator = allocatorList [ knownTuple2 (fromKnown aSym) (uNat 2)
+                          , knownTuple2 (fromKnown sSym) (uNat 2)
+                          , knownTuple2 (fromKnown nSym) (uNat 2)
+                          ]
 
 result = solveAndTestP trsAck allocator encConstraint constraint
