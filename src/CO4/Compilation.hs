@@ -59,7 +59,7 @@ compile configs program = TH.runIO
              >>= hoInstantiation
              >>= polyInstantiation
 
-  result <- lift (is NoSatchmo) >>= \case
+  result <- is NoSatchmo >>= \case
     True  -> do dump $ show $ pprint co4Program
                 return $ toTH co4Program
 
