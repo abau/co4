@@ -25,7 +25,7 @@ import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
 import           CO4.Algorithms.THInstantiator (toTH)
-import           CO4.CodeGen (codeGen,codeGenAllocators)
+import           CO4.CodeGen (codeGen,codeGenAdt)
 import           CO4.PPrint (pprint)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
@@ -54,7 +54,7 @@ compile configs program = TH.runIO
                      >>= return . addDeclarations parsedPrelude
 
   is OnlyAllocators >>= \case
-    True  -> runCodeGenerator codeGenAllocators inputProgram
+    True  -> runCodeGenerator codeGenAdt inputProgram
     False -> do
       co4Program <-  uniqueLocalNames inputProgram
                  >>= extendLambda

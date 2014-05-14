@@ -3,7 +3,7 @@
 {-# language LambdaCase #-}
 
 module CO4.CodeGen
-  (codeGen, codeGenAllocators)
+  (codeGen, codeGenAdt)
 where
 
 import           Prelude hiding (undefined)
@@ -244,9 +244,9 @@ codeGen program = do
                          
   return $ {-deleteSignatures $-} adts' ++ values' ++ sigs'
 
--- |@codeGenAllocators p@ only generates all allocators for the types in a co4 program.
-codeGenAllocators :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
-codeGenAllocators program = do
+-- |@codeGenAdt p@ only runs ADT related code generators.
+codeGenAdt :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+codeGenAdt program = do
   withPrelude  <- is ImportPrelude
 
   let (pAdts,_,_) = splitDeclarations program
