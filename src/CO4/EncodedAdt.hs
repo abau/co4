@@ -50,7 +50,7 @@ instance Ord EncodedAdt where
   compare Empty  _      = LT
   compare a      b      = compare (_id a) (_id b)
 
-data IntermediateAdt = IntermediateConstructorIndex Integer [EncodedAdt]
+data IntermediateAdt = IntermediateConstructorIndex Int [EncodedAdt]
                      | IntermediateUndefined
                      | IntermediateEmpty
 
@@ -82,7 +82,7 @@ encUndefined = makeWithId (-1) (constant False) [] [] True
 encEmpty :: EncodedAdt
 encEmpty = Empty
 
-encodedConstructor :: Integer -> Integer -> [EncodedAdt] -> CO4 EncodedAdt
+encodedConstructor :: Int -> Int -> [EncodedAdt] -> CO4 EncodedAdt
 encodedConstructor i n args = Exception.assert (i < n) 
                             $ withAdtCache (constant True,flags,args,True)
   where
@@ -123,7 +123,7 @@ flags' e = case flags e of
   Nothing -> error "EncodedAdt.flags': missing flags"
   Just fs -> fs
 
-constantConstructorIndex :: Integer -> EncodedAdt -> Maybe Integer
+constantConstructorIndex :: Int -> EncodedAdt -> Maybe Int
 constantConstructorIndex n adt = case flags adt of
   Nothing -> error "EncodedAdt.constantConstructorIndex: missing flags"
   Just fs -> primitivesToDecimal n fs
@@ -152,7 +152,7 @@ arguments' adt = case arguments adt of
   Nothing   -> error "EncodedAdt.arguments': missing arguments"
   Just args -> args
 
-constructorArgument :: Integer -> Integer -> Integer -> EncodedAdt -> EncodedAdt
+constructorArgument :: Int -> Int -> Int -> EncodedAdt -> EncodedAdt
 constructorArgument _ _ _ adt | isConstantlyUndefined adt = encUndefined
 constructorArgument _ _ _ adt | isEmpty adt               = encEmpty
 constructorArgument n i j adt = 
@@ -172,7 +172,7 @@ constructorArgument n i j adt =
 --  * returns 'Empty', if @d@ is empty or @discriminates n (flags' d) == False@
 --  * returns 'encUndefined', if @isConstantlyUndefined d@ is true
 --  * returns @f@ otherwise
-onValidDiscriminant :: EncodedAdt -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
+onValidDiscriminant :: EncodedAdt -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
 onValidDiscriminant d n f = 
   if isConstantlyUndefined d then return encUndefined
   else if isEmpty d then return encEmpty
@@ -184,7 +184,7 @@ onValidDiscriminant d n f =
 --  * if @d@ is not constantly undefined
 --  * if @d@ is not empty
 --  * if @discriminates n (flags' d) == True@
-isValidDiscriminant :: EncodedAdt -> Integer -> Bool
+isValidDiscriminant :: EncodedAdt -> Int -> Bool
 isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
                                         , not $ isEmpty               adt
                                         , discriminates n (flags' adt)
@@ -193,7 +193,7 @@ isValidDiscriminant adt n = Prelude.and [ not $ isConstantlyUndefined adt
 -- |@ifReachable d i n b@ evaluates the @i@-th branch @b@ of a case-distinction with @n@
 -- constructors on discriminat @d@, if the @i@-th branch is reachable according to @d@, i.e.
 -- if @d@ is not constant or if @d@ is constant @i@.
-ifReachable :: EncodedAdt -> Integer -> Integer -> CO4 EncodedAdt -> CO4 EncodedAdt
+ifReachable :: EncodedAdt -> Int -> Int -> CO4 EncodedAdt -> CO4 EncodedAdt
 ifReachable d i n b = Exception.assert (isValidDiscriminant d n) $
   case primitivesToDecimal n $ flags' d of
     Nothing         -> b
@@ -249,7 +249,7 @@ caseOfArguments adt branchArguments =
     maxArgs = maximum $ map length $ catMaybes branchArguments
 
 toIntermediateAdt :: (Decode m Primitive Bool) 
-                  => EncodedAdt -> Integer -> m IntermediateAdt
+                  => EncodedAdt -> Int -> m IntermediateAdt
 toIntermediateAdt adt _ | isConstantlyUndefined adt = return IntermediateUndefined 
 toIntermediateAdt Empty _                           = return IntermediateEmpty
 toIntermediateAdt (EncodedAdt _ _ _ _ False) _      = error "EncodedAdt.toIntermediateAdt: ADTs must be encoded using prefixfree encoding"
@@ -261,7 +261,7 @@ toIntermediateAdt (EncodedAdt _ definedness flags args True) n =
         where
           intermediate i = IntermediateConstructorIndex i args 
 
-primitivesToDecimal :: Integer -> [Primitive] -> Maybe Integer
+primitivesToDecimal :: Int -> [Primitive] -> Maybe Int
 primitivesToDecimal n ps = 
   if all P.isConstant ps
   then Just $ numeric n $ map (fromJust . P.evaluateConstant) ps

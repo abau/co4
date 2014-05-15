@@ -5,8 +5,8 @@ where
 import qualified Control.Exception as Exception
 import           Data.Tree
 
-data Allocator = Known { _constructorIndex :: Integer
-                       , _numConstructors  :: Integer
+data Allocator = Known { _constructorIndex :: Int
+                       , _numConstructors  :: Int
                        , _arguments        :: [Allocator]
                        }
                | Unknown        [AllocateConstructor]
@@ -54,5 +54,5 @@ constructors allocs = Exception.assert (not $ null allocs)
     toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
 
-known :: Integer -> Integer -> [Allocator] -> Allocator
+known :: Int -> Int -> [Allocator] -> Allocator
 known = Known
