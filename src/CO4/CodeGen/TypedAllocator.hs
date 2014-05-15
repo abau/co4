@@ -8,7 +8,7 @@ import           Control.Monad (forM)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Unique
-import           CO4.Names (Namelike,mapName,toValidTypeIdentifier,toValidDataIdentifier)
+import           CO4.Names (Namelike,mapName,toValidDataIdentifier)
 import           CO4.Allocator.Data
 import           CO4.Allocator.Typed
 import           CO4.THUtil
@@ -83,34 +83,23 @@ fromKnownAllocator adt = do
         toArg name = TH.AppE (TH.VarE 'fromKnown) $ varE name
 
 completeAllocator :: Adt -> [TH.Dec]
-completeAllocator adt = [ mkSignature, mkDefinition ]
+completeAllocator adt = [ TH.InstanceD predicates instType [def] ]
   where
-    allocName   = mapName ("complete" ++) . toValidTypeIdentifier
-    allocType   = typeOfAdt adt
-    typeVars    = adtTypeVariables adt
-    mkSignature = sigD' (allocName $ adtName adt)
-                $ toTH
-                $ foldr SForall
-                  ( SType $ functionType (map tAllocatorType $ map TVar typeVars) 
-                                         (tAllocatorType allocType)) typeVars
+    allocType  = typeOfAdt adt
+    typeVars   = adtTypeVariables adt
 
-    mkDefinition = funD' (allocName $ adtName adt) patterns body
+    predicates = map (\v -> TH.ClassP ''Complete [varT v]) typeVars
+    instType   = TH.AppT (TH.ConT ''Complete) $ toTH allocType
+
+    def        = funD' "complete" [] body
       where
-        patterns = map varP typeVars
-        body     = TH.AppE (TH.VarE 'unsafeTAllocator)
-                 $ TH.AppE (TH.ConE 'Unknown) 
-                 $ TH.ListE 
-                 $ map toConAlloc
-                 $ adtConstructors adt
+        body = TH.AppE (TH.VarE 'unions)
+             $ TH.ListE 
+             $ map toConAlloc
+             $ adtConstructors adt
 
-        toConAlloc (CCon _ cArgs) = TH.AppE (TH.ConE 'AllocateConstructor)
-                                  $ TH.ListE
-                                  $ map toAlloc cArgs
-
-        toAlloc = TH.AppE (TH.VarE 'toAllocator) . go
-          where
-            go (TVar v)    = varE v
-            go (TCon c ts) = appsE (varE $ allocName c) $ map go ts
+        toConAlloc (CCon c cArgs) = appsE (varE $ knownConsAllocatorName c)
+                                  $ map (const $ varE "complete") cArgs
 
 tAllocatorType :: Type -> Type
 tAllocatorType t = tCon "TAllocator" [t]

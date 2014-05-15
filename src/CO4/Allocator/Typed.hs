@@ -1,5 +1,6 @@
 module CO4.Allocator.Typed
-  (TAllocator (toAllocator), FromKnown (..), unsafeTAllocator, union, unions)
+  ( TAllocator (toAllocator), FromKnown (..), Complete (..)
+  , unsafeTAllocator, union, unions)
 where
 
 import CO4.Allocator.Data (Allocator (..), AllocateConstructor (..))
@@ -16,6 +17,9 @@ class FromKnown a where
 
 instance FromKnown a => FromKnown (TAllocator a) where
   fromKnown (TAllocator a) = TAllocator a
+
+class Complete a where
+  complete :: TAllocator a
 
 union :: TAllocator t -> TAllocator t -> TAllocator t
 union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2

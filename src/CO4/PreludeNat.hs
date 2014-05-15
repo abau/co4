@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.PreludeNat 
-  ( Nat, width, value, nat, uNat, knownNat, completeNat
+  ( Nat, width, value, nat, uNat, knownNat
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat
   , maxNat, minNat, timesNat
@@ -73,15 +73,15 @@ instance Decode SAT EncodedAdt Nat where
 instance FromKnown Nat where
   fromKnown n = knownNat (width n) (value n)
 
+instance Complete Nat where
+  complete = uNat maxBound
+
 uNat :: Int -> TAllocator Nat
 uNat = unsafeTAllocator . BuiltInUnknown
 
 knownNat :: Int -> Integer -> TAllocator Nat
 knownNat 0 0 = unsafeTAllocator $ BuiltInKnown []
 knownNat w i = unsafeTAllocator $ BuiltInKnown $ toBinary (Just w) i 
-
-completeNat :: TAllocator Nat
-completeNat = uNat maxBound
 
 -- * Plain functions on naturals
 

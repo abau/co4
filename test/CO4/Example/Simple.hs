@@ -26,6 +26,6 @@ $( [d| data Bool = False | True deriving Show
    |] >>= compile []
   )
 
-allocator = completeBool
+allocator = complete
 
 result = solveAndTestP True allocator encConstraint constraint

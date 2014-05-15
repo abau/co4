@@ -23,7 +23,7 @@ $( compileFile [] "test/CO4/Example/LoopTrsToyamaStandalone.hs" )
 uList 0 _  = knownNil
 uList i a  = union knownNil $ knownCons a $ uList (i-1) a
 
-uName = completeName
+uName = complete
 
 uTerm 0 = unions [ knownV uName, knownA, knownB, knownC ]
 
@@ -41,7 +41,7 @@ uStep termDepth numSubst = knownStep (uTerm termDepth)
                                      (uSubstitution numSubst termDepth)
                                      (uTerm termDepth)
 
-uPos = completePos
+uPos = complete
 uPosition l               = uList l uPos
 uSubstitution l termDepth = uList l (knownPair uName (uTerm termDepth))
 

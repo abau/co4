@@ -33,7 +33,7 @@ cSymbol xs = case xs of
                   ]
 
 -- should be kList !
-uSymbol bits = uList bits completeBool
+uSymbol bits = uList bits complete
 
 -- this is indeed uList
 uWord width bits = uList width (uSymbol bits)
