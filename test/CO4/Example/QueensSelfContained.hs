@@ -6,7 +6,7 @@
 module CO4.Example.QueensSelfContained
 where
 
-import           Prelude (Int,Show (..),(-),(>>=),IO)
+import           Prelude (Int,Show (..),(-),(>>=),IO,($))
 import qualified Data.Maybe as M
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
@@ -93,8 +93,7 @@ $( [d|  data Bool   = False | True            deriving Show
   )
 
 natAllocator 0 = knownZ
-natAllocator i = unsafeTAllocator 
-                (constructors [ M.Just [] , M.Just [toAllocator (natAllocator (i-1))]])
+natAllocator i = union knownZ $ knownS $ natAllocator $ i-1
 
 listAllocator 0 _ = knownNil
 listAllocator i a = knownCons a (listAllocator (i-1) a)

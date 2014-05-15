@@ -18,6 +18,7 @@ $( [d|
                | Green 
                | Blue
                | Mix [Color]
+               deriving Show
 
     constraint c = case c of
       Blue  -> True
@@ -30,10 +31,8 @@ $( [d|
    |] >>= compile [ImportPrelude] 
   )
 
-uColor 0 = unsafeTAllocator $ constructors [ Just [], Just [], Just [], Nothing ]
-uColor i = unsafeTAllocator $ constructors [ Just [], Just [], Just []
-                                           , Just [ toAllocator $ uList 3 (uColor (i-1)) ] ]
-
+uColor 0  = unions [ knownRed, knownGreen, knownBlue ]
+uColor i  = union (uColor 0) (knownMix $ uList 3 (uColor (i - 1)))
 allocator = uColor 1
 
 result = solveAndTest allocator encConstraint constraint

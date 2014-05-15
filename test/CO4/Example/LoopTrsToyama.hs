@@ -20,28 +20,16 @@ import           CO4.Example.LoopTrsToyamaStandalone
 
 $( compileFile [] "test/CO4/Example/LoopTrsToyamaStandalone.hs" )
 
-uList 0 _  = unsafeTAllocator $ constructors [ M.Just [] , M.Nothing ]
-uList i a  = unsafeTAllocator $ constructors [ M.Just [] , M.Just [ toAllocator a
-                                                                  , toAllocator $ uList (i-1) a ] ]
+uList 0 _  = knownNil
+uList i a  = union knownNil $ knownCons a $ uList (i-1) a
 
 uName = completeName
 
-uTerm 0 = unsafeTAllocator $ constructors [ M.Just [ toAllocator uName ]
-                                          , M.Nothing
-                                          , M.Just []
-                                          , M.Just []
-                                          , M.Just []
-                                          ]
+uTerm 0 = unions [ knownV uName, knownA, knownB, knownC ]
 
-uTerm depth = unsafeTAllocator $ constructors 
-  [ M.Just [ toAllocator uName ]
-  , M.Just [ toAllocator $ uTerm (depth - 1)
-           , toAllocator $ uTerm (depth - 1)
-           , toAllocator $ uTerm (depth - 1) ]
-  , M.Just []
-  , M.Just []
-  , M.Just []
-  ]
+uTerm depth = union (uTerm 0) $ knownF (uTerm $ depth - 1)
+                                       (uTerm $ depth - 1)
+                                       (uTerm $ depth - 1)
 
 uRule termDepth = knownRule (uList 2 uName)
                             (uTerm termDepth)

@@ -69,7 +69,7 @@ allConstructorsArgumentTypes :: Adt -> [Type]
 allConstructorsArgumentTypes = concatMap cConArgumentTypes . adtConstructors
 
 -- |Replaces an element at a certain position in a list
-replaceAt :: Int -> a -> [a] -> [a]
+replaceAt :: Integral i => i -> a -> [a] -> [a]
 replaceAt _ _ []     = []
 replaceAt 0 y (_:xs) = y : xs
 replaceAt i y (x:xs) = x : ( replaceAt (i-1) y xs )
