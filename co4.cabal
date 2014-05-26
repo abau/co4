@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.74
+Version:        	0.0.75
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -83,17 +83,6 @@ Test-Suite co4-examples
   Build-Depends:      base
                     , template-haskell
                     , containers
-                    , satchmo-core
-                    , tpdb
-                    , co4
-
-Executable termcomp2014
-  hs-source-dirs: tc
-  Main-is:            CO4/Test/TermComp2014/Main.hs
-  Ghc-options:        -W -fno-warn-incomplete-patterns
-  Build-Depends:      base
-                    , containers
-                    , mtl
                     , satchmo-core
                     , tpdb
                     , co4
