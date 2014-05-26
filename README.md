@@ -75,22 +75,25 @@ As we're using definitions of Haskell's prelude (`map`,`foldl`,etc.),
 we pass the compiler flag `ImportPrelude`.
 
 Next, we need to setup an allocator for the unknown values.
-Allocators for types of the prelude (`uList`,`uBool`) are provided by CO4.
+Allocators may represent the whole problem domain (`complete`) or certain subsets.
+Because we are dealing with lists, `complete` is no option: 
+we have to restrict the problem domain to a finite set.
+So we fix the width of the binary values to 8 bit:
 
     bitWidth  = 8
-    uNat      = uList bitWidth uBool
+    uBinary   = uList bitWidth complete
 
 As `constraint` is a constraint over a pair of naturals, the final allocator is
 
-    allocator = uTuple2 uNat uNat
+    allocator = knownTuple2 uBinary uBinary
 
 Finally, we want to solve the compiled constraint system `encConstraint`.
 CO4 provides several solving functions, e.g.
-`solveAndTestP :: k -> Allocator -> ParamConstraintSystem -> (k -> a -> b) -> IO (Maybe a)`
+`solveAndTestP :: k -> TAllocator a -> ParamConstraintSystem -> (k -> a -> b) -> IO (Maybe a)`
 solves a parametrized constraint system with 
 
  - `k` being the parameter
- - `Allocator` being an allocator for values of type `a`
+ - `TAllocator a` being an allocator for values of type `a`
  - `ParamConstraintSystem` being the parametrized constraint system
  - `(k -> a -> b)` being the original constraint system. The found solution is
  checked against this function in order to verify the solution.
@@ -114,16 +117,19 @@ We call `result` in a ghci session to find a factorization of 143:
     $ ghci -isrc -itest test/CO4/Example/Binary.hs
     *CO4.Example.Binary> result 143
     Start producing CNF
-    Cache hits: 164 (10%), misses: 1457 (89%)
+    Allocator: #variables: 34, #clauses: 18
+    Cache hits: 162 (10%), misses: 1441 (89%)
+    Toplevel: #variables: 1, #clauses: 3
     CNF finished
-    #variables: 3602, #clauses: 11614, #literals: 32068
+    #variables: 3049, #clauses: 10155, #literals: 28409, clause density: 3.3306001967858316
+    #variables (Minisat): 3049, #clauses (Minisat): 10154, clause density: 3.3302722204001314
     #clauses of length 1:	1
-    #clauses of length 2:	2788
-    #clauses of length 3:	8824
+    #clauses of length 2:	2066
+    #clauses of length 3:	8086
     #clauses of length 9:	2
 
     Starting solver
-    Solver finished in 1.6667e-2 seconds (result: True)
+    Solver finished in 1.6666e-2 seconds (result: True)
     Starting decoder
     Decoder finished
     Test: True
