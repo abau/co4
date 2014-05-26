@@ -29,6 +29,7 @@ import           CO4.EncodedAdt
 import           CO4.Monad (CO4,withCallCache,traced)
 import           CO4.Config (MonadConfig,is,Config(..))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
+import           CO4.PPrint
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -152,7 +153,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
             Match (PCon _ []) exp -> instantiate exp
 
             Match (PCon _ ps) exp -> do
-              bindings' <- zipWithM mkBinding [0..] psNames
+              bindings' <- zipWithM mkBinding [0..] $ map toPsName ps
               exp'      <- instantiate exp
               return $ letE' bindings' exp'
               where 
@@ -163,7 +164,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                 eConstructorArg i = appsE (TH.VarE 'constructorArgument) 
                                           [ intE numCons, intE i, intE j, varE e'Name ]
 
-                psNames = map (\(PVar p) -> nUntyped p) ps
+                toPsName (PVar p) = nUntyped p
+                toPsName x        = error $ "CodeGen.instantiateMatch.toPsName: invalid nested pattern (" ++ show (pprint x) ++ ")"
 
           -- Finds the corresponding match for constructor @c@
           matchFromConstructor c = 
