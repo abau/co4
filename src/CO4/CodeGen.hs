@@ -100,6 +100,12 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
             [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
             _               -> error $ "Algorithms.Eitherize.instantiateApp: nat"
 
+          n | n == "assertKnownLoc" -> case args of
+            [ECon l,ECon c,_] -> bindAndApplyArgs 
+                                   (\[e'] -> appsE (varE fName') [nameToIntE l,nameToIntE c,e'])
+                                   $ drop 2 args'
+            _                 -> error $ "Algorithms.Eitherize.instantiateApp: assertKnownLoc"
+
           _ | cache  -> bindAndApplyArgs (\args'' -> 
                           appsE (TH.VarE 'withCallCache) 
                           [ TH.TupE [ stringE fName', TH.ListE args'']

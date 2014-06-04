@@ -3,6 +3,7 @@ module CO4.Prelude
   ( parsePrelude, preludeAdtDeclarations, unparsedNames, unparsedPreludeContext
   , uList, kList, allocatorList
   , assertKnown, encAssertKnownProf, encAssertKnown
+  , assertKnownLoc, encAssertKnownLocProf, encAssertKnownLoc
   , assertDefined, encAssertDefined, encAssertDefinedProf
   , dumpEncoded, encDumpEncoded, encDumpEncodedProf
   , module CO4.PreludeNat
@@ -17,7 +18,7 @@ import           Satchmo.Core.MonadSAT (note)
 import           CO4.Language 
 import           CO4.Algorithms.HindleyMilner.Util (Context,bind,emptyContext,toList)
 import           CO4.TypesUtil (functionType)
-import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
+import           CO4.Frontend.HaskellSrcExts (toTHDeclaration)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
@@ -31,9 +32,8 @@ import           CO4.PreludeBool
 parsePrelude :: MonadUnique u => u [Declaration]
 parsePrelude = do
   Program _ decs <- parsePreprocessedTHDeclarations
-                  $ toTHDeclarations 
-                  $ HE.Module (HE.SrcLoc "CO4Prelude" 0 0) (HE.ModuleName "CO4Prelude")
-                              [] Nothing Nothing [] (main : preludeFunctionDeclarations)
+                  $ map toTHDeclaration
+                  $ main : preludeFunctionDeclarations
   return decs
   where
     -- because parsePreprocessedProgram needs a main function:
@@ -133,6 +133,7 @@ unparsedPreludeContext = bind (
   , ("orNat"         , SType $ functionType [natT,natT] natT)
   , ("xorNat"        , SType $ functionType [natT,natT] natT)
   , ("assertKnown"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
+  , ("assertKnownLoc", SForall a $ SType $ functionType [intT,intT,TVar a] $ TVar a)
   , ("assertDefined" , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("dumpEncoded"   , SForall a $ SType $ functionType [TVar a] $ TVar a)
   , ("&&"            , SType $ functionType [boolT,boolT] boolT)
@@ -145,6 +146,7 @@ unparsedPreludeContext = bind (
     a     = UntypedName "a"
     boolT = TCon boolName []
     natT  = TCon natTypeName []
+    intT  = TCon intName []
 
     fromAdt (Adt name vars conss) = map fromCons conss
       where
@@ -179,7 +181,7 @@ allocatorList = unsafeTAllocator
 assertKnown :: a -> a
 assertKnown = id
 
-encAssertKnown,encAssertKnownProf  :: EncodedAdt -> CO4 EncodedAdt
+encAssertKnown,encAssertKnownProf :: EncodedAdt -> CO4 EncodedAdt
 encAssertKnown e | isInvalid e = return e
 encAssertKnown e = 
   if all isConstant (flags' e)
@@ -187,10 +189,22 @@ encAssertKnown e =
   else abortWithStackTrace "Prelude.encAssertKnown: assertion 'assertKnown' failed" 
 encAssertKnownProf = traced "assertKnown" . encAssertKnown
 
+assertKnownLoc :: Int -> Int -> a -> a
+assertKnownLoc _ _ = id
+
+encAssertKnownLoc,encAssertKnownLocProf :: Int -> Int -> EncodedAdt -> CO4 EncodedAdt
+encAssertKnownLoc _ _ e | isInvalid e = return e
+encAssertKnownLoc line col e = 
+  if all isConstant (flags' e)
+  then return e
+  else abortWithStackTrace $ unwords [ "Prelude.encAssertKnownLoc: assertion 'assertKnown' failed" 
+                                     , show (line,col) ]
+encAssertKnownLocProf line col e = traced "assertKnown" $ encAssertKnownLoc line col e
+
 assertDefined :: a -> a
 assertDefined = id
 
-encAssertDefined,encAssertDefinedProf  :: EncodedAdt -> CO4 EncodedAdt
+encAssertDefined,encAssertDefinedProf :: EncodedAdt -> CO4 EncodedAdt
 encAssertDefined e = 
   if isConstantlyDefined e 
   then return e
