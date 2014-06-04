@@ -1,6 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Config 
+  ( MonadConfig (..), Config (..), Configs, ConfigurableT
+  , configurable, mapConfigurableT, is, when', whenNot', fromConfigs
+  , instantiationDepth, dumpTo
+  )
 where
 
 import Control.Applicative (Applicative)
@@ -21,16 +25,19 @@ data Config  = NoSatchmo
              | NoAllocators
              deriving (Eq,Show)
 
-type Configs      = [Config]
+type Configs = [Config]
 
 class (Monad m) => MonadConfig m where
   configs :: m Configs
 
-newtype ConfigurableT m a = ConfigurableT { run :: ReaderT Configs m a }
+newtype ConfigurableT m a = ConfigurableT { runConfigurableT :: ReaderT Configs m a }
   deriving (Monad, Functor, Applicative, MonadReader Configs, MonadTrans)
 
 configurable :: Configs -> ConfigurableT m a -> m a
-configurable configs c = runReaderT (run c) configs
+configurable configs c = runReaderT (runConfigurableT c) configs
+
+mapConfigurableT :: (m a -> n b) -> ConfigurableT m a -> ConfigurableT n b
+mapConfigurableT f = ConfigurableT . mapReaderT f . runConfigurableT
 
 is :: (MonadConfig m,Monad m) => Config -> m Bool
 is c = liftM (elem c) configs

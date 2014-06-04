@@ -1,25 +1,25 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving  #-}
 module CO4.Unique
-  ( MonadUnique(..), UniqueT, Unique, runUnique, runUniqueT, mapUnique
-  , newName, newNamelike, originalName)
+  ( MonadUnique(..), UniqueT, Unique, withUnique, withUniqueT
+  , newName, newNamelike, originalName, liftListen, liftPass)
 where
 
-import Control.Applicative (Applicative)
-import Control.Monad.Identity
-import Control.Monad.State.Strict
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.Writer (WriterT)
-import Control.Monad.RWS (RWST)
-import Language.Haskell.TH.Syntax (Quasi(..))
-import Data.Monoid (Monoid)
-import CO4.Names (Namelike,mapName,fromName,readName)
-import CO4.Language (Name)
+import           Control.Applicative (Applicative)
+import           Control.Monad.Identity
+import           Control.Monad.State.Strict
+import qualified Control.Monad.Trans.State.Strict as State
+import           Control.Monad.Reader (ReaderT)
+import           Control.Monad.Writer
+import           Control.Monad.RWS (RWST)
+import           Language.Haskell.TH.Syntax (Quasi(..))
+import           CO4.Names (Namelike,mapName,fromName,readName)
+import           CO4.Language (Name)
 
 class (Monad m) => MonadUnique m where
   newString :: String -> m String
   newInt    :: m Int
 
-newtype UniqueT m a = UniqueT (StateT Int m a)
+newtype UniqueT m a = UniqueT { runUniqueT :: StateT Int m a }
   deriving (Monad, Functor, Applicative, MonadTrans)
 
 newtype Unique a = Unique (UniqueT Identity a)
@@ -38,15 +38,11 @@ instance (Monad m) => MonadUnique (UniqueT m) where
 
 separator = '_'
 
-runUniqueT :: Monad m => UniqueT m a -> m a
-runUniqueT (UniqueT u) = evalStateT u 0
+withUniqueT :: Monad m => UniqueT m a -> m a
+withUniqueT (UniqueT u) = evalStateT u 0
 
-runUnique :: Unique a -> a
-runUnique (Unique u) = runIdentity $ runUniqueT u
-
-mapUnique :: Monad m => Unique a -> UniqueT m a
-mapUnique (Unique (UniqueT (StateT (run)))) = 
-  UniqueT $ StateT $ return . runIdentity . run
+withUnique :: Unique a -> a
+withUnique (Unique u) = runIdentity $ withUniqueT u
 
 -- |@newName n@ returns an unique name with prefix @n@
 newName :: (MonadUnique m, Namelike n) => n -> m Name
@@ -97,3 +93,9 @@ instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
   qAddModFinalizer    = lift . qAddModFinalizer
   qGetQ               = lift   qGetQ
   qPutQ               = lift . qPutQ
+
+liftListen :: Monad m => (m (a, Int) -> m ((a, Int), w)) -> UniqueT m a -> UniqueT m (a, w)
+liftListen listen = UniqueT . State.liftListen listen . runUniqueT
+
+liftPass :: Monad m => (m ((a, Int), b) -> m (a, Int)) -> UniqueT m (a, b) -> UniqueT m a
+liftPass pass = UniqueT . State.liftPass pass . runUniqueT

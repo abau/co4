@@ -12,7 +12,7 @@ import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Q,addDependentFile)
 import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
-import           CO4.Unique (MonadUnique,runUniqueT)
+import           CO4.Unique (MonadUnique,withUniqueT)
 import           CO4.THUtil (unqualifiedNames)
 import           CO4.Util (addDeclarations)
 import           CO4.Prelude (parsePrelude)
@@ -43,7 +43,7 @@ compileFile configs filePath =
 compile :: [Config] -> [TH.Dec] -> Q [TH.Dec]
 compile configs program = TH.runIO 
                         $ configurable configs 
-                        $ runUniqueT 
+                        $ withUniqueT 
                         $ do
 
   parsedPrelude <- is ImportPrelude >>= \case
