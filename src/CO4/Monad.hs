@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Monad
   ( CO4, SAT, newId, getCallStackTrace, isProfileRun, setProfileRun, abortWithStackTrace
-  , runCO4, withCallCache, withAdtCache, traced
+  , runCO4, withCallCache, withAdtCache, traced, profiledCase
   )
 where
 
@@ -15,7 +15,7 @@ import qualified Satchmo.Core.MonadSAT as MonadSAT
 import           CO4.Cache 
 import           CO4.Profiling as P
 import           CO4.Stack
-import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithId)
+import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithId,constantConstructorIndex)
 
 type SAT          = Satchmo.Core.SAT.Minisat.SAT
 type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt], Bool)
@@ -152,3 +152,12 @@ traced name action = do
 
   modify $! onCallStack $! popFromStack
   return result
+
+profiledCase :: Int -> Int -> Int -> EncodedAdt -> CO4 EncodedAdt
+profiledCase line col numCons discriminant = do
+  modify $! onProfile $! profileCase (line,col) isKnown
+  return discriminant
+  where
+    isKnown = case constantConstructorIndex numCons discriminant of 
+      Nothing -> False
+      Just _  -> True

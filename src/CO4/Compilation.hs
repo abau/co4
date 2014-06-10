@@ -41,7 +41,7 @@ compileFile configs filePath =
   TH.runIO (HE.parseFile filePath) >>= \case
     HE.ParseOk _module -> do 
       addDependentFile filePath
-      compile (HideSource : configs) $ toTHDeclarations _module
+      compile (HideSource : configs) $ toTHDeclarations configs _module
     HE.ParseFailed loc msg -> error $ concat 
                                 [ "Compilation.compileFile: can not compile `"
                                 , filePath, "` (", msg, " at ", show loc, ")" ]

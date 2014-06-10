@@ -1,5 +1,5 @@
 module CO4.EncodedAdt
-  (EncodedAdt,Primitive,makeWithId)
+  (EncodedAdt,Primitive,makeWithId,constantConstructorIndex)
 where
 
 import Satchmo.Core.Boolean (Boolean)
@@ -11,3 +11,5 @@ instance Eq  EncodedAdt
 instance Ord EncodedAdt
 
 makeWithId :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> Bool -> EncodedAdt
+
+constantConstructorIndex :: Int -> EncodedAdt -> Maybe Int

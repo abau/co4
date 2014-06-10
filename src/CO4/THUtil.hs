@@ -44,6 +44,11 @@ caseE d = TH.CaseE d . map (\(p,m) -> TH.Match p (TH.NormalB m) [])
 intE :: Integral a => a -> TH.Exp
 intE = TH.LitE . TH.IntegerL . toInteger
 
+nameToIntE :: Namelike n => n -> TH.Exp
+nameToIntE n = intE i
+  where
+    i = (read $ fromName n) :: Integer
+
 stringE :: Namelike n => n -> TH.Exp
 stringE = TH.LitE . TH.StringL . fromName
 

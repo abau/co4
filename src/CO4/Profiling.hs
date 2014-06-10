@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module CO4.Profiling 
   ( numCalls, numVariables, numClauses, incNumVariables, incNumClauses
+  , profileCase
   , Profile, currentFunction, currentInner, emptyProfile, onCurrentInner
   , resetCurrentInner, callFunction, returnTo, incInnerUnderBy, printProfile
   )
@@ -39,19 +40,40 @@ incAllBy calls vars clauses p =
     , numClauses   = clauses + numClauses   p
     }
 
-type FunProfileMap = M.Map String FunProfileData
+data CaseProfileData = CaseProfileData { numEvaluations :: ! Int
+                                       , numKnown       :: ! Int
+                                       , numUnknown     :: ! Int
+                                       }
+                                       deriving Show
+
+emptyCaseProfileData :: CaseProfileData
+emptyCaseProfileData = CaseProfileData 0 0 0
+
+incNumKnown :: CaseProfileData -> CaseProfileData
+incNumKnown c = c { numEvaluations = 1 + numEvaluations c
+                  , numKnown       = 1 + numKnown       c
+                  }
+
+incNumUnknown :: CaseProfileData -> CaseProfileData
+incNumUnknown c = c { numEvaluations = 1 + numEvaluations c
+                    , numUnknown     = 1 + numUnknown     c
+                    }
+
+type FunProfileMap  = M.Map String    FunProfileData
+type CaseProfileMap = M.Map (Int,Int) CaseProfileData
 
 data Profile = Profile { innerUnder      :: ! FunProfileMap
                        , inner           :: ! FunProfileMap
                        , currentFunction :: ! String
                        , currentInner    :: ! FunProfileData
+                       , caseProfile     :: ! CaseProfileMap
                        }
 
 initName :: String
 initName = "__init"
 
 emptyProfile :: Profile
-emptyProfile = Profile M.empty M.empty initName emptyFunProfileData
+emptyProfile = Profile M.empty M.empty initName emptyFunProfileData M.empty
 
 onCurrentInner :: (FunProfileData -> FunProfileData) -> Profile -> Profile
 onCurrentInner f p = p { currentInner = f $ currentInner p }
@@ -98,16 +120,36 @@ incInnerUnderBy vars clauses name p =
         ) name $ innerUnder p 
     }
 
+profileCase :: (Int, Int) -> Bool -> Profile -> Profile
+profileCase pos isKnown p = 
+  p { caseProfile = M.alter (\case
+        Nothing -> Just $ inc $ emptyCaseProfileData
+        Just d  -> Just $ inc d
+      ) pos $ caseProfile p
+    }
+  where
+    inc = if isKnown then incNumKnown else incNumUnknown
+
 printProfile :: (MonadIO m) => Profile -> m ()
 printProfile profile = do 
-  printProfileMap "inner-under" innerUnder profile
-  printProfileMap "inner"       inner      profile
+  printFunProfileMap  "inner-under" $ innerUnder  profile
+  printFunProfileMap  "inner"       $ inner       profile
+  printCaseProfileMap               $ caseProfile profile
   where
-    printProfileMap msg p profile =
-      when (not $ M.null $ p profile) $
+    printFunProfileMap msg m =
+      when (not $ M.null m) $
         liftIO $ hPutStrLn stderr $ unlines 
                $ (concat ["Profiling (",msg,"): "] :) 
                $ map show 
                $ reverse
                $ sortBy (compare `on` (numVariables . snd))
-               $ M.toList $ p profile
+               $ M.toList m
+
+    printCaseProfileMap m =
+      when (not $ M.null m) $
+        liftIO $ hPutStrLn stderr $ unlines 
+               $ ("Cases: " :) 
+               $ map show 
+               $ reverse
+               $ sortBy (compare `on` (numUnknown . snd))
+               $ M.toList m

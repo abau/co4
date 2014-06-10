@@ -11,33 +11,46 @@ import           Language.Haskell.Exts.Annotated.Simplify (sDecl)
 import qualified Language.Haskell.Meta as HM
 import qualified Language.Haskell.TH as TH
 import           Debug.Trace (trace)
+import           CO4.Config (Configs, Config (Profile,ImportPrelude))
 
-toTHDeclarations :: HEA.Module HEA.SrcSpanInfo -> [TH.Dec]
-toTHDeclarations = \case 
+toTHDeclarations :: Configs -> HEA.Module HEA.SrcSpanInfo -> [TH.Dec]
+toTHDeclarations configs = \case 
   HEA.Module _ _ _ imports decs ->
     if null imports 
     then result
     else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be deleted" result
     where 
-      result  = map convert decs
-      convert = toTHDeclaration . sDecl . everywhere (mkT toAssertKnownLoc)
+      result            = map convert decs
+      convert           = toTHDeclaration 
+                        . sDecl 
+                        . everywhere (mkT $ mapExp markDiscriminants)
+
+      markDiscriminants = (Profile `elem` configs) && (ImportPrelude `elem` configs)
 
 toTHDeclaration :: HE.Decl -> TH.Dec
 toTHDeclaration = HM.toDec
 
-toAssertKnownLoc :: HEA.Exp HEA.SrcSpanInfo -> HEA.Exp HEA.SrcSpanInfo 
-toAssertKnownLoc exp = case exp of
+mapExp :: Bool -> HEA.Exp HEA.SrcSpanInfo -> HEA.Exp HEA.SrcSpanInfo 
+mapExp markDiscriminants exp = case exp of
   HEA.App loc (HEA.Var _ (HEA.UnQual _ (HEA.Ident _ "assertKnown"))) e ->
-    HEA.App noLoc
-      (HEA.App noLoc 
-        (HEA.App noLoc
-          (HEA.Var noLoc (HEA.UnQual noLoc (HEA.Ident noLoc "assertKnownLoc")))
-          (HEA.Lit noLoc $ HEA.Int noLoc line $ show line)
-        )
-        (HEA.Lit noLoc $ HEA.Int noLoc col  $ show col)
-      ) e
-    where
-      line  = fromIntegral $ HE.startLine   loc
-      col   = fromIntegral $ HE.startColumn loc
-      noLoc = HE.noInfoSpan $ HE.mkSrcSpan HE.noLoc HE.noLoc
+    call "assertKnownLoc" loc e
+
+  HEA.Case loc discriminant matches | markDiscriminants -> 
+    HEA.Case loc (call "markedDiscriminant" loc discriminant) matches
+
   _ -> exp
+
+  where
+    call f loc inner = 
+      HEA.App noLoc
+        (HEA.App noLoc 
+          (HEA.App noLoc
+            (HEA.Var noLoc (HEA.UnQual noLoc (HEA.Ident noLoc f)))
+            (HEA.Lit noLoc $ HEA.Int noLoc line $ show line)
+          )
+          (HEA.Lit noLoc $ HEA.Int noLoc col $ show col)
+        ) inner
+      where
+        line  = fromIntegral $ HE.startLine   loc
+        col   = fromIntegral $ HE.startColumn loc
+        noLoc = HE.noInfoSpan $ HE.mkSrcSpan HE.noLoc HE.noLoc

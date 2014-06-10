@@ -26,7 +26,7 @@ import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.CodeGen.TypedAllocator (allocators)
 import           CO4.EncodedAdt 
   (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
-import           CO4.Monad (CO4,withCallCache,traced)
+import           CO4.Monad (CO4,withCallCache,traced,profiledCase)
 import           CO4.Config (MonadConfig,is,Config(..))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 import           CO4.PPrint
@@ -112,25 +112,31 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
                           , appsE (varE fName') args''
                           ]) args'
           _         -> bindAndApplyArgs (appsE $ varE fName') args'
-    where 
-      nameToIntE = intE . read . fromName
 
-  instantiateCase (ECase e ms) = do
-    e'Name <- newName "bindCase"
-    e'     <- instantiate e
-
+  instantiateCase (ECase e ms) = 
     getAdt >>= \case 
       Nothing  -> error "Algorithms.Eitherize.instantiateCase: no ADT found"
       Just adt -> do
+        let numCons = length $ adtConstructors adt
+
+        e'Name <- newName "bindCase"
+        e'     <- case e of 
+            EApp (EVar f) [ECon l, ECon c, d] | fromName f == "markedDiscriminant" -> do
+              d' <- instantiate d
+              bindAndApplyArgs 
+                (\[dName] -> appsE (TH.VarE 'profiledCase) [ nameToIntE l
+                                                           , nameToIntE c
+                                                           , intE numCons
+                                                           , dName]) [d']
+            _ -> instantiate e
+
         ms' <- instantiateMatches e'Name adt
 
         let e'Binding = bindS' e'Name e'
-            numCons   = length $ adtConstructors adt
 
         if numCons == 1
           then return $ TH.DoE [ e'Binding, TH.NoBindS $ checkValidity e'Name numCons
                                                        $ head ms' ]
-
           else do 
             caseOfE <- bindAndApply 
                          (\ms'Names -> [ varE e'Name, TH.ListE $ map varE ms'Names ])
