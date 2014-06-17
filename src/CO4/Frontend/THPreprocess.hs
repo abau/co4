@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 -- |Template Haskell preprocessing
 module CO4.Frontend.THPreprocess
   ( preprocessDecs, noSignatureExpression, noSignaturePattern, noSignatureDeclarations)
@@ -35,7 +36,7 @@ preprocessDecs decs = everywhereM
 onExp :: MonadUnique u => Exp -> u Exp
 onExp a = noInfixAppExpression a >>= noNestedPatternsInLambdaParameters 
       >>= return . noParensExpression . noListExpression . noTupleExpression
-                 . noSignatureExpression
+                 . noSignatureExpression . noCondExpression
 
 onPat :: MonadUnique u => Pat -> u Pat
 onPat a = noWildcardPattern a
@@ -96,6 +97,13 @@ noSignatureExpression :: Exp -> Exp
 noSignatureExpression exp = case exp of 
   SigE e _ -> e
   _        -> exp
+
+noCondExpression :: Exp -> Exp
+noCondExpression exp = case exp of
+  CondE c t f -> CaseE c [ Match (ConP 'True  []) (NormalB t) []
+                         , Match (ConP 'False []) (NormalB f) []
+                         ]
+  _           -> exp
 
 -- |Transforms nested patterns in arguments of lambda expressions into case expressions
 -- over those arguments

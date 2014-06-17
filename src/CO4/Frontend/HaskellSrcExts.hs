@@ -38,9 +38,17 @@ mapExp markDiscriminants exp = case exp of
   HEA.Case loc discriminant matches | markDiscriminants -> 
     HEA.Case loc (call "markedDiscriminant" loc discriminant) matches
 
+  HEA.If loc c t f -> 
+      mapExp markDiscriminants
+    $ HEA.Case loc c 
+    [ HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "True" ) []) (HEA.UnGuardedAlt noLoc t) Nothing
+    , HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "False") []) (HEA.UnGuardedAlt noLoc f) Nothing
+    ]
+
   _ -> exp
 
   where
+    noLoc            = HE.noInfoSpan $ HE.mkSrcSpan HE.noLoc HE.noLoc
     call f loc inner = 
       HEA.App noLoc
         (HEA.App noLoc 
@@ -53,4 +61,3 @@ mapExp markDiscriminants exp = case exp of
       where
         line  = fromIntegral $ HE.startLine   loc
         col   = fromIntegral $ HE.startColumn loc
-        noLoc = HE.noInfoSpan $ HE.mkSrcSpan HE.noLoc HE.noLoc
