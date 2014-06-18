@@ -11,6 +11,7 @@ import qualified Control.Monad.Trans.State.Strict as State
 import           Control.Monad.Reader (ReaderT)
 import           Control.Monad.Writer
 import           Control.Monad.RWS (RWST)
+import           Control.Monad.Signatures (Listen,Pass)
 import           Language.Haskell.TH.Syntax (Quasi(..))
 import           CO4.Names (Namelike,mapName,fromName,readName)
 import           CO4.Language (Name)
@@ -94,8 +95,8 @@ instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
   qGetQ               = lift   qGetQ
   qPutQ               = lift . qPutQ
 
-liftListen :: Monad m => (m (a, Int) -> m ((a, Int), w)) -> UniqueT m a -> UniqueT m (a, w)
+liftListen :: Monad m => Listen w m (a,Int) -> Listen w (UniqueT m) a
 liftListen listen = UniqueT . State.liftListen listen . runUniqueT
 
-liftPass :: Monad m => (m ((a, Int), b) -> m (a, Int)) -> UniqueT m (a, b) -> UniqueT m a
+liftPass :: Monad m => Pass w m (a,Int) -> Pass w (UniqueT m) a
 liftPass pass = UniqueT . State.liftPass pass . runUniqueT
