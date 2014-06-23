@@ -264,36 +264,30 @@ encComparePrimitives_linear a b = case (a,b) of
 -}
 
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat = catchInvalid2 $ onFlags2 $ ripple_carry_adder
+encPlusNat = catchInvalid2 $ onFlags2' $ \a b -> do
+  (carry, result) <- ripple_carry_adder a b
+  return (not carry, result)
 encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
 encPlus'Nat,encPlus'NatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlus'Nat = catchInvalid2 $ onFlags2 $ ripple_carry_adder_with_overflow
 encPlus'NatProf a b = traced "plus'Nat" $ encPlus'Nat a b
 
+ripple_carry_adder :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
 ripple_carry_adder (a:as) (b:bs) = do
-  (z,c) <- halfAdder a b
-  zs <- addWithCarry c as bs
-  return $ z : zs
+  (z,c)   <- halfAdder a b
+  (c',zs) <- addWithCarry c as bs
+  return (c', z : zs)
   where
     addWithCarry c [] [] = do
-      assert [ not c ] 
-      return []
+      return (c, [])
     addWithCarry c ( x : xs) ( y:ys ) = do
-      (z,d) <- fullAdder c x y
-      zs <- addWithCarry d xs ys
-      return $ z : zs
+      (z,c')   <- fullAdder c x y
+      (c'',zs) <- addWithCarry c' xs ys
+      return (c'', z : zs)
 
-ripple_carry_adder_with_overflow (a:as) (b:bs) = do
-  (z,c) <- halfAdder a b
-  zs <- addWithCarry c as bs
-  return $ z : zs
-  where
-    addWithCarry _ [] [] = return []
-    addWithCarry c ( x : xs) ( y:ys ) = do
-      (z,d) <- fullAdder c x y
-      zs <- addWithCarry d xs ys
-      return $ z : zs
+ripple_carry_adder_with_overflow :: [Primitive] -> [Primitive] -> CO4 [Primitive]
+ripple_carry_adder_with_overflow a b = ripple_carry_adder a b >>= return . snd
 {-
 addWithCarryW w c xs ys | w <= 0 = do
      forM (c : xs ++ ys) $ \ c -> assert [ not c ]
@@ -338,16 +332,21 @@ call o as bs = do
 -}
 
 encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat_1 = catchInvalid2 $ onFlags2 $ \as bs -> 
-    case length as of
-        -- 3 -> call Opt.times3 as bs 
-        -- 4 -> call Opt.times4 as bs
-        -- 5 -> call Opt.times5 as bs
-        _ -> wallace_multiplier as bs
+encTimesNat_1 = catchInvalid2 $ onFlags2' $ \as bs -> 
+  let f = case length as of
+            -- 3 -> call Opt.times3
+            -- 4 -> call Opt.times4
+            -- 5 -> call Opt.times5
+            _ -> wallace_multiplier
+  in do
+    (carry, result) <- f as bs
+    return (not carry, result)
 
+wallace_multiplier :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
 wallace_multiplier as bs = do
-  kzs <- product_components (Just $ length as) as bs
-  export (Just $ length as) kzs
+  kzs    <- product_components (Just $ length as) as bs
+  result <- export (Just $ length as) kzs
+  return (constant False, result)
 
   where
     product_components bound as bs = sequence $ do
@@ -506,17 +505,22 @@ onFlags f a = case flags a of
 
 onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
          -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-onFlags2 f a b = case (flags a, flags b) of
+onFlags2 f = onFlags2' $ \a b -> do fs <- f a b
+                                    return (constant True, fs)
+
+onFlags2' :: ([Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])) 
+         -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+onFlags2' f a b = case (flags a, flags b) of
   (Just as, Just bs) -> do
-      flags'       <- f as' bs'
-      definedness' <- and [definedness a, definedness b]
+      (def, flags') <- f as' bs'
+      definedness'  <- and [def, definedness a, definedness b]
       make definedness' flags' [] $ prefixfreeBranches [a,b]
     where
       las = length as
       lbs = length bs
       as' = as ++ (replicate (lbs - las) $ constant False)
       bs' = bs ++ (replicate (las - lbs) $ constant False)
-  _ -> abortWithStackTrace "PreludeNat.onFlags2: missing flags"
+  _ -> abortWithStackTrace "PreludeNat.onFlags2': missing flags"
 
 catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
 catchInvalid f a = 
