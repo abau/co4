@@ -12,14 +12,14 @@ module CO4.PreludeNat
   , encNat, encGtNat, encGeNat, encEqNat, encLeNat, encLtNat
   , encIsZeroNat
   , encMaxNat, encMinNat, encTimesNat
-  , encPlusNat, encPlus'Nat, encPlusCLANat, encPlus'CLANat
+  , encPlusNat, encPlus'Nat
   , encShiftLNat, encShiftRNat, encAndNat, encOrNat, encXorNat
 
   , encNatProf
   , encGtNatProf, encGeNatProf, encEqNatProf, encLeNatProf, encLtNatProf
   , encIsZeroNatProf
   , encMaxNatProf, encMinNatProf, encTimesNatProf
-  , encPlusNatProf, encPlus'NatProf, encPlusCLANatProf, encPlus'CLANatProf
+  , encPlusNatProf, encPlus'NatProf
   , encShiftLNatProf, encShiftRNatProf, encAndNatProf, encOrNatProf, encXorNatProf
 
   , onFlags, catchInvalid, onFlags2, catchInvalid2
@@ -219,9 +219,6 @@ encComparePrimitives_tree as bs = do
             return (l,e) 
           )
           ( zip as bs )
--}
-
-implies xs ys = assert (map not xs ++ ys)
 
 foldB u f xs = case xs of
     [ ] -> error "CO4.PreludeNat.foldB _ _ []"
@@ -230,6 +227,9 @@ foldB u f xs = case xs of
         let (pre,post) = splitAt (div (length xs) 2) xs
         a <- foldB u f pre ; b <- foldB u f post
         f a b
+-}
+
+implies xs ys = assert (map not xs ++ ys)
 
 encComparePrimitives_linear a b = case (a,b) of
   ([],[]) -> return ( constant False, constant True )
@@ -270,54 +270,6 @@ encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 encPlus'Nat,encPlus'NatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlus'Nat = catchInvalid2 $ onFlags2 $ ripple_carry_adder_with_overflow
 encPlus'NatProf a b = traced "plus'Nat" $ encPlus'Nat a b
-
-encPlusCLANat,encPlusCLANatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusCLANat = catchInvalid2 $ onFlags2 $ carry_lookahead_adder
-encPlusCLANatProf a b = traced "plusCLANat" $ encPlusCLANat a b
-
-encPlus'CLANat,encPlus'CLANatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlus'CLANat = catchInvalid2 $ onFlags2 $ carry_lookahead_adder_with_overflow
-encPlus'CLANatProf a b = traced "plus'CLANat" $ encPlus'CLANat a b
-
--- | semantics: x through c  is  (lin c and x)  or  abs c 
--- Prop False False = delete
--- Prop True False = propagate
--- Prop _ True = create
-data Prop = Prop { lin :: Primitive, abs :: Primitive }
-
-multiply :: Prop -> Prop -> CO4 Prop
-multiply c1 c2 = do
-    l <- and [lin c1, lin c2] ; a <- apply c1 (abs c2)
-    return $ Prop { lin = l, abs = a }
-
-apply :: Prop -> Primitive -> CO4 Primitive
-apply c p = do d <- and [lin c, p] ; or [abs c, d]
-
-cla as bs = foldB 
-            ( \ (a,b) -> do
-                (r,c) <- halfAdder a b 
-                return ( Prop { lin = r, abs = c } 
-                       , \ c -> do x <- xor [a, b, c] ; return [x]
-                       ) )
-            ( \ (p1, f1) (p2, f2) -> do
-                p <- multiply p2 p1
-                return ( p, \ ci1 -> do
-                          xs <- f1 ci1
-                          ci2 <- apply p1 ci1
-                          ys <- f2 ci2
-                          return $ xs ++ ys
-                       ) )
-            ( zip as bs )
-
-carry_lookahead_adder as bs = do
-    (p, f) <- cla as bs
-    assert [ not $ abs p ]
-    f (constant False)                    
-
-carry_lookahead_adder_with_overflow as bs = do
-    (_, f) <- cla as bs
-    -- IGNORE CARRY: assert [ not $ abs p ]
-    f (constant False)                    
 
 ripple_carry_adder (a:as) (b:bs) = do
   (z,c) <- halfAdder a b
