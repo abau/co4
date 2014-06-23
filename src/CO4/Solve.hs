@@ -14,7 +14,8 @@ import           Satchmo.Core.SAT.Minisat (note,solve')
 import           Satchmo.Core.Decode (Decode,decode)
 import           Satchmo.Core.Primitive (assert,and)
 import           CO4.Monad (CO4,SAT,runCO4)
-import           CO4.EncodedAdt (EncodedAdt,flags,definedness,constantConstructorIndex)
+import           CO4.EncodedAdt 
+  (EncodedAdt,flags,definedness,constantConstructorIndex,isConstantlyDefined)
 import           CO4.Allocator (TAllocator)
 import           CO4.Encodeable (Encodeable(..))
 
@@ -85,15 +86,15 @@ handleResult unknown result = do
 
     Just [flag] ->
       case constantConstructorIndex 2 result of
-        Just 0 -> do 
+        Just 0 | isConstantlyDefined result -> do 
           note "Known result: unsatisfiable"
           return Nothing
 
-        Just 1 -> do 
+        Just 1 | isConstantlyDefined result -> do 
           note "Known result: valid"
           return Nothing
 
-        Nothing -> traced "Toplevel:" $ do
+        _ -> traced "Toplevel:" $ do
           formula <- and [ flag , definedness result ]
           assert [ formula ]
           return $ Just $ decode unknown 
