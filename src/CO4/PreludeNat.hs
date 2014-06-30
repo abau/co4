@@ -30,6 +30,7 @@ import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM, when)
+import           Control.Monad.Writer (WriterT,lift,runWriterT,tell)
 import           Data.Bits ((.&.),(.|.))
 import qualified Data.Bits as B
 import           Data.Function (on)
@@ -344,40 +345,46 @@ encTimesNat_1 = catchInvalid2 $ onFlags2' $ \as bs ->
 
 wallace_multiplier :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
 wallace_multiplier as bs = do
-  kzs    <- product_components (Just $ length as) as bs
-  result <- export (Just $ length as) kzs
-  return (constant False, result)
+  (result, carries) <- runWriterT $ do
+    kzs <- product_components (Just $ length as) as bs
+    export (Just $ length as) kzs
+
+  carry <- or carries
+  return (carry, result)
 
   where
+    carry c = tell [c]
+
     product_components bound as bs = sequence $ do
         ( i , x ) <- zip [ 0 .. ] as
         ( j , y ) <- zip [ 0 .. ] bs
         return $ do
             z <- and [ x, y ]
             if ( case bound of Nothing -> False ; Just b -> i+j >= b )
-                 then do assert [ not z ] ; return []
+                 then do carry z ; return []
                  else do return [ ( i+j , [z] ) ]
 
     export bound kzs = do
         reduce bound $ M.fromListWith (++) $ concat kzs
 
+    reduce :: Maybe Int -> M.Map Int [Primitive] -> WriterT [Primitive] CO4 [Primitive]
     reduce bound m = case M.minViewWithKey m of
         Nothing -> return []
         Just ((k, bs), rest ) ->
             if ( case bound of Nothing -> False ; Just b -> k >= b )
             then do
-                forM bs $ \ b -> assert [ not b ]
+                forM bs $ \ b -> carry b
                 reduce bound rest
             else let border = Just k == bound in case bs of
                 (x:y:z:more) -> do
-                    (r,c) <- fullAdder x y z
-                    when border $ assert [ not c ]
+                    (r,c) <- lift $ fullAdder x y z
+                    when border $ carry c
                     reduce bound $ M.unionWith (++) rest
                            $ M.fromList [ (k, more ++ [r])
                                         , (k+1, [c | Prelude.not border]) ]
                 [x,y] ->  do
-                    (r,c) <- halfAdder x y 
-                    when border $ assert [ not c ]
+                    (r,c) <- lift $ halfAdder x y 
+                    when border $ carry c
                     reduce bound $ M.unionWith (++) rest
                            $ M.fromList [ (k, [r])
                                         , (k+1, [c | Prelude.not border]) ]
