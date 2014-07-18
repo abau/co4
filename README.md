@@ -101,13 +101,13 @@ solves a parametrized constraint system with
 In the main `constraint` we seek a factorization for a given natural number `x` of
 bit-width `bitWidth` using the previously defined allocator:
 
-    solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encMain main 
+    solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encConstraint constraint
 
 If there is a factorization, we want to decode the factors to decimal numbers:
 
     result :: Int -> IO (Maybe (Int,Int))
     result x = do
-      solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encMain main 
+      solution <- solveAndTestP (toBinary (Just bitWidth) x) allocator encConstraint constraint
       case solution of
         Nothing    -> return Nothing
         Just (a,b) -> return $ Just (fromBinary a, fromBinary b)
