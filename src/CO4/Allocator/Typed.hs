@@ -6,21 +6,30 @@ where
 import CO4.Allocator.Data (Allocator (..), AllocateConstructor (..))
 import CO4.Util (replaceAt)
 
+-- |@TAllocator t@ denotes the type of allocators that generate
+-- 'CO4.EncodedAdt.EncodedAdt's that represent values of type @t@
 newtype TAllocator t = TAllocator { toAllocator :: Allocator }
                        deriving (Eq,Ord,Show)
 
+-- |Unsafely casts an untyped allocator to a typed allocator. 
+-- Use with care.
 unsafeTAllocator :: Allocator -> TAllocator t
 unsafeTAllocator = TAllocator
 
 class FromKnown a where
+  -- |@fromKnown a@ returns an allocator that represents a single value @a@
   fromKnown :: a -> TAllocator a
 
 instance FromKnown a => FromKnown (TAllocator a) where
   fromKnown (TAllocator a) = TAllocator a
 
 class Complete a where
+  -- |Returns an allocator for an 'CO4.EncodedAdt.EncodedAdt' that
+  -- represents all values in @a@. Does not terminate for recursive types.
   complete :: TAllocator a
 
+-- |@union a b@ returns an allocator for an 'CO4.EncodedAdt.EncodedAdt' that
+-- represents the union of all values that are represented by @a@ and @b@
 union :: TAllocator t -> TAllocator t -> TAllocator t
 union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
   where
@@ -63,5 +72,6 @@ union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
       (AllocateEmpty, AllocateConstructor a2) -> AllocateConstructor a2
       (AllocateEmpty, AllocateEmpty)          -> AllocateEmpty
 
+-- |@unions = foldl1 union@
 unions :: [TAllocator a] -> TAllocator a
 unions = foldl1 union

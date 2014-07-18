@@ -47,6 +47,12 @@ toTree allocator = case allocator of
     consToTree i AllocateEmpty = 
       Node (show i ++ "th constructor: empty") []
 
+-- |@constructors xs@ returns an allocator that represents a value
+-- with @n = length xs@ constructors. The @i@-th element of @xs@
+-- either constains @Just@ a list of allocators for the arguments of
+-- the @i@-th constructor or @Nothing@. @Nothing@ indicates that the
+-- returned allocator never generates an 'CO4.EncodedAdt.EncodedAdt' that represents
+-- a value using the @i@-th constructor.
 constructors :: [Maybe [Allocator]] -> Allocator
 constructors allocs = Exception.assert (not $ null allocs) 
                     $ Unknown $ map toConstructor allocs
@@ -54,5 +60,6 @@ constructors allocs = Exception.assert (not $ null allocs)
     toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
 
+-- |@known = @ 'Known'
 known :: Int -> Int -> [Allocator] -> Allocator
 known = Known
