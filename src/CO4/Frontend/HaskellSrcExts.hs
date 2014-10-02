@@ -41,8 +41,8 @@ mapExp markDiscriminants exp = case exp of
   HEA.If loc c t f -> 
       mapExp markDiscriminants
     $ HEA.Case loc c 
-    [ HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "True" ) []) (HEA.UnGuardedAlt noLoc t) Nothing
-    , HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "False") []) (HEA.UnGuardedAlt noLoc f) Nothing
+    [ HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "True" ) []) (HEA.UnGuardedRhs noLoc t) Nothing
+    , HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "False") []) (HEA.UnGuardedRhs noLoc f) Nothing
     ]
 
   _ -> exp
