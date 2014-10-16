@@ -1,6 +1,6 @@
 -- | see https://groups.google.com/forum/#!msg/minisat/dTlDd4JKfnA/cphy4zYALlYJ
 
-module CO4.PreludeNat.Opt where
+module CO4.Prelude.Nat.Opt where
 
 import Prelude hiding (not)
 import Satchmo.Core.Primitive  (assert,not)

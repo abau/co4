@@ -1,4 +1,4 @@
-module CO4.PreludeBool
+module CO4.Prelude.Bool
   ( xor2
   , encAnd2, encOr2, encNot, encXor2
   , encAnd2Prof, encOr2Prof, encNotProf, encXor2Prof
@@ -8,7 +8,7 @@ where
 import           Prelude hiding (not,and,or)
 import           CO4.EncodedAdt 
 import           CO4.Monad (CO4,traced)
-import           CO4.PreludeNat (onFlags,catchInvalid,onFlags2,catchInvalid2)
+import           CO4.Prelude.Nat (onFlags,catchInvalid,onFlags2,catchInvalid2)
 import           Satchmo.Core.Primitive (not,and,or,xor)
 
 encAnd2,encAnd2Prof :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt

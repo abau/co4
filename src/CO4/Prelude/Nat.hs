@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
-module CO4.PreludeNat 
+module CO4.Prelude.Nat 
   ( Nat, width, value, nat, uNat, knownNat
   , gtNat, geNat, eqNat, leNat, ltNat
   , isZeroNat

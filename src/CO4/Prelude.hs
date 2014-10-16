@@ -6,8 +6,8 @@ module CO4.Prelude
   , assertKnownLoc, encAssertKnownLocProf, encAssertKnownLoc
   , assertDefined, encAssertDefined, encAssertDefinedProf
   , dumpEncoded, encDumpEncoded, encDumpEncodedProf
-  , module CO4.PreludeNat
-  , module CO4.PreludeBool
+  , module CO4.Prelude.Nat
+  , module CO4.Prelude.Bool
   )
 where
 
@@ -23,10 +23,10 @@ import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.Allocator (TAllocator,toAllocator,unsafeTAllocator,constructors,known)
-import           CO4.PreludeNat
+import           CO4.Prelude.Nat
 import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,flags')
 import           CO4.Monad (CO4,traced,abortWithStackTrace)
-import           CO4.PreludeBool
+import           CO4.Prelude.Bool
 
 -- |Parses prelude's function definitions
 parsePrelude :: MonadUnique u => u [Declaration]

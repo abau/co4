@@ -27,9 +27,9 @@ Library
                     , CO4.PPrint
                     , CO4.Prefixfree
                     , CO4.Prelude
-                    , CO4.PreludeBool
-                    , CO4.PreludeNat
-                    , CO4.PreludeNat.Opt
+                    , CO4.Prelude.Bool
+                    , CO4.Prelude.Nat
+                    , CO4.Prelude.Nat.Opt
                     , CO4.Profiling
                     , CO4.Stack
                     , CO4.THUtil
