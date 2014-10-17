@@ -8,7 +8,7 @@ import qualified CO4.Example.Binary
 import qualified CO4.Example.Nat
 import qualified CO4.Example.Prelude
 import qualified CO4.Example.Simple
-import qualified CO4.Example.LoopSrs
+--import qualified CO4.Example.LoopSrs
 import qualified CO4.Example.LoopTrsToyama
 import qualified CO4.Example.WCB_Matrix
 import qualified CO4.Example.QueensSelfContained
@@ -23,7 +23,7 @@ main = do
     ["nat",n]       -> nat $ read n
     ["prelude"]     -> prelude
     ["simple"]      -> simple
-    ["loop-srs"]    -> loopSrs
+  --  ["loop-srs"]    -> loopSrs
     ["loop-trs"]    -> loopTrs
     ["wcb-matrix"]  -> wcbMatrix
     ["queens-self"] -> queensSelf 8
@@ -36,6 +36,7 @@ main = do
     nat     = simpleTest "CO4.Example.Nat"     . CO4.Example.Nat.result
     prelude = simpleTest "CO4.Example.Prelude" $ CO4.Example.Prelude.result
     simple  = simpleTest "CO4.Example.Simple"  $ CO4.Example.Simple.result
+    {-
     loopSrs = do simpleTest "CO4.Example.Loop: gebhardt-03"  
                   $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/gebhardt-03.xml"
                  simpleTest "CO4.Example.Loop: gebhardt-08"  
@@ -44,6 +45,7 @@ main = do
                   $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/zantema_z042.xml"
                  simpleTest "CO4.Example.Loop: zantema_loop1"  
                   $ CO4.Example.LoopSrs.solve 16 16 "test/CO4/Example/LoopSrs/zantema_loop1.xml"
+                  -}
 
     loopTrs = simpleTest "CO4.Example.Loop: toyama" $ CO4.Example.LoopTrsToyama.result
 
@@ -54,7 +56,7 @@ main = do
 
     lpo = simpleTest "CO4.Example.LPO" $ CO4.Example.LPO.result
 
-    all = binary 143 >> nat 143 >> prelude >> simple >> loopSrs >> loopTrs >> wcbMatrix
+    all = binary 143 >> nat 143 >> prelude >> simple >> {-loopSrs >>-} loopTrs >> wcbMatrix
                      >> queensSelf 8 >> lpo
 
 simpleTest :: String -> IO (Maybe a) -> IO ()

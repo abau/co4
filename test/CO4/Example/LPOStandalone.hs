@@ -2,7 +2,7 @@ module CO4.Example.LPOStandalone
 where
 
 import Prelude hiding (lex,lookup)
-import CO4.PreludeNat
+import CO4.Prelude.Nat
 
 type Map k v    = [(k,v)]
 
