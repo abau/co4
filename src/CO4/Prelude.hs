@@ -60,10 +60,6 @@ preludeFunctionDeclarations = [
   , [dec| id x = x |]
   , [dec| const x y = x |]
   , [dec| flip f x y = f y x |]
-  -- Booleans (are built-in)
-  -- , [dec| not x    = case x of { False -> True ; True -> False } |]
-  -- , [dec| a && b   = case a of { False -> False ; True -> b } |]
-  -- , [dec| a || b   = case a of { False -> b ; True -> True } |]
   -- Tuples
   , [dec| fst (x,_) = x |]
   , [dec| snd (_,y) = y |]
@@ -71,8 +67,6 @@ preludeFunctionDeclarations = [
   , [dec| maybe nothing just m = case m of { Nothing -> nothing ; Just x -> just x } |]
   , [dec| either left right e = case e of { Left x -> left x ; Right y -> right y } |]
   -- more Lists
-  , [dec| and xs   = foldl (&&) True xs |]
-  , [dec| or  xs   = foldl (||) False xs |]
   , [dec| all f xs = and (map f xs) |]
   , [dec| any f xs = or  (map f xs) |]
   , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
@@ -140,14 +134,17 @@ unparsedPreludeContext = bind (
   , ("||"                , SType $ functionType [boolT,boolT] boolT)
   , ("not"               , SType $ functionType [boolT] boolT)
   , ("xor2"              , SType $ functionType [boolT,boolT] boolT)
+  , ("and"               , SType $ functionType [listT boolT] boolT)
+  , ("or"                , SType $ functionType [listT boolT] boolT)
   , ("markedDiscriminant", SForall a $ SType $ functionType [intT,intT,TVar a] $ TVar a)
   ]
   ++ (concatMap fromAdt preludeAdtDeclarations)) emptyContext
   where 
-    a     = UntypedName "a"
-    boolT = TCon boolName []
-    natT  = TCon natTypeName []
-    intT  = TCon intName []
+    a       = UntypedName "a"
+    boolT   = TCon boolName []
+    natT    = TCon natTypeName []
+    intT    = TCon intName []
+    listT t = TCon listName [t]
 
     fromAdt (Adt name vars conss) = map fromCons conss
       where
