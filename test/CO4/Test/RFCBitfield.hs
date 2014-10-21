@@ -17,26 +17,13 @@ $( compileFile [Cache,ImportPrelude] "test/CO4/Test/RFCBitfieldStandalone.hs" )
 allocator :: Int -> Int -> Int -> TAllocator [Grid]
 allocator r c col = kList col $ kList r $ kList c complete
 
-symAllocator :: Int -> TAllocator [Grid]
-symAllocator n = allocatorList [ allocatorList $ map (allocatorList . map (bits !!)) pattern ]
-  where
-    bits          = map (\i -> allocatorId i complete) [1..n*n]
-    rotate        = map (map (\x -> succ x `mod` (n*n))) . map reverse . transpose
-
-    [q1,q2,q3,q4] = take 4
-                  $ iterate rotate
-                  $ take n $ iterate (map (+n)) [0..n-1]
-
-    pattern       =  ( map (uncurry (++)) $ zip q1 q2 )
-                  ++ ( map (uncurry (++)) $ zip q4 q3 )
-
 toIndex :: Int -> Index
 toIndex 1 = This
 toIndex n = Next $ toIndex $ n - 1
 
-result :: Int -> Int -> (TAllocator [Grid]) -> IO String
-result rs cs alloc = do
-  grids <- solveAndTestP (toIndex rs, toIndex cs) alloc encConstraint constraint
+result :: Int -> Int -> Int -> IO String
+result rs cs col = do
+  grids <- solveAndTestP (toIndex rs, toIndex cs) (allocator rs cs col) encConstraint constraint
   case grids of
     Nothing -> return "Nothing"
     Just gs -> return $ unlines $ map showGrid gs
@@ -49,8 +36,5 @@ showGrid = unlines . map (map toChar)
 
 main :: IO ()
 main = do
-  args   <- getArgs >>= return . map read
-  result <- case args of
-              [rs,cs,col] -> result rs cs $ allocator rs cs col
-              [rs]        -> result rs rs $ symAllocator rs
-  putStrLn result
+  [rs,cs,col] <- getArgs >>= return . map read
+  result rs cs col >>= putStrLn
