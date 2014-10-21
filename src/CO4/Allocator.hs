@@ -9,10 +9,11 @@ import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM_,ap)
 import           Control.Monad.State.Strict
 import           Data.List (transpose,genericLength)
+import qualified Data.Map as M
 import           Satchmo.Core.Primitive (primitive,constant,antiSelect,select,assert)
 import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.MonadSAT (note)
-import           CO4.Allocator.Data 
+import           CO4.Allocator.Data hiding (allocatorId)
 import           CO4.Allocator.Typed
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt (Primitive,EncodedAdt,flags',arguments',make)
@@ -30,9 +31,8 @@ instance Encodeable Allocator where
     return result
 
 data EncoderData = EncoderData
-  { refUnknown     :: [(UnknownName       , [Primitive])]
-  , refBuiltIn     :: [(BuiltInUnknownName, [Primitive])]
-  , numSharedFlags :: Int
+  { references :: M.Map Int EncodedAdt
+  , numShared  :: Int
   }
 
 newtype Encoder a = Encoder { unEnc :: StateT EncoderData CO4 a }
@@ -41,32 +41,31 @@ newtype Encoder a = Encoder { unEnc :: StateT EncoderData CO4 a }
 liftCO4 :: CO4 a -> Encoder a
 liftCO4 = Encoder . lift
 
-incNumSharing :: Int -> Encoder ()
-incNumSharing n = modify' $ \d -> d { numSharedFlags = n + (numSharedFlags d) }
+incNumShared :: Encoder ()
+incNumShared = modify' $ \d -> d { numShared = 1 + (numShared d) }
 
-getRefUnknown :: UnknownName -> Encoder (Maybe [Primitive])
-getRefUnknown name = gets (lookup name . refUnknown) >>= \case
-  Nothing -> return Nothing
-  Just fs -> incNumSharing (length fs) >> return (Just fs)
+getReferenced :: Int -> Encoder (Maybe EncodedAdt)
+getReferenced id = gets (M.lookup id . references) >>= \case
+  Nothing  -> return Nothing
+  Just adt -> incNumShared >> return (Just adt)
 
-addRefUnknown :: UnknownName -> [Primitive] -> Encoder ()
-addRefUnknown name fs = modify' $ \d -> d { refUnknown = (name,fs) : (refUnknown d) }
-
-getRefBuiltIn :: BuiltInUnknownName -> Encoder (Maybe [Primitive])
-getRefBuiltIn name = gets (lookup name . refBuiltIn) >>= \case
-  Nothing -> return Nothing
-  Just fs -> incNumSharing (length fs) >> return (Just fs)
-
-addRefBuiltIn :: BuiltInUnknownName -> [Primitive] -> Encoder ()
-addRefBuiltIn name fs = modify' $ \d -> d { refBuiltIn = (name,fs) : (refBuiltIn d) }
+addReference :: Int -> EncodedAdt -> Encoder ()
+addReference id adt = modify' $ \d -> d { references = M.insert id adt $ references d }
 
 encodeOverlapping :: [Allocator] -> CO4 EncodedAdt
 encodeOverlapping allocators = do
-  (adt, d) <- runStateT (unEnc $ go allocators) $ EncoderData [] [] 0
-  note $ unwords ["Number of shareded flags:", show $ numSharedFlags d]
+  (adt, d) <- runStateT (unEnc $ go allocators) $ EncoderData M.empty 0
+  note $ unwords ["Number of shared values:", show $ numShared d]
   return adt
   where
     go []     = error "Allocator.encodeOverlapping.go: no allocators"
+
+    go [AllocatorId id alloc] = getReferenced id >>= \case
+      Just adt -> return adt
+      Nothing  -> do adt <- go [alloc]
+                     addReference id adt
+                     return adt
+
     go allocs = do
       args <- case maxArgs of
         0 -> return []
@@ -76,55 +75,46 @@ encodeOverlapping allocators = do
         [Known 0 1 _]     -> return []
         [Known i n _]     -> return $ map constant $ invNumeric n i
         [BuiltInKnown fs] -> return $ map constant fs
-
-        [Unknown name _] -> getRefUnknown name >>= \case
-          Nothing -> do fs <- allocateMaxFlags 
-                        addRefUnknown name fs
-                        return fs
-          Just fs -> Exception.assert (maxFlags == length fs) 
-                   $ return fs
-
-        [BuiltInUnknown name _] -> getRefBuiltIn name >>= \case
-          Nothing -> do fs <- allocateMaxFlags 
-                        addRefBuiltIn name fs
-                        return fs
-          Just fs -> Exception.assert (maxFlags == length fs)
-                   $ return fs
-
-        _ -> allocateMaxFlags
+        _                 -> liftCO4 $ sequence $ replicate maxFlags primitive
 
       liftCO4 $ make (constant True) flags args prefixfree
 
       where
-        overlappingArgs = transpose $ concat $ for allocs $ \case 
-          Known _ _ args -> [ args ]
-          Unknown _ cons -> for cons $ \case 
-            AllocateConstructor args -> args
-            AllocateEmpty            -> []
-          BuiltInKnown {}   -> []
-          BuiltInUnknown {} -> []
+        overlappingArgs = transpose $ concat $ for allocs go
+          where 
+            go (Known _ _ args) = [ args ]
+            go (Unknown cons)   = for cons $ \case 
+                  AllocateConstructor args -> args
+                  AllocateEmpty            -> []
+            go (BuiltInKnown {})   = []
+            go (BuiltInUnknown {}) = []
+            go (AllocatorId _ a)   = go a
 
-        allocateMaxFlags = liftCO4 $ sequence $ replicate maxFlags primitive
+        maxFlags = maximum $ for allocs go
+          where
+            go (Known _ n _)      = bitWidth n
+            go (Unknown cons)     = bitWidth $ genericLength cons 
+            go (BuiltInKnown  fs) = length fs
+            go (BuiltInUnknown n) = n
+            go (AllocatorId _ a)  = go a
 
-        maxFlags = maximum $ for allocs $ \case 
-          Known _ n _        -> bitWidth n
-          Unknown _ cons     -> bitWidth $ genericLength cons 
-          BuiltInKnown  fs   -> length fs
-          BuiltInUnknown _ n -> n
+        maxArgs = maximum $ for allocs go
+          where
+            go (Known _ _ args) = length args
+            go (Unknown cons)   = maximum $ for cons $ \case
+                  AllocateConstructor args -> length args
+                  AllocateEmpty            -> 0
+            go (BuiltInKnown {})   = 0
+            go (BuiltInUnknown {}) = 0
+            go (AllocatorId _ a)   = go a
 
-        maxArgs = maximum $ for allocs $ \case
-          Known _ _ args -> length args
-          Unknown _ cons -> maximum $ for cons $ \case
-            AllocateConstructor args -> length args
-            AllocateEmpty            -> 0
-          BuiltInKnown {}   -> 0
-          BuiltInUnknown {} -> 0
-
-        prefixfree = and $ for allocs $ \case
-          Known          {} -> True
-          Unknown        {} -> True
-          BuiltInKnown   {} -> False
-          BuiltInUnknown {} -> False
+        prefixfree = and $ for allocs go 
+          where
+            go (Known          {}) = True
+            go (Unknown        {}) = True
+            go (BuiltInKnown   {}) = False
+            go (BuiltInUnknown {}) = False
+            go (AllocatorId   _ a) = go a
 
 -- 1. excludes patterns that lead to Empty (end of recursions)
 -- 2. implies constant flags from parental patterns
@@ -149,7 +139,7 @@ postprocessFlags = go [] []
           thisPattern     = invNumeric n i
           thisFlags       = take (length thisPattern) fs
           
-    go flags pattern adt (Unknown _ cons) =
+    go flags pattern adt (Unknown cons) =
         Exception.assert (length fs >= bitWidth (length cons))
       $ zipWithM_ goCons [0..] cons
       where 
@@ -170,6 +160,8 @@ postprocessFlags = go [] []
 
     go _ _ _ (BuiltInKnown   {}) = return ()
     go _ _ _ (BuiltInUnknown {}) = return ()
+
+    go flags pattern adt (AllocatorId _ a) = go flags pattern adt a
 
 excludePattern :: [Primitive] -> [Bool] -> CO4 ()
 excludePattern []    []      = return ()

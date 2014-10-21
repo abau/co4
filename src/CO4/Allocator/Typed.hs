@@ -1,11 +1,12 @@
 module CO4.Allocator.Typed
   ( TAllocator (toAllocator), FromKnown (..), Complete (..)
-  , unsafeTAllocator, union, unions)
+  , unsafeTAllocator, allocatorId, union, unions)
 where
 
 import CO4.Allocator.Data 
   (Allocator (..),AllocateConstructor (..),known,unknown,builtInKnown,builtInUnknown)
-import CO4.Util (replaceAt)
+import qualified CO4.Allocator.Data as D
+import           CO4.Util (replaceAt)
 
 -- |@TAllocator t@ denotes the type of allocators that generate
 -- 'CO4.EncodedAdt.EncodedAdt's that represent values of type @t@
@@ -29,13 +30,17 @@ class Complete a where
   -- represents all values in @a@. Does not terminate for recursive types.
   complete :: TAllocator a
 
+-- |Annotates an allocator by an numeric identifier
+allocatorId :: Int -> TAllocator t -> TAllocator t
+allocatorId id (TAllocator a) = TAllocator $ D.allocatorId id a
+
 -- |@union a b@ returns an allocator for an 'CO4.EncodedAdt.EncodedAdt' that
 -- represents the union of all values that are represented by @a@ and @b@
 union :: TAllocator t -> TAllocator t -> TAllocator t
 union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
   where
     go a1 a2 = case (a1, a2) of
-      (BuiltInUnknown _ u1, BuiltInUnknown _ u2) | u1 == u2 ->
+      (BuiltInUnknown u1, BuiltInUnknown u2) | u1 == u2 ->
         builtInUnknown u1
 
       (BuiltInKnown k1, BuiltInKnown k2) | length k1 == length k2 ->
@@ -43,12 +48,12 @@ union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
         then builtInKnown k1 
         else builtInUnknown $ length k1
 
-      (BuiltInKnown k1, BuiltInUnknown _ u2) | length k1 == u2 ->
+      (BuiltInKnown k1, BuiltInUnknown u2) | length k1 == u2 ->
         builtInUnknown u2
 
       (BuiltInUnknown {}, BuiltInKnown {}) -> go a2 a1
 
-      (Unknown _ u1, Unknown _ u2) | length u1 == length u2 ->
+      (Unknown u1, Unknown u2) | length u1 == length u2 ->
         unknown $ zipWith goConstructors u1 u2
 
       (Known i1 n1 as1, Known i2 n2 as2) | n1 == n2 ->
@@ -58,10 +63,13 @@ union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
                      $ replaceAt i2 (AllocateConstructor as2)
                      $ replicate (fromIntegral n1) AllocateEmpty
 
-      (Known i n as, Unknown _ u) | length u == n ->
+      (Known i n as, Unknown u) | length u == n ->
         unknown $ replaceAt i (goConstructors (AllocateConstructor as) (u !! i)) u
 
       (Unknown {}, Known {}) -> go a2 a1
+
+      (AllocatorId _ a1, a2) -> go a1 a2
+      (a1, AllocatorId _ a2) -> go a1 a2
 
       _ -> error $ "Allocator.Typed.union: disjunct allocators '" ++ show a1 ++ "' and '" ++ show a2 ++ "'"
 
