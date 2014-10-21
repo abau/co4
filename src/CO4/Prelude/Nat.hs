@@ -78,7 +78,7 @@ instance Complete Nat where
   complete = uNat maxBound
 
 uNat :: Int -> TAllocator Nat
-uNat = unsafeTAllocator . BuiltInUnknown
+uNat = unsafeTAllocator . builtInUnknown
 
 knownNat :: Int -> Integer -> TAllocator Nat
 knownNat 0 0 = unsafeTAllocator $ BuiltInKnown []

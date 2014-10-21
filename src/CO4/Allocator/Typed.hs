@@ -3,13 +3,14 @@ module CO4.Allocator.Typed
   , unsafeTAllocator, union, unions)
 where
 
-import CO4.Allocator.Data (Allocator (..), AllocateConstructor (..))
+import CO4.Allocator.Data 
+  (Allocator (..),AllocateConstructor (..),known,unknown,builtInKnown,builtInUnknown)
 import CO4.Util (replaceAt)
 
 -- |@TAllocator t@ denotes the type of allocators that generate
 -- 'CO4.EncodedAdt.EncodedAdt's that represent values of type @t@
 newtype TAllocator t = TAllocator { toAllocator :: Allocator }
-                       deriving (Eq,Ord,Show)
+                       deriving (Show)
 
 -- |Unsafely casts an untyped allocator to a typed allocator. 
 -- Use with care.
@@ -34,31 +35,31 @@ union :: TAllocator t -> TAllocator t -> TAllocator t
 union (TAllocator a1) (TAllocator a2) = unsafeTAllocator $ go a1 a2
   where
     go a1 a2 = case (a1, a2) of
-      (BuiltInUnknown u1, BuiltInUnknown u2) | u1 == u2 ->
-        BuiltInUnknown u1
+      (BuiltInUnknown _ u1, BuiltInUnknown _ u2) | u1 == u2 ->
+        builtInUnknown u1
 
       (BuiltInKnown k1, BuiltInKnown k2) | length k1 == length k2 ->
         if k1 == k2 
-        then BuiltInKnown k1 
-        else BuiltInUnknown $ length k1
+        then builtInKnown k1 
+        else builtInUnknown $ length k1
 
-      (BuiltInKnown k1, BuiltInUnknown u2) | length k1 == u2 ->
-        BuiltInUnknown u2
+      (BuiltInKnown k1, BuiltInUnknown _ u2) | length k1 == u2 ->
+        builtInUnknown u2
 
       (BuiltInUnknown {}, BuiltInKnown {}) -> go a2 a1
 
-      (Unknown u1, Unknown u2) | length u1 == length u2 ->
-        Unknown $ zipWith goConstructors u1 u2
+      (Unknown _ u1, Unknown _ u2) | length u1 == length u2 ->
+        unknown $ zipWith goConstructors u1 u2
 
       (Known i1 n1 as1, Known i2 n2 as2) | n1 == n2 ->
         if i1 == i2
-        then Known i1 n1 $ zipWith go as1 as2
-        else Unknown $ replaceAt i1 (AllocateConstructor as1)
+        then known i1 n1 $ zipWith go as1 as2
+        else unknown $ replaceAt i1 (AllocateConstructor as1)
                      $ replaceAt i2 (AllocateConstructor as2)
                      $ replicate (fromIntegral n1) AllocateEmpty
 
-      (Known i n as, Unknown u) | length u == n ->
-        Unknown $ replaceAt i (goConstructors (AllocateConstructor as) (u !! i)) u
+      (Known i n as, Unknown _ u) | length u == n ->
+        unknown $ replaceAt i (goConstructors (AllocateConstructor as) (u !! i)) u
 
       (Unknown {}, Known {}) -> go a2 a1
 

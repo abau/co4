@@ -239,3 +239,11 @@ extM' = flip extM
 -- |@extT' = flip 'extT'@
 extT' :: (Typeable a, Typeable b) => (b -> b) -> (a -> a) -> a -> a
 extT' = flip extT 
+
+-- |Monadic version of 'mapAccumL'
+mapAccumM :: Monad m => (acc -> x -> m (acc, y)) -> acc -> [x] -> m (acc, [y])
+mapAccumM _ acc []     = return (acc, [])
+mapAccumM f acc (x:xs) = do 
+  (acc' , y)  <- f acc x
+  (acc'', ys) <- mapAccumM f acc' xs
+  return (acc'', y:ys)

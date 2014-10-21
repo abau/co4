@@ -1,45 +1,49 @@
 module CO4.Allocator.Data
-  ( Allocator (..), AllocateConstructor (..), constructors, known )
+  ( UnknownName, BuiltInUnknownName, Allocator (..), AllocateConstructor (..)
+  , constructors, known, unknown, builtInKnown, builtInUnknown )
 where
 
+import           System.Mem.StableName (StableName,makeStableName)
+import           System.IO.Unsafe (unsafePerformIO)
 import qualified Control.Exception as Exception
 import           Data.Tree
+
+type UnknownName        = StableName [AllocateConstructor]
+type BuiltInUnknownName = StableName Int
 
 data Allocator = Known { _constructorIndex :: Int
                        , _numConstructors  :: Int
                        , _arguments        :: [Allocator]
                        }
-               | Unknown        [AllocateConstructor]
+               | Unknown        UnknownName [AllocateConstructor]
                | BuiltInKnown   [Bool]
-               | BuiltInUnknown Int
-               deriving (Eq,Ord)
+               | BuiltInUnknown BuiltInUnknownName Int
 
 data AllocateConstructor = AllocateConstructor [Allocator]
                          | AllocateEmpty
-               deriving (Eq,Ord)
 
 instance Show Allocator where
   show = drawTree . toTree
 
 toTree :: Allocator -> Tree String
 toTree allocator = case allocator of
-  Known i n args    -> Node (unwords ["Known",show i,show n]) 
-                     $ zipWith argToTree [0..] args
-  Unknown cons      -> Node "Unknown" $ zipWith consToTree [0..] cons
-  BuiltInKnown   bs -> Node (unwords ["BuiltInKnown", show bs]) []
-  BuiltInUnknown n  -> Node (unwords ["BuiltInUnknown", show n]) []
+  Known i n args     -> Node (unwords ["Known",show i,show n]) 
+                      $ zipWith argToTree [0..] args
+  Unknown _ cons     -> Node "Unknown" $ zipWith consToTree [0..] cons
+  BuiltInKnown   bs  -> Node (unwords ["BuiltInKnown", show bs]) []
+  BuiltInUnknown _ n -> Node (unwords ["BuiltInUnknown", show n]) []
   where
     argToTree i (Known j n args) = 
       Node (show i ++ unwords ["th argument: Known",show j,show n]) 
           $ zipWith argToTree [0..] args
 
-    argToTree i (Unknown cons) = 
+    argToTree i (Unknown _ cons) = 
       Node (show i ++ "th argument: Unknown") $ zipWith consToTree [0..] cons
 
     argToTree i (BuiltInKnown fs) = 
       Node (show i ++ unwords ["th argument: BuiltInKnown",show fs]) []
 
-    argToTree i (BuiltInUnknown n) = 
+    argToTree i (BuiltInUnknown _ n) = 
       Node (show i ++ unwords ["th argument: BuiltInUnknown",show n]) []
 
     consToTree i (AllocateConstructor args) = 
@@ -55,7 +59,7 @@ toTree allocator = case allocator of
 -- a value using the @i@-th constructor.
 constructors :: [Maybe [Allocator]] -> Allocator
 constructors allocs = Exception.assert (not $ null allocs) 
-                    $ Unknown $ map toConstructor allocs
+                    $ unknown $ map toConstructor allocs
   where
     toConstructor Nothing     = AllocateEmpty
     toConstructor (Just args) = AllocateConstructor args
@@ -63,3 +67,14 @@ constructors allocs = Exception.assert (not $ null allocs)
 -- |@known = @ 'Known'
 known :: Int -> Int -> [Allocator] -> Allocator
 known = Known
+
+unknown :: [AllocateConstructor] -> Allocator
+unknown cs = Unknown (unsafePerformIO $ makeStableName cs) cs
+
+-- |@builtInKnown = @ 'BuiltInKnown'
+builtInKnown :: [Bool] -> Allocator
+builtInKnown = BuiltInKnown
+
+builtInUnknown :: Int -> Allocator
+builtInUnknown i = BuiltInUnknown (unsafePerformIO $ makeStableName i) i
+
