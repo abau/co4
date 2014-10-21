@@ -4,11 +4,14 @@ module CO4.Allocator
   (module CO4.Allocator.Data, module CO4.Allocator.Typed)
 where
 
+import           Control.Applicative (Applicative)
 import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM_,ap)
+import           Control.Monad.State.Strict
 import           Data.List (transpose,genericLength)
 import           Satchmo.Core.Primitive (primitive,constant,antiSelect,select,assert)
 import qualified Satchmo.Core.Primitive as P
+import           Satchmo.Core.MonadSAT (note)
 import           CO4.Allocator.Data 
 import           CO4.Allocator.Typed
 import           CO4.Encodeable (Encodeable (..))
@@ -26,56 +29,71 @@ instance Encodeable Allocator where
     postprocessFlags result alloc
     return result
 
-data ReferenceableFlags = ReferenceableFlags
-  { refUnknown :: [(UnknownName       , [Primitive])]
-  , refBuiltIn :: [(BuiltInUnknownName, [Primitive])]
+data EncoderData = EncoderData
+  { refUnknown     :: [(UnknownName       , [Primitive])]
+  , refBuiltIn     :: [(BuiltInUnknownName, [Primitive])]
+  , numSharedFlags :: Int
   }
 
-getRefUnknown :: UnknownName -> ReferenceableFlags -> Maybe [Primitive]
-getRefUnknown name = lookup name . refUnknown
+newtype Encoder a = Encoder { unEnc :: StateT EncoderData CO4 a }
+  deriving (Functor, Applicative, Monad, MonadState EncoderData)
 
-addRefUnknown :: UnknownName -> [Primitive] -> ReferenceableFlags -> ReferenceableFlags
-addRefUnknown name fs refs = refs { refUnknown = (name,fs) : (refUnknown refs) }
+liftCO4 :: CO4 a -> Encoder a
+liftCO4 = Encoder . lift
 
-getRefBuiltIn :: BuiltInUnknownName -> ReferenceableFlags -> Maybe [Primitive]
-getRefBuiltIn name = lookup name . refBuiltIn
+incNumSharing :: Int -> Encoder ()
+incNumSharing n = modify' $ \d -> d { numSharedFlags = n + (numSharedFlags d) }
 
-addRefBuiltIn :: BuiltInUnknownName -> [Primitive] -> ReferenceableFlags -> ReferenceableFlags
-addRefBuiltIn name fs refs = refs { refBuiltIn = (name,fs) : (refBuiltIn refs) }
+getRefUnknown :: UnknownName -> Encoder (Maybe [Primitive])
+getRefUnknown name = gets (lookup name . refUnknown) >>= \case
+  Nothing -> return Nothing
+  Just fs -> incNumSharing (length fs) >> return (Just fs)
+
+addRefUnknown :: UnknownName -> [Primitive] -> Encoder ()
+addRefUnknown name fs = modify' $ \d -> d { refUnknown = (name,fs) : (refUnknown d) }
+
+getRefBuiltIn :: BuiltInUnknownName -> Encoder (Maybe [Primitive])
+getRefBuiltIn name = gets (lookup name . refBuiltIn) >>= \case
+  Nothing -> return Nothing
+  Just fs -> incNumSharing (length fs) >> return (Just fs)
+
+addRefBuiltIn :: BuiltInUnknownName -> [Primitive] -> Encoder ()
+addRefBuiltIn name fs = modify' $ \d -> d { refBuiltIn = (name,fs) : (refBuiltIn d) }
 
 encodeOverlapping :: [Allocator] -> CO4 EncodedAdt
-encodeOverlapping allocators = return snd `ap` go (ReferenceableFlags [] []) allocators
+encodeOverlapping allocators = do
+  (adt, d) <- runStateT (unEnc $ go allocators) $ EncoderData [] [] 0
+  note $ unwords ["Number of shareded flags:", show $ numSharedFlags d]
+  return adt
   where
-    go _ []        = error "Allocator.encodeOverlapping.go: no allocators"
-    go refs allocs = do
-      (refs,args) <- case maxArgs of
-        0 -> return (refs,[])
-        _ -> mapAccumM go refs overlappingArgs
+    go []     = error "Allocator.encodeOverlapping.go: no allocators"
+    go allocs = do
+      args <- case maxArgs of
+        0 -> return []
+        _ -> mapM go overlappingArgs
 
-      (refs,flags) <- case allocs of
-        [Known 0 1 _]     -> return (refs, [])
-        [Known i n _]     -> return (refs, map constant $ invNumeric n i)
-        [BuiltInKnown fs] -> return (refs, map constant fs)
+      flags <- case allocs of
+        [Known 0 1 _]     -> return []
+        [Known i n _]     -> return $ map constant $ invNumeric n i
+        [BuiltInKnown fs] -> return $ map constant fs
 
-        [Unknown name _] -> do
-          case getRefUnknown name refs of
-            Nothing -> do fs <- allocateMaxFlags 
-                          return (addRefUnknown name fs refs, fs)
-            Just fs -> Exception.assert (maxFlags == length fs) 
-                     $ return (refs, fs)
+        [Unknown name _] -> getRefUnknown name >>= \case
+          Nothing -> do fs <- allocateMaxFlags 
+                        addRefUnknown name fs
+                        return fs
+          Just fs -> Exception.assert (maxFlags == length fs) 
+                   $ return fs
 
-        [BuiltInUnknown name _] -> 
-          case getRefBuiltIn name refs of
-            Nothing -> do fs <- allocateMaxFlags 
-                          return (addRefBuiltIn name fs refs, fs)
-            Just fs -> Exception.assert (maxFlags == length fs)
-                     $ return (refs, fs)
+        [BuiltInUnknown name _] -> getRefBuiltIn name >>= \case
+          Nothing -> do fs <- allocateMaxFlags 
+                        addRefBuiltIn name fs
+                        return fs
+          Just fs -> Exception.assert (maxFlags == length fs)
+                   $ return fs
 
-        _ -> do fs <- allocateMaxFlags
-                return (refs, fs)
+        _ -> allocateMaxFlags
 
-      adt <- make (constant True) flags args prefixfree
-      return (refs, adt)
+      liftCO4 $ make (constant True) flags args prefixfree
 
       where
         overlappingArgs = transpose $ concat $ for allocs $ \case 
@@ -86,7 +104,7 @@ encodeOverlapping allocators = return snd `ap` go (ReferenceableFlags [] []) all
           BuiltInKnown {}   -> []
           BuiltInUnknown {} -> []
 
-        allocateMaxFlags = sequence $ replicate maxFlags primitive
+        allocateMaxFlags = liftCO4 $ sequence $ replicate maxFlags primitive
 
         maxFlags = maximum $ for allocs $ \case 
           Known _ n _        -> bitWidth n
