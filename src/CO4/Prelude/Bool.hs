@@ -82,7 +82,7 @@ boolPrimitives xs = if isEmpty xs then Just [] else
   then case constantConstructorIndex 2 xs of
     Nothing -> Nothing
     Just 0  -> Just []
-    Just i  -> let args = arguments' xs
+    Just 1  -> let args = arguments' xs
                    y    = args !! 0
                    ys   = args !! 1
                in
