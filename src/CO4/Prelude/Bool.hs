@@ -1,7 +1,7 @@
 module CO4.Prelude.Bool
   ( xor2
   , encAnd2, encAnd, encOr2, encOr, encNot, encXor2
-  , encAnd2Prof, encOr2Prof, encNotProf, encXor2Prof
+  , encAnd2Prof, encAndProf, encOr2Prof, encOrProf, encNotProf, encXor2Prof
   )
 where
 
