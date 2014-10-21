@@ -1,4 +1,4 @@
-module CO4.Test.RFCStandaloneBitfield
+module CO4.Test.RFCBitfieldStandalone
 where
 
 import CO4.Prelude

@@ -4,20 +4,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-
-module CO4.Test.RFC
-where
--}
-
 import           System.Environment (getArgs)
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
 import           CO4.Prelude
-import           CO4.Test.RFCStandaloneBitfield
+import           CO4.Test.RFCBitfieldStandalone
 
-$( compileFile [Cache,ImportPrelude] "test/CO4/Test/RFCStandaloneBitfield.hs" )
+$( compileFile [Cache,ImportPrelude] "test/CO4/Test/RFCBitfieldStandalone.hs" )
 
 allocator :: Int -> Int -> Int -> TAllocator [Grid]
 allocator r c col = kList col $ kList r $ kList c complete
