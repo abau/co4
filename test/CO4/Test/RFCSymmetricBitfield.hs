@@ -8,26 +8,23 @@ import           System.Environment (getArgs)
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
-import           Data.List (transpose)
 import           CO4
 import           CO4.Prelude
 import           CO4.Test.RFCSymmetricBitfieldStandalone
 
 $( compileFile [Cache,ImportPrelude] "test/CO4/Test/RFCSymmetricBitfieldStandalone.hs" )
 
-allocator :: Int -> TAllocator Grid
-allocator n = allocatorList $ map (allocatorList . map (bits !!)) pattern
+allocator :: Int -> TAllocator [Grid]
+allocator n = allocatorList $ map allocGrid [q1,q2,q3,q4]
   where
-    nq            = n `div` 2
-    bits          = map (\i -> allocatorId i complete) [1..(nq*nq)]
-    rotate        = map (map (\x -> succ x `mod` (nq*nq))) . map reverse . transpose
+    bits          = map (\i -> allocatorId i complete) [1..(n*n)]
+    rotate        = {-map (map (\x -> succ x `mod` (n*n))) . -} map reverse . transpose
 
     [q1,q2,q3,q4] = take 4
                   $ iterate rotate
-                  $ take nq $ iterate (map (+nq)) [0..nq-1]
+                  $ take n $ iterate (map (+n)) [0..n-1]
 
-    pattern       =  ( map (uncurry (++)) $ zip q1 q2 )
-                  ++ ( map (uncurry (++)) $ zip q4 q3 )
+    allocGrid     = allocatorList . map (allocatorList . map (bits !!))
 
 allocator2 :: Int -> TAllocator Grid
 allocator2 r = kList r $ kList r complete
@@ -38,16 +35,16 @@ toIndex n = Next $ toIndex $ n - 1
 
 result :: Int -> IO String
 result rs = do
-  grid <- solveAndTestP (toIndex rs, toIndex rs) (allocator rs) encConstraint constraint
-  case grid of
+  grids <- solveAndTestP (toIndex rs, toIndex rs) (allocator rs) encConstraint constraint
+  case grids of
     Nothing -> return "Nothing"
-    Just g  -> return $ showGrid g
+    Just gs -> return $ unlines $ map showGrid gs
 
 showGrid :: Grid -> String
 showGrid = unlines . map (map toChar)
   where
-    toChar False = '0'
-    toChar True  = 'X'
+    toChar False = '.'
+    toChar True  = '*'
 
 main :: IO ()
 main = do

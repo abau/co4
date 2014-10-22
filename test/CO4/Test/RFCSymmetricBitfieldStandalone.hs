@@ -9,14 +9,22 @@ data Index   = This | Next Index deriving Show
 type Index2D = (Index,Index)
 type Rect    = (Index2D,Index2D)
 
-constraint :: (Index,Index) -> Grid -> Bool
-constraint dimension grid = 
-  let rects = rectangles dimension
+constraint :: (Index,Index) -> [Grid] -> Bool
+constraint dimension grids = 
+  let rects          = rectangles dimension
+      validBitfields = validBitfield rects (head grids)
+      oneColor       = reduceGrids or grids
   in
-    validBitfield rects grid
+    validBitfields && oneColor
 
 validBitfield :: [Rect] -> Grid -> Bool
 validBitfield rects grid = all (\r -> not (isMonochromatic r grid)) rects
+
+reduceGrids :: ([Color] -> Bool) -> [Grid] -> Bool
+reduceGrids f grids = 
+  let reduceRows rs = all f (transpose rs)
+  in
+    all reduceRows (transpose grids)
 
 isMonochromatic :: Rect -> Grid -> Bool
 isMonochromatic (lo,hi) grid = case lo of 
@@ -26,8 +34,7 @@ isMonochromatic (lo,hi) grid = case lo of
                      c3 = colorAt grid (hiR,loC)
                      c4 = colorAt grid (hiR,hiC)
                      in
-                       (and     [c1, c2, c3, c4]) || 
-                       (not (or [c1, c2, c3, c4]))
+                       and [c1,c2,c3,c4]
 
 rectangles :: (Index,Index) -> [Rect]
 rectangles (dimR,dimC) = 
@@ -66,3 +73,16 @@ prev :: Index -> Index
 prev i = case assertKnown i of
   This    -> undefined
   Next i' -> i'
+
+transpose :: [[a]] -> [[a]]
+transpose list = case assertKnown list of
+  [] -> []
+  xxs:xss -> 
+    case assertKnown xxs of 
+      []   -> transpose xss
+      x:xs -> let hhead ys = case assertKnown ys of []  -> []
+                                                    y:_ -> [y]
+                  ttail ys = case assertKnown ys of []  -> []
+                                                    _:y -> y
+              in
+                (x : (concatMap hhead xss)) : transpose (xs : (map ttail xss))
