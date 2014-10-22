@@ -56,6 +56,7 @@ preludeFunctionDeclarations = [
   , [dec| init xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] -> [] ; _  -> x : init ys } } |]
   , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
   , [dec| concat = foldr (++) [] |]
+  , [dec| tails xs = case xs of { [] -> [[]]; (x:xs) -> (x:xs) : (tails xs) } |]
   -- Functions
   , [dec| id x = x |]
   , [dec| const x y = x |]

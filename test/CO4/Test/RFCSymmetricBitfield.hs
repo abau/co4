@@ -18,7 +18,7 @@ allocator :: Int -> TAllocator [Grid]
 allocator n = allocatorList $ map allocGrid [q1,q2,q3,q4]
   where
     bits          = map (\i -> allocatorId i complete) [1..(n*n)]
-    rotate        = {-map (map (\x -> succ x `mod` (n*n))) . -} map reverse . transpose
+    rotate        = map reverse . transpose
 
     [q1,q2,q3,q4] = take 4
                   $ iterate rotate
@@ -26,16 +26,9 @@ allocator n = allocatorList $ map allocGrid [q1,q2,q3,q4]
 
     allocGrid     = allocatorList . map (allocatorList . map (bits !!))
 
-allocator2 :: Int -> TAllocator Grid
-allocator2 r = kList r $ kList r complete
-
-toIndex :: Int -> Index
-toIndex 1 = This
-toIndex n = Next $ toIndex $ n - 1
-
 result :: Int -> IO String
 result rs = do
-  grids <- solveAndTestP (toIndex rs, toIndex rs) (allocator rs) encConstraint constraint
+  grids <- solveAndTest (allocator rs) encConstraint constraint
   case grids of
     Nothing -> return "Nothing"
     Just gs -> return $ unlines $ map showGrid gs
