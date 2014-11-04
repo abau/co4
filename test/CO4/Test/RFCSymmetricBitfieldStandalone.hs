@@ -4,26 +4,21 @@ where
 import CO4.Prelude
 import Data.List (tails)
 
-type Grid    = [[Color]]
-type Color   = Bool
-data Index   = This | Next Index deriving Show
-type Index2D = (Index,Index)
-type Rect    = (Index2D,Index2D)
+type Grid  = [[Color]]
+type Color = Bool
 
 constraint :: [Grid] -> Bool
 constraint grids = (noMonochromaticRect (head grids)) && (reduceGrids or grids)
+
+noMonochromaticRect :: Grid -> Bool
+noMonochromaticRect grid = 
+  all (\(row1, row2) -> atmost1 (zipWith (&&) row1 row2)) (pairs grid)
 
 reduceGrids :: ([Color] -> Bool) -> [Grid] -> Bool
 reduceGrids f grids = 
   let reduceRows rs = all f (transpose rs)
   in
     all reduceRows (transpose grids)
-
-noMonochromaticRect :: Grid -> Bool
-noMonochromaticRect grid = 
-  all (\(row1,row2) ->
-      all (\(x,y) -> not (and [fst x, snd x, fst y, snd y])) (pairs (zip row1 row2))
-  ) (pairs grid)
 
 pairs :: [a] -> [(a,a)]
 pairs list = concatMap (\xs -> case xs of { [] -> []; (x:ys) -> concatMap (\y -> [(x,y)]) ys } ) 
@@ -41,3 +36,10 @@ transpose list = case assertKnown list of
                                                     _:y -> y
               in
                 (x : (concatMap hhead xss)) : transpose (xs : (map ttail xss))
+
+atmost1 :: [Bool] -> Bool
+atmost1 xs = case xs of
+  []   -> True
+  y:ys -> case y of
+            False -> atmost1 ys
+            True  -> not (or ys)
