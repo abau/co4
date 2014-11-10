@@ -12,7 +12,8 @@ constraint grids = (noMonochromaticRect (head grids)) && (reduceGrids or grids)
 
 noMonochromaticRect :: Grid -> Bool
 noMonochromaticRect grid = 
-  all (\(row1, row2) -> atmost1 (zipWith (&&) row1 row2)) (pairs grid)
+  --all (\(row1, row2) -> atmost1 (zipWith (&&) row1 row2)) (pairs grid)
+  all (\(row1, row2) -> atmost (S Z) (zipWith (&&) row1 row2)) (pairs grid)
 
 reduceGrids :: ([Color] -> Bool) -> [Grid] -> Bool
 reduceGrids f grids = 
@@ -43,3 +44,12 @@ atmost1 xs = case xs of
   y:ys -> case y of
             False -> atmost1 ys
             True  -> not (or ys)
+
+data N = Z | S N
+
+atmost :: N -> [Bool] -> Bool
+atmost n xs = case n of
+  Z    -> not (or xs)
+  S n' -> case xs of
+            []   -> True
+            y:ys -> atmost n' ys || (not y && atmost n ys) 
