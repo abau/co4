@@ -30,8 +30,10 @@ result :: Int -> IO String
 result rs = do
   grids <- solveAndTest (allocator rs) encConstraint constraint
   case grids of
-    Nothing -> return "Nothing"
-    Just gs -> return $ unlines $ map showGrid gs
+    Nothing ->    return "Nothing"
+    Just gs -> do putStrLn $ "constraint1: " ++ (show $ constraint1 gs)
+                  putStrLn $ "constraint2: " ++ (show $ constraint2 gs)
+                  return $ unlines $ map showGrid gs
 
 showGrid :: Grid -> String
 showGrid = unlines . map (map toChar)
