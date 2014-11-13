@@ -6,7 +6,6 @@ where
 
 import           Control.Applicative (Applicative)
 import qualified Control.Exception as Exception
-import           Control.Monad (zipWithM_,ap)
 import           Control.Monad.State.Strict
 import           Data.List (transpose,genericLength)
 import qualified Data.Map as M
@@ -17,7 +16,7 @@ import           CO4.Allocator.Data hiding (allocatorId)
 import           CO4.Allocator.Typed
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.EncodedAdt (Primitive,EncodedAdt,flags',arguments',make)
-import           CO4.Util (for,bitWidth,mapAccumM)
+import           CO4.Util (for,bitWidth)
 import           CO4.Monad (CO4)
 import           CO4.Prefixfree (invNumeric)
 

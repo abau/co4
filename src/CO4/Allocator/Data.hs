@@ -3,8 +3,6 @@ module CO4.Allocator.Data
   , constructors, known, unknown, builtInKnown, builtInUnknown, allocatorId )
 where
 
-import           System.Mem.StableName (StableName,makeStableName)
-import           System.IO.Unsafe (unsafePerformIO)
 import qualified Control.Exception as Exception
 import           Data.Tree
 
