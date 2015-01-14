@@ -76,7 +76,7 @@ encodeOverlapping allocators = do
         [BuiltInKnown fs] -> return $ map constant fs
         _                 -> liftCO4 $ sequence $ replicate maxFlags primitive
 
-      liftCO4 $ make (constant True) flags args prefixfree
+      liftCO4 $ make flags args prefixfree
 
       where
         overlappingArgs = transpose $ concat $ for allocs go

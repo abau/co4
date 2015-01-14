@@ -4,7 +4,6 @@ module CO4.Prelude
   , uList, kList, allocatorList
   , assertKnown, encAssertKnownProf, encAssertKnown
   , assertKnownLoc, encAssertKnownLocProf, encAssertKnownLoc
-  , assertDefined, encAssertDefined, encAssertDefinedProf
   , dumpEncoded, encDumpEncoded, encDumpEncodedProf
   , module CO4.Prelude.Nat
   , module CO4.Prelude.Bool
@@ -24,7 +23,7 @@ import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.Allocator (TAllocator,toAllocator,unsafeTAllocator,constructors,known)
 import           CO4.Prelude.Nat
-import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,flags')
+import           CO4.EncodedAdt (EncodedAdt,isInvalid,flags')
 import           CO4.Monad (CO4,traced,abortWithStackTrace)
 import           CO4.Prelude.Bool
 
@@ -199,16 +198,6 @@ encAssertKnownLoc line col e =
   else abortWithStackTrace $ unwords [ "Prelude.encAssertKnownLoc: assertion 'assertKnown' failed" 
                                      , show (line,col) ]
 encAssertKnownLocProf line col e = traced "assertKnown" $ encAssertKnownLoc line col e
-
-assertDefined :: a -> a
-assertDefined = id
-
-encAssertDefined,encAssertDefinedProf :: EncodedAdt -> CO4 EncodedAdt
-encAssertDefined e = 
-  if isConstantlyDefined e 
-  then return e
-  else abortWithStackTrace "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
-encAssertDefinedProf = traced "assertDefined" . encAssertDefined
 
 dumpEncoded :: a -> a
 dumpEncoded = id

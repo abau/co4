@@ -12,12 +12,12 @@ import           Unsafe.Coerce (unsafeCoerce)
 import           Satchmo.Core.MonadSAT (traced)
 import           Satchmo.Core.SAT.Minisat (note,solve')
 import           Satchmo.Core.Decode (Decode,decode)
-import           Satchmo.Core.Primitive (assert,and)
+import           Satchmo.Core.Primitive (assert)
 import           CO4.Monad (CO4,SAT,runCO4)
-import           CO4.EncodedAdt 
-  (EncodedAdt,flags,definedness,constantConstructorIndex,isConstantlyDefined)
+import           CO4.EncodedAdt (EncodedAdt,flags,constantConstructorIndex,arguments)
 import           CO4.Allocator (TAllocator)
 import           CO4.Encodeable (Encodeable(..))
+import           CO4.Algorithms.UndefinedValues.Data (completelyDefined)
 
 type ConstraintSystem      = EncodedAdt -> CO4 EncodedAdt 
 type ParamConstraintSystem = EncodedAdt -> ConstraintSystem 
@@ -38,11 +38,12 @@ solveP :: (Decode SAT EncodedAdt a, Encodeable k)
 solveP k allocator constraint = 
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 
-      unknown <- traced "Allocator:" $ encode allocator
-      param   <- encode k
+      unknown    <- traced "Allocator:" $ encode allocator
+      optUnknown <- completelyDefined unknown
+      param      <- encode k >>= completelyDefined
       --note $ "Encoded parameter:\n" ++ show param
       --note $ "Encoded unknown:\n" ++ show unknown
-      result <- constraint param unknown
+      result     <- constraint param optUnknown
       return (unknown, result)
     handleResult unknown result
 
@@ -60,9 +61,10 @@ solve :: (Decode SAT EncodedAdt a) => TAllocator a -> ConstraintSystem -> IO (Ma
 solve allocator constraint =
   solve' True $ do 
     (unknown,result) <- runCO4 $ do 
-      unknown <- traced "Allocator:" $ encode allocator
+      unknown    <- traced "Allocator:" $ encode allocator
+      optUnknown <- completelyDefined unknown
       --note $ "Encoded unknown:\n" ++ show unknown
-      result <- constraint unknown
+      result <- constraint optUnknown
       return (unknown, result)
     handleResult unknown result
 
@@ -78,27 +80,35 @@ testSolution test solution = case solution of
 
 handleResult :: (Decode SAT EncodedAdt a) => EncodedAdt -> EncodedAdt 
                                           -> SAT (Maybe (SAT a))
-handleResult unknown result = do
-  case flags result of
-    Nothing -> do
-      note "Error: missing flags in constraint system's result (maybe 'undefined' or 'empty')"
-      return Nothing
+handleResult unknown optResult = do
+  case flags optResult of
+    Nothing -> abortWith "Error: missing flags in constraint's result (optional Boolean)"
 
-    Just [flag] ->
-      case constantConstructorIndex 2 result of
-        Just 0 | isConstantlyDefined result -> do 
-          note "Known result: unsatisfiable"
-          return Nothing
+    Just [optFlag] -> 
+      let optIndex = constantConstructorIndex 2 optResult
+      in
+        case optIndex of
+          Just 0 -> abortWith "Error: constraint evaluated to 'undefined'"
 
-        Just 1 | isConstantlyDefined result -> do 
-          note "Known result: valid"
-          return Nothing
+          _ -> case arguments optResult of
+            Nothing -> abortWith "Error: constraint did not evaluate to a Boolean (missing argument)"
 
-        _ -> traced "Toplevel:" $ do
-          formula <- and [ flag , definedness result ]
-          assert [ formula ]
-          return $ Just $ decode unknown 
+            Just [boolResult] ->
+              case flags boolResult of
+                Nothing -> abortWith "Error: missing flags in constraint's result (Boolean)"
 
-    _ -> do 
-      note "Error: constraint system did not evaluate to a Boolean"
-      return Nothing
+                Just [boolFlag] ->
+                  case constantConstructorIndex 2 boolResult of
+                    Just 0 -> abortWith "Known result: unsatisfiable"
+                    Just 1 | optIndex == Just 1 -> abortWith "Known result: valid"
+
+                    _ -> traced "Toplevel:" $ do
+                      assert [ optFlag ]
+                      assert [ boolFlag ]
+                      return $ Just $ decode unknown 
+
+                _ -> abortWith "Error: constraint system did not evaluate to a Boolean (too many arguments in Bool)"
+
+            _ -> abortWith "Error: constraint did not evaluate to a Boolean (too many arguments in optional Bool)"
+  where
+    abortWith msg = note msg >> return Nothing

@@ -18,7 +18,7 @@ import           CO4.Stack
 import {-# SOURCE #-} CO4.EncodedAdt (Primitive,EncodedAdt,makeWithId,constantConstructorIndex)
 
 type SAT          = Satchmo.Core.SAT.Minisat.SAT
-type AdtCacheKey  = (Primitive, [Primitive], [EncodedAdt], Bool)
+type AdtCacheKey  = ([Primitive], [EncodedAdt], Bool)
 type CallCacheKey = (String, [EncodedAdt])
 type AdtCache     = Cache AdtCacheKey  Int
 type CallCache    = Cache CallCacheKey EncodedAdt
@@ -124,13 +124,13 @@ withCallCache key action =
     return result
 
 withAdtCache :: AdtCacheKey -> CO4 EncodedAdt
-withAdtCache key@(d,fs,args,pf) = gets (retrieve key . adtCache) >>= \case
+withAdtCache key@(fs,args,pf) = gets (retrieve key . adtCache) >>= \case
   (Just id, c) -> do modify (setAdtCache c) 
-                     return $ makeWithId id d fs args pf
+                     return $ makeWithId id fs args pf
   (Nothing, c) -> do 
     id     <- newId
     modify $! setAdtCache $! cache key id c
-    return $  makeWithId id d fs args pf
+    return $  makeWithId id fs args pf
 
 traced :: String -> CO4 a -> CO4 a
 traced name action = do

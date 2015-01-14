@@ -20,7 +20,6 @@ import           CO4.Monad (SAT)
 -- >    decode p = do
 -- >      i <- toIntermediateAdt p <#constructors of Type>
 -- >      case i of
--- >        IntermediateUndefined                 -> error "..."
 -- >        IntermediateEmpty                     -> error "..."
 -- >        IntermediateConstructorIndex 0 <args> -> do
 -- >          p0 <- decode arg0
@@ -59,20 +58,9 @@ decodeInstance (Adt name vars conss) = do
   matches  <- forM (zip [0..] conss) $ uncurry decodeCons
   matchDef <- matchDefault name
 
-  return $ instanceHead [ instanceDec $ concat [ [ matchUndefined name
-                                                 , matchEmpty     name
-                                                 ]
+  return $ instanceHead [ instanceDec $ concat [ [matchEmpty name]
                                                ,  matches
                                                , [matchDef] ] ]
-
-matchUndefined :: UntypedName -> TH.Match
-matchUndefined adtName = 
-  TH.Match (TH.ConP 'IntermediateUndefined [])
-           (TH.NormalB $ TH.AppE (TH.VarE 'error)
-                                 (TH.LitE $ TH.StringL 
-                                          $ "Can not decode 'undefined' to data of type '" ++ fromName adtName ++ "'"
-                                 )
-           ) []
 
 matchEmpty :: UntypedName -> TH.Match
 matchEmpty adtName = 

@@ -22,7 +22,7 @@ module CO4.Prelude.Nat
   , encPlusNatProf, encPlus'NatProf
   , encShiftLNatProf, encShiftRNatProf, encAndNatProf, encOrNatProf, encXorNatProf
 
-  , onFlags, catchInvalid, onFlags2, catchInvalid2
+  , onUnwrappedFlags1, onUnwrappedFlags2
   )
 where
 
@@ -43,6 +43,7 @@ import           CO4.EncodedAdt
 import           CO4.Encodeable (Encodeable (..))
 import           CO4.Allocator
 import           CO4.Util (toBinary,fromBinary,bitWidth)
+import           CO4.Algorithms.UndefinedValues.Data (onUnwrapped1,onUnwrapped2)
 
 --import qualified CO4.PreludeNat.Opt as Opt
 
@@ -64,11 +65,9 @@ instance Encodeable Nat where
 
 instance Decode SAT EncodedAdt Nat where
   decode p = case fmap length (flags p) of
-    Just n -> decode (definedness p) >>= \case
-      False -> error $ "Can not decode 'undefined' to data of type 'Nat'"
-      True  -> decode (flags' p) >>= \case
-        [] | n == 0 -> return $ nat 0 0
-        fs          -> return $ nat n $ fromBinary fs
+    Just n -> decode (flags' p) >>= \case
+      [] | n == 0 -> return $ nat 0 0
+      fs          -> return $ nat n $ fromBinary fs
     Nothing -> error "Missing flags while decoding 'Nat'"
 
 instance FromKnown Nat where
@@ -150,8 +149,8 @@ onValue2' f a b =
 -- * Encoded functions on naturals
 
 encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
-encNat     0 0 = make (constant True) [] [] False
-encNat     w i = make (constant True) (map constant $ toBinary (Just w) i) [] False
+encNat     0 0 = make [] [] False
+encNat     w i = make (map constant $ toBinary (Just w) i) [] False
 encNatProf w i = traced "nat" $ encNat w i
 
 encGtNat,encGeNat,encEqNat,encLeNat,encLtNat,encMaxNat,encMinNat
@@ -163,32 +162,32 @@ encGtNatProf a b = traced "gtNat" $ encGtNat a b
 encGeNat         = flip encLeNat
 encGeNatProf a b = traced "geNat" $ encGeNat a b
 
-encEqNat = catchInvalid2 $ onFlags2 $ \as bs ->
+encEqNat = onUnwrappedFlags2 $ \as bs ->
   zipWithM (\x y -> equals [x,y]) as bs >>= and >>= \r -> return [r]
 encEqNatProf a b = traced "eqNat" $ encEqNat a b
 
-encLeNat = catchInvalid2 $ onFlags2 $ \a b -> do
+encLeNat = onUnwrappedFlags2 $ \a b -> do
   (l, e) <- encComparePrimitives a b
   r <- or [l,e] 
   return [r]
 encLeNatProf a b = traced "leNat" $ encLeNat a b
 
-encLtNat = catchInvalid2 $ onFlags2 $ \a b -> do
+encLtNat = onUnwrappedFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
   return [l] 
 encLtNatProf a b = traced "ltNat" $ encLtNat a b
 
-encIsZeroNat = catchInvalid $ onFlags $ \a -> do
+encIsZeroNat = onUnwrappedFlags1 $ \a -> do
   nonzero <- or a
   return [ not nonzero ]
 encIsZeroNatProf a = traced "isZeroNat" $ encIsZeroNat a
 
-encMaxNat = catchInvalid2 $ onFlags2 $ \ a b -> do
+encMaxNat = onUnwrappedFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
   zipWithM ( \x y -> ifthenelse l x y ) a b 
 encMaxNatProf a b = traced "maxNat" $ encMaxNat a b
 
-encMinNat = catchInvalid2 $ onFlags2 $ \ a b -> do
+encMinNat = onUnwrappedFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives a b
   zipWithM ( \x y -> ifthenelse l x y ) a b 
 encMinNatProf a b = traced "minNat" $ encMinNat a b
@@ -265,13 +264,14 @@ encComparePrimitives_linear a b = case (a,b) of
 -}
 
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlusNat = catchInvalid2 $ onFlags2' $ \a b -> do
+encPlusNat = onUnwrappedFlags2 $ \a b -> do
   (carry, result) <- ripple_carry_adder a b
-  return (not carry, result)
+  assert [not carry]
+  return result
 encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
 encPlus'Nat,encPlus'NatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlus'Nat = catchInvalid2 $ onFlags2 $ ripple_carry_adder_with_overflow
+encPlus'Nat = onUnwrappedFlags2 $ ripple_carry_adder_with_overflow
 encPlus'NatProf a b = traced "plus'Nat" $ encPlus'Nat a b
 
 ripple_carry_adder :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
@@ -309,7 +309,7 @@ encTimesNat = encTimesNat_1
 
 {-
 encTimesNat_0 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat_0 = catchInvalid2 $ onFlags2 $ \ as bs -> do
+encTimesNat_0 = onUnwrappedFlags2 $ \ as bs -> do
      let clamp w xs = do
              let (pre, post) = splitAt w xs
              forM post $ \ p -> assert [ not p ]
@@ -333,7 +333,7 @@ call o as bs = do
 -}
 
 encTimesNat_1 :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encTimesNat_1 = catchInvalid2 $ onFlags2' $ \as bs -> 
+encTimesNat_1 = onUnwrappedFlags2 $ \as bs -> 
   let f = case length as of
             -- 3 -> call Opt.times3
             -- 4 -> call Opt.times4
@@ -341,7 +341,8 @@ encTimesNat_1 = catchInvalid2 $ onFlags2' $ \as bs ->
             _ -> wallace_multiplier
   in do
     (carry, result) <- f as bs
-    return (not carry, result)
+    assert [not carry]
+    return result
 
 wallace_multiplier :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
 wallace_multiplier as bs = do
@@ -483,65 +484,50 @@ halfAdder p1 p2 = do
   return (r,c)
 
 encShiftLNat,encShiftLNatProf :: EncodedAdt -> CO4 EncodedAdt
-encShiftLNat = catchInvalid $ onFlags $ \a -> 
+encShiftLNat = onUnwrappedFlags1 $ \a -> 
   return $ (constant False) : (take (length a - 1) a)
 encShiftLNatProf = traced "shiftLNat" . encShiftLNat
 
 encShiftRNat,encShiftRNatProf :: EncodedAdt -> CO4 EncodedAdt
-encShiftRNat = catchInvalid $ onFlags $ \a -> 
+encShiftRNat = onUnwrappedFlags1 $ \a -> 
   return $ tail a ++ [constant False] 
 encShiftRNatProf = traced "shiftRNat" . encShiftRNat
 
 encAndNat,encAndNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encAndNat         = catchInvalid2 $ onFlags2 $ zipWithM $ \x y -> and [x,y]
+encAndNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> and [x,y]
 encAndNatProf a b = traced "andNat" $ encAndNat a b
 
 encOrNat,encOrNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encOrNat         = catchInvalid2 $ onFlags2 $ zipWithM $ \x y -> or [x,y]
+encOrNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> or [x,y]
 encOrNatProf a b = traced "orNat" $ encOrNat a b
 
 encXorNat,encXorNatProf  :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encXorNat         = catchInvalid2 $ onFlags2 $ zipWithM $ \x y -> xor [x,y]
+encXorNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> xor [x,y]
 encXorNatProf a b = traced "xorNat" $ encXorNat a b
 
-onFlags :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
-onFlags f a = case flags a of
-  Just as -> do flags' <- f as 
-                make (definedness a) flags' [] $ isPrefixfree' a
-  _       -> abortWithStackTrace "PreludeNat.onFlags: missing flags"
+onUnwrappedFlags1 :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
+onUnwrappedFlags1 f = onUnwrapped1 onFlags
+  where
+    onFlags a = if isEmpty a 
+      then return encEmpty
+      else case flags a of
+        Just as -> do flags' <- f as 
+                      make flags' [] $ isPrefixfree' a
+        _       -> abortWithStackTrace "PreludeNat.onUnwrappedFlags: missing flags"
 
-onFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
-         -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-onFlags2 f = onFlags2' $ \a b -> do fs <- f a b
-                                    return (constant True, fs)
-
-onFlags2' :: ([Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])) 
-         -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-onFlags2' f a b = case (flags a, flags b) of
-  (Just as, Just bs) -> do
-      (def, flags') <- f as' bs'
-      definedness'  <- and [def, definedness a, definedness b]
-      make definedness' flags' [] $ prefixfreeBranches [a,b]
-    where
-      las = length as
-      lbs = length bs
-      as' = as ++ (replicate (lbs - las) $ constant False)
-      bs' = bs ++ (replicate (las - lbs) $ constant False)
-  _ -> abortWithStackTrace "PreludeNat.onFlags2': missing flags"
-
-catchInvalid :: (EncodedAdt -> CO4 (EncodedAdt)) -> EncodedAdt -> CO4 (EncodedAdt)
-catchInvalid f a = 
-  if isConstantlyUndefined a 
-  then return encUndefined
-  else if isEmpty a 
-       then return encEmpty
-       else f a
-
-catchInvalid2 :: (EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)) 
-              -> EncodedAdt -> EncodedAdt -> CO4 (EncodedAdt)
-catchInvalid2 f a b = 
-  if isConstantlyUndefined a || isConstantlyUndefined b
-  then return encUndefined
-  else if isEmpty a || isEmpty b 
-       then return encEmpty
-       else f a b
+onUnwrappedFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
+                  -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
+onUnwrappedFlags2 f = onUnwrapped2 onFlags
+  where
+    onFlags a b = if isEmpty a || isEmpty b
+      then return encEmpty
+      else case (flags a, flags b) of
+        (Just as, Just bs) -> do
+            flags' <- f as' bs'
+            make flags' [] $ allBranchesPrefixfree [a,b]
+          where
+            las = length as
+            lbs = length bs
+            as' = as ++ (replicate (lbs - las) $ constant False)
+            bs' = bs ++ (replicate (las - lbs) $ constant False)
+        _ -> abortWithStackTrace "PreludeNat.onUnwrappedFlags2: missing flags"
