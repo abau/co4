@@ -20,7 +20,7 @@ import           CO4.THUtil (unqualifiedNames)
 import           CO4.Util (addDeclarations)
 import           CO4.Prelude (parsePrelude)
 import           CO4.Config 
-  (MonadConfig,Config(..),ConfigurableT,configurable,mapConfigurableT,is,fromConfigs)
+  (MonadConfig,Config(..),ConfigurableT,configurable,mapConfigurableT,is)
 import qualified CO4.Config as C
 import           CO4.Algorithms.Globalize (globalize)
 import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
@@ -34,7 +34,7 @@ import           CO4.PPrint (pprint)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
 import           CO4.Frontend.HaskellSrcExts (toTHDeclarations)
 
-type Message = (Maybe FilePath, String)
+type Message = String
 
 compileFile :: [Config] -> FilePath -> Q [TH.Dec]
 compileFile configs filePath = 
@@ -48,39 +48,41 @@ compileFile configs filePath =
 
 compile :: [Config] -> [TH.Dec] -> Q [TH.Dec]
 compile configs program = do
-  (program', msg :: [Message]) <- runWriterT $ configurable configs 
-                                             $ withUniqueT 
-                                             $ compile' program
-  forM_ msg $ \case 
-    (Nothing, msg) -> TH.runIO $ hPutStrLn stderr msg
-    (Just fp, msg) -> TH.runIO $ writeFile fp     msg
+  (program', msgs :: [Message]) <- runWriterT $ configurable configs 
+                                              $ withUniqueT 
+                                              $ compile' program
+  case C.dumpTo configs of
+    Nothing -> return ()
+    Just "" -> TH.runIO $ hPutStrLn stderr $ unlines msgs
+    Just fp -> TH.runIO $ writeFile fp     $ unlines msgs
 
   return program'
 
 compile' :: (MonadWriter [Message] m, MonadUnique m, MonadConfig m) 
          => [TH.Dec] -> m [TH.Dec]
 compile' program = do
-  parsedPrelude <- is ImportPrelude >>= \case
-                        True  -> parsePrelude
-                        False -> return []
+  programWithPrelude <- do 
+    parsedProgram <- parsePreprocessedTHDeclarations program
 
-  inputProgram  <- parsePreprocessedTHDeclarations program
-                     >>= return . addDeclarations parsedPrelude
+    is ImportPrelude >>= \case
+      True  -> do parsedPrelude <- parsePrelude 
+                  return $ addDeclarations parsedPrelude parsedProgram
+      False -> return parsedProgram
 
   is OnlyAllocators >>= \case
-    True  -> runCodeGenerator codeGenAdt inputProgram
+    True  -> runCodeGenerator codeGenAdt programWithPrelude
     False -> do
-      co4Program <-  uniqueLocalNames inputProgram
+      co4Program <-  uniqueLocalNames programWithPrelude
                  >>= extendLambda
                  >>= globalize 
                  >>= saturateApplication
                  >>= hoInstantiation
                  >>= polyInstantiation
 
-      result <- is NoSatchmo >>= \case
-        True  -> do dump $ show $ pprint co4Program
-                    return $ toTH co4Program
+      dump "Concrete Program (CO4, after transformation)" $ show $ pprint co4Program
 
+      result <- is NoSatchmo >>= \case
+        True  -> return $ toTH co4Program
         False -> runCodeGenerator codeGen co4Program
 
       log "Compilation successful"
@@ -93,17 +95,16 @@ runCodeGenerator :: (MonadUnique m , MonadWriter [Message] m, MonadConfig m)
         => (Program -> m [TH.Dec]) -> Program -> m [TH.Dec]
 runCodeGenerator generator program = do
   thProgram <- generator program 
-  dump $ show $ TH.ppr $ unqualifiedNames thProgram
+  dump "Abstract Program (TH)" $ show $ TH.ppr $ unqualifiedNames thProgram
   return thProgram
 
-dump :: (MonadWriter [Message] m, MonadConfig m) => String -> m ()
-dump msg = fromConfigs C.dumpTo >>= \case
-  Nothing -> return ()
-  Just "" -> log msg
-  Just f  -> tell [(Just f, msg)]
+dump :: (MonadWriter [Message] m, MonadConfig m) => String -> String -> m ()
+dump header msg = tell [decoratedHeader, msg]
+  where 
+    decoratedHeader = concat ["\n## ", header, " ", replicate 30 '#', "\n"]
 
 log :: MonadWriter [Message] m => String -> m ()
-log x = tell [(Nothing, x)]
+log x = tell [x]
 
 instance MonadWriter [Message] m => MonadWriter [Message] (UniqueT m) where
   writer = lift . writer

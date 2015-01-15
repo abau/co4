@@ -1,10 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.W
-  {-
   ( HMConfig (..), IntroduceTLamTApp (..) 
-  , schemeOfExp, schemesConfig, schemes, withSchemes)
-  -}
+  , initialContext, schemeOfExp, schemesConfig, schemes, withSchemes)
 where
   
 import           Prelude hiding (lookup)
