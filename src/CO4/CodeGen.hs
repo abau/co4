@@ -97,13 +97,13 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         case fromName fName of
           n | n == natName -> case args of
             [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
-            _               -> error $ "Algorithms.Eitherize.instantiateApp: nat"
+            _               -> error $ "CodeGen.instantiateApp: nat"
 
           n | n == "assertKnownLoc" -> case args of
             [ECon l,ECon c,_] -> bindAndApplyArgs 
                                    (\[e'] -> appsE (varE fName') [nameToIntE l,nameToIntE c,e'])
                                    $ drop 2 args'
-            _                 -> error $ "Algorithms.Eitherize.instantiateApp: assertKnownLoc"
+            _                 -> error $ "CodeGen.instantiateApp: assertKnownLoc"
 
           _ | cache  -> bindAndApplyArgs (\args'' -> 
                           appsE (TH.VarE 'withCallCache) 
@@ -114,7 +114,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
   instantiateCase (ECase e ms) = 
     getAdt >>= \case 
-      Nothing  -> error "Algorithms.Eitherize.instantiateCase: no ADT found"
+      Nothing  -> error "CodeGen.instantiateCase: no ADT found"
       Just adt -> do
         let numCons = length $ adtConstructors adt
 
@@ -182,7 +182,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           matchFromConstructor c = 
             case find byMatch ms of
               Nothing -> case defaultMatch of
-                            Nothing -> error $ "Algorithms.Eitherize.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
+                            Nothing -> error $ "CodeGen.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
                             Just m  -> m
               Just m  -> m
 
