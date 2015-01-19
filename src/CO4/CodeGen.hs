@@ -14,7 +14,6 @@ import           Data.List (find)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util
-import           CO4.TypesUtil (typeOfScheme,argumentTypes)
 import           CO4.THUtil
 import           CO4.Names 
 import           CO4.Algorithms.THInstantiator hiding (instantiateSignature)
@@ -224,24 +223,26 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
     return $ valD' name' profiledExp'
 
-instantiateSignature :: MonadConfig u => Signature -> u TH.Dec
-instantiateSignature (Signature name scheme) =
-  let type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
-                    (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
-                    (replicate numArgs $ TH.ConT ''EncodedAdt)
+instantiateSignature :: MonadConfig u => Binding -> u TH.Dec
+instantiateSignature (Binding name expression) = do
+  name' <- encodedName name >>= return . convertName
+  return $ TH.SigD name' $ TH.ForallT [] [] type_
+  where
+    numArgs = case expression of
+      ELam xs _ -> length xs
+      _         -> 0
 
-      numArgs = length $ argumentTypes $ typeOfScheme scheme
-  in do
-    name' <- encodedName name >>= return . convertName
-    return $ TH.SigD name' $ TH.ForallT [] [] type_
+    type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
+                  (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
+                  (replicate numArgs $ TH.ConT ''EncodedAdt)
 
 -- |@codeGen p@ transforms a co4 program into a Template-Haskell program.
--- @p@ must be first-order, fully instantiated and explicitly typed.
+-- @p@ must be first-order and fully instantiated.
 codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
 codeGen program = do
   withPrelude  <- is ImportPrelude
 
-  let (pAdts,pValues,pSignatures) = splitDeclarations program
+  let (pAdts,pValues,_) = splitDeclarations program
       adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
                                       else pAdts
       pToplevelNames = map boundName $ programToplevelBindings program
@@ -254,9 +255,9 @@ codeGen program = do
   values' <- runReaderT (runExpInstantiator $ instantiate $ map DBind pValues)
                         (ExpInstantiatorData toplevelNames adts)
 
-  sigs'   <- mapM instantiateSignature pSignatures
+  sigs'   <- mapM instantiateSignature pValues
                          
-  return $ {-deleteSignatures $-} adts' ++ values' ++ sigs'
+  return $ adts' ++ values' ++ sigs'
 
 -- |@codeGenAdt p@ only runs ADT related code generators.
 codeGenAdt :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]

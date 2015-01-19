@@ -44,7 +44,6 @@ Library
                     , CO4.Algorithms.HigherOrderInstantiation
                     , CO4.Algorithms.HindleyMilner
                     , CO4.Algorithms.Instantiator
-                    , CO4.Algorithms.PolymorphicInstantiation
                     , CO4.Algorithms.Rename
                     , CO4.Algorithms.Replace
                     , CO4.Algorithms.SaturateApplication

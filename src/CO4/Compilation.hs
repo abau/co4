@@ -27,7 +27,6 @@ import           CO4.Algorithms.UniqueNames (uniqueLocalNames)
 import           CO4.Algorithms.HigherOrderInstantiation (hoInstantiation)
 import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
-import           CO4.Algorithms.PolymorphicInstantiation (polyInstantiation)
 import           CO4.Algorithms.THInstantiator (toTH)
 import           CO4.CodeGen (codeGen,codeGenAdt)
 import           CO4.PPrint (pprint)
@@ -77,7 +76,6 @@ compile' program = do
                  >>= globalize 
                  >>= saturateApplication
                  >>= hoInstantiation
-                 >>= polyInstantiation
 
       dump "Concrete Program (CO4, after transformation)" $ show $ pprint co4Program
 
