@@ -4,6 +4,7 @@
 module CO4.Example.HangStandalone where
 
 import CO4.Prelude
+import Data.List (inits,tails)
 
 type Pin = Nat
 data Dir = L | R deriving (Show, Eq)
@@ -45,21 +46,6 @@ nullable p h = case h of
       || or (map ( \(l,r) -> nullable p l && nullable p r)
                (nonempty_splits (x:xs)) )
 
-nonempty_splits xs =  tail ( init ( splits2 xs ) )
+nonempty_splits xs =  tail ( init ( splits xs ) )
 
-splits1 xs = zip (inits xs) (tails xs)
-
-splits2 xs = case xs of
-  [] -> [([],[])]
-  x:ys -> (xs,[]) : map (\(l,r) -> (l,x:r)) (splits2 ys)
-
-inits xs = case xs of
-  [] -> [[]]
-  x:xs -> [] : map ( \ys -> x:ys) (inits xs)
-
--- TODO: CO4 has a problem compiling this:
--- (change splits2 to splits1 in nonempty_splits above)
-tails xs = case xs of
-  [] -> [[]]
-  y:ys -> xs : tails ys
-
+splits xs = zip (inits xs) (tails xs)
