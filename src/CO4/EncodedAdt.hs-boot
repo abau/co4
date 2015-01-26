@@ -10,6 +10,6 @@ data EncodedAdt
 instance Eq  EncodedAdt
 instance Ord EncodedAdt
 
-makeWithId :: Int -> Primitive -> [Primitive] -> [EncodedAdt] -> Bool -> EncodedAdt
+makeWithId :: Int -> [Primitive] -> [EncodedAdt] -> Bool -> EncodedAdt
 
 constantConstructorIndex :: Int -> EncodedAdt -> Maybe Int

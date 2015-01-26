@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# language LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 
 module CO4.CodeGen
   (codeGen, codeGenAdt)
@@ -24,11 +24,12 @@ import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.CodeGen.TypedAllocator (allocators)
 import           CO4.EncodedAdt 
-  (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
+  (EncodedAdt,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
 import           CO4.Monad (CO4,withCallCache,traced,profiledCase)
 import           CO4.Config (MonadConfig,is,Config(..))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 import           CO4.PPrint
+import           CO4.Algorithms.UndefinedValues.Data (optionalValueType)
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -209,7 +210,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         value' <- instantiate value
         return $ bindS' name' value'
 
-  instantiateUndefined = return $ TH.AppE (TH.VarE 'return) (TH.VarE 'encUndefined)
+  instantiateUndefined = error "CodeGen.instantiateUndefined: unexpected 'undefined'"
 
   instantiateBind (DBind (Binding name exp)) = do
     name'        <- instantiateName name
@@ -236,39 +237,38 @@ instantiateSignature (Binding name expression) = do
                   (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
                   (replicate numArgs $ TH.ConT ''EncodedAdt)
 
--- |@codeGen p@ transforms a co4 program into a Template-Haskell program.
+-- |@codeGen a p@ transforms a co4 program @p@ into a Template-Haskell program.
 -- @p@ must be first-order and fully instantiated.
-codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
-codeGen program = do
+-- @a@ denotes the untransformed ADTs of the original constraint.
+codeGen :: (MonadUnique u,MonadConfig u) => [Adt] -> Program -> u [TH.Dec]
+codeGen originalAdts program = do
+  adts' <- codeGenAdt originalAdts
+
   withPrelude  <- is ImportPrelude
 
   let (pAdts,pValues,_) = splitDeclarations program
-      adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
-                                      else pAdts
-      pToplevelNames = map boundName $ programToplevelBindings program
-      toplevelNames  = if withPrelude 
-                       then pToplevelNames ++ unparsedNames
-                       else pToplevelNames
-
-  adts'   <- execWriterT $ runAdtInstantiator $ collect adts
+      transformedAdts = if withPrelude then pAdts ++ preludeAdtDeclarations
+                                       else pAdts
+      pToplevelNames  = map boundName $ programToplevelBindings program
+      toplevelNames   = if withPrelude 
+                        then pToplevelNames ++ unparsedNames
+                        else pToplevelNames
 
   values' <- runReaderT (runExpInstantiator $ instantiate $ map DBind pValues)
-                        (ExpInstantiatorData toplevelNames adts)
+                        (ExpInstantiatorData toplevelNames (optionalValueType : transformedAdts))
 
   sigs'   <- mapM instantiateSignature pValues
                          
   return $ adts' ++ values' ++ sigs'
 
 -- |@codeGenAdt p@ only runs ADT related code generators.
-codeGenAdt :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
-codeGenAdt program = do
-  withPrelude  <- is ImportPrelude
+codeGenAdt :: (MonadUnique u,MonadConfig u) => [Adt] -> u [TH.Dec]
+codeGenAdt adts = do
+  withPreludeAdts <- is ImportPrelude >>= \case
+                       False -> return $ adts
+                       True  -> return $ adts ++ preludeAdtDeclarations
 
-  let (pAdts,_,_) = splitDeclarations program
-      adts        = if withPrelude then pAdts ++ preludeAdtDeclarations
-                                   else pAdts
-
-  execWriterT $ runAdtInstantiator $ collect adts
+  execWriterT $ runAdtInstantiator $ collect withPreludeAdts
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and

@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.78
+Version:        	0.0.79
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -53,6 +53,7 @@ Library
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
+                    , CO4.Algorithms.UndefinedValues
                     , CO4.CodeGen
                     , CO4.CodeGen.DecodeInstance
                     , CO4.CodeGen.EncodeableInstance

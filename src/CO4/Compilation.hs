@@ -14,10 +14,9 @@ import           Control.Monad.Writer
 import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Q,addDependentFile)
 import qualified Language.Haskell.Exts.Annotated as HE
-import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,UniqueT,withUniqueT,liftListen,liftPass)
 import           CO4.THUtil (unqualifiedNames)
-import           CO4.Util (addDeclarations)
+import           CO4.Util (addDeclarations,splitDeclarations)
 import           CO4.Prelude (parsePrelude)
 import           CO4.Config 
   (MonadConfig,Config(..),ConfigurableT,configurable,mapConfigurableT,is)
@@ -28,6 +27,7 @@ import           CO4.Algorithms.HigherOrderInstantiation (hoInstantiation)
 import           CO4.Algorithms.ExtendLambda (extendLambda)
 import           CO4.Algorithms.SaturateApplication (saturateApplication)
 import           CO4.Algorithms.THInstantiator (toTH)
+import           CO4.Algorithms.UndefinedValues (undefinedValues)
 import           CO4.CodeGen (codeGen,codeGenAdt)
 import           CO4.PPrint (pprint)
 import           CO4.Frontend.TH (parsePreprocessedTHDeclarations)
@@ -68,20 +68,26 @@ compile' program = do
                   return $ addDeclarations parsedPrelude parsedProgram
       False -> return parsedProgram
 
+  let (programAdts,_,_) = splitDeclarations programWithPrelude
+
   is OnlyAllocators >>= \case
-    True  -> runCodeGenerator codeGenAdt programWithPrelude
+    True  -> codeGenAdt programAdts
     False -> do
       co4Program <-  uniqueLocalNames programWithPrelude
                  >>= extendLambda
                  >>= globalize 
                  >>= saturateApplication
                  >>= hoInstantiation
+                 >>= undefinedValues
 
       dump "Concrete Program (CO4, after transformation)" $ show $ pprint co4Program
 
       result <- is NoSatchmo >>= \case
         True  -> return $ toTH co4Program
-        False -> runCodeGenerator codeGen co4Program
+        False -> do 
+          thProgram <- codeGen programAdts co4Program
+          dumpAbstractProgram thProgram
+          return thProgram
 
       log "Compilation successful"
 
@@ -89,12 +95,8 @@ compile' program = do
         False -> return $ program ++ result
         True  -> return result
 
-runCodeGenerator :: (MonadUnique m , MonadWriter [Message] m, MonadConfig m) 
-        => (Program -> m [TH.Dec]) -> Program -> m [TH.Dec]
-runCodeGenerator generator program = do
-  thProgram <- generator program 
-  dump "Abstract Program (TH)" $ show $ TH.ppr $ unqualifiedNames thProgram
-  return thProgram
+dumpAbstractProgram :: (MonadWriter [Message] m, MonadConfig m) => [TH.Dec] -> m ()
+dumpAbstractProgram = dump "Abstract Program (TH)" . show . TH.ppr . unqualifiedNames
 
 dump :: (MonadWriter [Message] m, MonadConfig m) => String -> String -> m ()
 dump header msg = tell [decoratedHeader, msg]
