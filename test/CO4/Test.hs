@@ -13,6 +13,7 @@ import qualified CO4.Example.LoopTrsToyama
 import qualified CO4.Example.WCB_Matrix
 import qualified CO4.Example.QueensSelfContained
 import qualified CO4.Example.LPO
+import qualified CO4.Example.Hang
 
 main :: IO ()
 main = do 
@@ -28,6 +29,8 @@ main = do
     ["wcb-matrix"]  -> wcbMatrix
     ["queens-self"] -> queensSelf 8
     ["lpo"]         -> lpo
+    ["hang",s,n]    -> hang (read s) (read n)
+    ["hang"]        -> hang 4 16
     _               -> all
   exitSuccess
 
@@ -56,8 +59,10 @@ main = do
 
     lpo = simpleTest "CO4.Example.LPO" $ CO4.Example.LPO.result
 
+    hang s n = simpleTest "CO4.Example.Hang" $ CO4.Example.Hang.result s n
+
     all = binary 143 >> nat 143 >> prelude >> simple >> {-loopSrs >>-} loopTrs >> wcbMatrix
-                     >> queensSelf 8 >> lpo
+                     >> queensSelf 8 >> lpo >> hang 4 16
 
 simpleTest :: String -> IO (Maybe a) -> IO ()
 simpleTest name action = do
