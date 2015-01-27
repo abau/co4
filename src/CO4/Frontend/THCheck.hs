@@ -28,8 +28,6 @@ checks :: GenericQ Check
 checks a = concat  [ and' noGuardedBody a
                    , and' noBoundPatternsInValueDeclaration a
                    , and' validDeclaration a
-                   , and' unresolvedInfixExp a
-                   , and' unresolvedInfixPat a
                    , and' noOverlappingDefaultMatches  a
                    ]
 
@@ -53,16 +51,6 @@ noBoundPatternsInValueDeclaration dec = case dec of
   ValD (VarP _) _ _ -> []
   ValD p _ _        -> [Error $ concat ["Pattern '", show p, "' not allowed in ", excerpt dec]]
   _                 -> []
-
-unresolvedInfixExp :: Exp -> Check
-unresolvedInfixExp e = case e of 
-  UInfixE {} -> [Warning $ "Unresolved infix expression '" ++ excerpt e ++ "'"]
-  _          -> []
-
-unresolvedInfixPat :: Pat -> Check
-unresolvedInfixPat p = case p of 
-  UInfixP {} -> [Warning $ "Unresolved infix pattern '" ++ excerpt p ++ "'"]
-  _          -> []
 
 noOverlappingDefaultMatches :: Exp -> Check
 noOverlappingDefaultMatches exp = case exp of

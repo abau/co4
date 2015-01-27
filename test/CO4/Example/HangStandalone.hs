@@ -28,7 +28,7 @@ eqDir d1 d2 = case d1 of
   R -> case d2 of L -> False ; R -> True
 
 primitive :: Hang -> Bool
-primitive h = not ( or ( zipWith matching h ( tail h ) ))
+primitive h = not $ or $ zipWith matching h $ tail h
 
 -- * reducibility checking that relies on caching.
 
@@ -43,9 +43,9 @@ nullable p h = case h of
     [] -> case x of Turn d q -> eqNat p q
     y:ys -> 
          ( matching x (last xs) && nullable p (init xs) )
-      || or (map ( \(l,r) -> nullable p l && nullable p r)
-               (nonempty_splits (x:xs)) )
+      || or (map (\(l,r) -> nullable p l && nullable p r)
+                 $ nonempty_splits $ x:xs )
 
-nonempty_splits xs =  tail ( init ( splits xs ) )
+nonempty_splits xs = tail $ init $ splits xs
 
-splits xs = zip (inits xs) (tails xs)
+splits xs = zip (inits xs) $ tails xs
