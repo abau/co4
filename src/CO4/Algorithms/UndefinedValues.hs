@@ -32,11 +32,19 @@ instance MonadUnique u => MonadInstantiator (UndefinedValues u) where
                                   return $ EApp e' es'
 
   instantiateCase (ECase e ms) = do
-    e'  <- instantiate e
-    ms' <- instantiate ms
-    n   <- newName ""
-    return $ ECase e'
-           [ Match (PCon definedConstructorName [PVar n]) $ ECase (EVar n) ms'
+    ms'     <- instantiate ms
+    n       <- newName ""
+    (outer, inner) <- 
+      case e of
+        EApp (EVar f) [ECon l, ECon c, me] | fromName f == "markedDiscriminant" -> 
+          do me' <- instantiate me
+             return (me', EApp (EVar f) [ECon l, ECon c, EVar n])
+
+        _ -> do e' <- instantiate e
+                return (e', EVar n)
+
+    return $ ECase outer
+           [ Match (PCon definedConstructorName [PVar n]) $ ECase inner ms'
            , Match (PCon undefinedConstructorName [])     $ ECon $ undefinedConstructorName
            ]
 
