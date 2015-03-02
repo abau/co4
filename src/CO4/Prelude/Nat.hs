@@ -162,34 +162,37 @@ encGtNatProf a b = traced "gtNat" $ encGtNat a b
 encGeNat         = flip encLeNat
 encGeNatProf a b = traced "geNat" $ encGeNat a b
 
-encEqNat = onUnwrappedFlags2 $ \as bs ->
-  zipWithM (\x y -> equals [x,y]) as bs >>= and >>= \r -> return [r]
+encEqNat = onUnwrappedFlags2 $ \as bs -> do
+  result <- zipWithM (\x y -> equals [x,y]) as bs >>= and 
+  return (constant True, [result])
 encEqNatProf a b = traced "eqNat" $ encEqNat a b
 
 encLeNat = onUnwrappedFlags2 $ \a b -> do
   (l, e) <- encComparePrimitives a b
-  r <- or [l,e] 
-  return [r]
+  result <- or [l,e] 
+  return (constant True, [result])
 encLeNatProf a b = traced "leNat" $ encLeNat a b
 
 encLtNat = onUnwrappedFlags2 $ \a b -> do
   (l, _) <- encComparePrimitives a b
-  return [l] 
+  return (constant True, [l])
 encLtNatProf a b = traced "ltNat" $ encLtNat a b
 
 encIsZeroNat = onUnwrappedFlags1 $ \a -> do
   nonzero <- or a
-  return [ not nonzero ]
+  return (constant True, [ not nonzero ])
 encIsZeroNatProf a = traced "isZeroNat" $ encIsZeroNat a
 
 encMaxNat = onUnwrappedFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives b a
-  zipWithM ( \x y -> ifthenelse l x y ) a b 
+  result <- zipWithM ( \x y -> ifthenelse l x y ) a b 
+  return (constant True, result)
 encMaxNatProf a b = traced "maxNat" $ encMaxNat a b
 
 encMinNat = onUnwrappedFlags2 $ \ a b -> do
   (l, _) <- encComparePrimitives a b
-  zipWithM ( \x y -> ifthenelse l x y ) a b 
+  result <- zipWithM ( \x y -> ifthenelse l x y ) a b 
+  return (constant True, result)
 encMinNatProf a b = traced "minNat" $ encMinNat a b
 
 encComparePrimitives :: [Primitive] -> [Primitive] 
@@ -266,12 +269,13 @@ encComparePrimitives_linear a b = case (a,b) of
 encPlusNat,encPlusNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 encPlusNat = onUnwrappedFlags2 $ \a b -> do
   (carry, result) <- ripple_carry_adder a b
-  assert [not carry]
-  return result
+  return (not carry, result)
 encPlusNatProf a b = traced "plusNat" $ encPlusNat a b
 
 encPlus'Nat,encPlus'NatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encPlus'Nat = onUnwrappedFlags2 $ ripple_carry_adder_with_overflow
+encPlus'Nat = onUnwrappedFlags2 $ \a b -> do
+  result <- ripple_carry_adder_with_overflow a b
+  return (constant True, result)
 encPlus'NatProf a b = traced "plus'Nat" $ encPlus'Nat a b
 
 ripple_carry_adder :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
@@ -341,8 +345,7 @@ encTimesNat_1 = onUnwrappedFlags2 $ \as bs ->
             _ -> wallace_multiplier
   in do
     (carry, result) <- f as bs
-    assert [not carry]
-    return result
+    return (not carry, result)
 
 wallace_multiplier :: [Primitive] -> [Primitive] -> CO4 (Primitive, [Primitive])
 wallace_multiplier as bs = do
@@ -485,46 +488,55 @@ halfAdder p1 p2 = do
 
 encShiftLNat,encShiftLNatProf :: EncodedAdt -> CO4 EncodedAdt
 encShiftLNat = onUnwrappedFlags1 $ \a -> 
-  return $ (constant False) : (take (length a - 1) a)
+  return (constant True, (constant False) : (take (length a - 1) a))
 encShiftLNatProf = traced "shiftLNat" . encShiftLNat
 
 encShiftRNat,encShiftRNatProf :: EncodedAdt -> CO4 EncodedAdt
 encShiftRNat = onUnwrappedFlags1 $ \a -> 
-  return $ tail a ++ [constant False] 
+  return (constant True, tail a ++ [constant False])
 encShiftRNatProf = traced "shiftRNat" . encShiftRNat
 
 encAndNat,encAndNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encAndNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> and [x,y]
+encAndNat         = onUnwrappedFlags2 $ \a b -> do
+  result <- zipWithM (\x y -> and [x,y]) a b
+  return (constant True, result)
 encAndNatProf a b = traced "andNat" $ encAndNat a b
 
 encOrNat,encOrNatProf :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encOrNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> or [x,y]
+encOrNat         = onUnwrappedFlags2 $ \a b -> do
+  result <- zipWithM (\x y -> or [x,y]) a b
+  return (constant True, result)
 encOrNatProf a b = traced "orNat" $ encOrNat a b
 
 encXorNat,encXorNatProf  :: EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
-encXorNat         = onUnwrappedFlags2 $ zipWithM $ \x y -> xor [x,y]
+encXorNat         = onUnwrappedFlags2 $ \a b -> do
+  result <- zipWithM (\x y -> xor [x,y]) a b
+  return (constant True, result)
 encXorNatProf a b = traced "xorNat" $ encXorNat a b
 
-onUnwrappedFlags1 :: ([Primitive] -> CO4 [Primitive]) -> EncodedAdt -> CO4 EncodedAdt
+onUnwrappedFlags1 :: ([Primitive] -> CO4 (Primitive,[Primitive])) 
+                  -> EncodedAdt -> CO4 EncodedAdt
 onUnwrappedFlags1 f = onUnwrapped1 onFlags
   where
     onFlags a = if isEmpty a 
-      then return encEmpty
+      then return (constant True, encEmpty)
       else case flags a of
-        Just as -> do flags' <- f as 
-                      make flags' [] $ isPrefixfree' a
+        Just as -> do (def,flags') <- f as 
+                      result       <- make flags' [] $ isPrefixfree' a
+                      return (def, result)
         _       -> abortWithStackTrace "PreludeNat.onUnwrappedFlags: missing flags"
 
-onUnwrappedFlags2 :: ([Primitive] -> [Primitive] -> CO4 [Primitive]) 
+onUnwrappedFlags2 :: ([Primitive] -> [Primitive] -> CO4 (Primitive,[Primitive]))
                   -> EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 onUnwrappedFlags2 f = onUnwrapped2 onFlags
   where
     onFlags a b = if isEmpty a || isEmpty b
-      then return encEmpty
+      then return (constant True, encEmpty)
       else case (flags a, flags b) of
         (Just as, Just bs) -> do
-            flags' <- f as' bs'
-            make flags' [] $ allBranchesPrefixfree [a,b]
+            (def,flags') <- f as' bs'
+            result       <- make flags' [] $ allBranchesPrefixfree [a,b]
+            return (def,result)
           where
             las = length as
             lbs = length bs

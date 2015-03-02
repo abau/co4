@@ -43,21 +43,22 @@ completelyDefined adt =
 withDefinedness :: Primitive -> EncodedAdt -> CO4 EncodedAdt
 withDefinedness def adt = make [def] [adt] True
 
-onUnwrapped1 :: (EncodedAdt -> CO4 EncodedAdt) -> EncodedAdt -> CO4 EncodedAdt
+onUnwrapped1 :: (EncodedAdt -> CO4 (Primitive,EncodedAdt)) 
+             -> EncodedAdt -> CO4 EncodedAdt
 onUnwrapped1 f x = case wrappedValues [x] of
   Nothing -> encCO4OVUndefinedCons
   Just ([x'],definednesses) -> do
-    def    <- P.and definednesses
-    result <- f x' 
+    (fDef,result) <- f x' 
+    def           <- P.and $ fDef : definednesses
     withDefinedness def result
 
-onUnwrapped2 :: (EncodedAdt -> EncodedAdt -> CO4 EncodedAdt) 
+onUnwrapped2 :: (EncodedAdt -> EncodedAdt -> CO4 (Primitive,EncodedAdt)) 
              ->  EncodedAdt -> EncodedAdt -> CO4 EncodedAdt
 onUnwrapped2 f x y = case wrappedValues [x,y] of
   Nothing -> encCO4OVUndefinedCons
   Just ([x',y'],definednesses) -> do 
-    def    <- P.and definednesses
-    result <- f x' y'
+    (fDef,result) <- f x' y'
+    def           <- P.and $ fDef : definednesses
     withDefinedness def result
 
 wrappedValues :: [EncodedAdt] -> Maybe ([EncodedAdt], [Primitive])
