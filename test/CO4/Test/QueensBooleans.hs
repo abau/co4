@@ -92,5 +92,15 @@ $( [d|  type Board = [[Bool]]
    |] >>= compile [ImportPrelude,Cache]
   )
 
-result :: Int -> IO (Maybe Board)
-result i = solveAndTest (kList i $ kList i complete) encConstraint constraint
+result :: Int -> IO ()
+result i = do
+  result <- solveAndTest (kList i $ kList i complete) encConstraint constraint
+  case result of
+    Nothing -> return ()
+    Just b  -> putStrLn $ showBoard b
+
+showBoard :: Board -> String
+showBoard = unlines . map (unwords . map showField)
+  where
+    showField False = "."
+    showField True  = "X"
