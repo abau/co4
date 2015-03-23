@@ -234,7 +234,7 @@ for xs f = map f xs
 
 
 -- | explicit binary encoding for bases
-data Base = Base [Bool] -- of length 2
+data Base = Base [Bool] deriving Show-- of length 2
 
 a = Base [False, False]
 c = Base [False, True]

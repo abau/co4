@@ -59,7 +59,7 @@ ex0 = [ Open, Open
       , Close , Close, Blank 
       ]
 
-result :: [Paren] -> IO (Maybe [Base])
+result :: [Paren] -> IO (Maybe ([Base],Energy))
 result sec = do
     let n = length sec
     out <- solveAndTestP 
@@ -69,4 +69,6 @@ result sec = do
                                      ))
        encConstraint
        constraint
-    return $ fmap fst out
+    return $ case out of
+      Nothing    -> Nothing
+      Just (p,m) -> Just (p, upright m)
