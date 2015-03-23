@@ -234,47 +234,17 @@ for xs f = map f xs
 
 
 -- | explicit binary encoding for bases
-data Base = Base [Bool] deriving Show-- of length 2
 
-a = Base [False, False]
-c = Base [False, True]
-g = Base [True, False]
-u = Base [True, True]
-
-type Primary = [ Base ]
-
-
-eqBase b c = case b of 
-    Base xs -> case c of
-        Base ys -> eqList eqBool xs ys
-
-eqList eq xs ys = case xs of
-    [] -> case ys of
-         [] -> True
-         _  -> False
-    x:xs' -> case ys of
-         [] -> False
-         y:ys' -> eq x y && eqList eq xs' ys'
-
-
-applyB :: Base -> Tree a -> a
-applyB b t = case b of
-    Base bits -> applyIU t bits
+data Base = A | C | G | U deriving Show
+type Primary = [Base]
 
 cost :: Base -> Base -> Energy
-cost b1 b2 = applyB b1 (applyB b2 costT)
+cost b1 b2 = case b1 of
+  A -> case b2 of { U -> two  ;           _ -> mi }
+  C -> case b2 of { G -> three;           _ -> mi }
+  G -> case b2 of { C -> three; U -> one; _ -> mi }
+  U -> case b2 of { A -> two  ; G -> one; _ -> mi }
  
-costT :: Tree (Tree Energy)
-costT = basetree
-    (basetree mi  mi    mi    two) --              a u
-    (basetree mi  mi    three mi)  --          c g
-    (basetree mi  three mi    one) --      g c,    g u
-    (basetree two mi    one   mi)  -- u a,     u g
-
-basetree a c g u = 
-    Branch (Branch (Leaf a)(Leaf c))
-           (Branch (Leaf g)(Leaf u))
-
 -- * secondary struct
 
 
@@ -294,8 +264,6 @@ zero = Finite (nat 8 0)
 one  = Finite (nat 8 1)
 two  = Finite (nat 8 2)
 three  = Finite (nat 8 3)
-
-
 
 {-
 
@@ -406,41 +374,3 @@ parse stack p s = case assertKnown s of
                     Open  -> zero
                     Close -> cost (head stack) x
             in  times here ( parse stack' xs ys)
-
-
--- * binary decision tree, 
--- used to map bitstrings to values
-data Tree a = Leaf a 
-           | Branch (Tree a) (Tree a) 
-
-type Index = [Bool]
-
-eqBool x y = case x of
-    False -> not y
-    True  -> y
-
--- | use this if the index is statically known
-applyI :: Tree a -> Index -> a
-applyI t w = case t of
-    Leaf u -> u
-    Branch l r -> case assertKnown w of
-        [] -> undefined
-        x:xs -> case assertKnown x of
-            False -> applyI l xs
-            True  -> applyI r xs
-
--- | use this if the index is not statically known
--- (used for cost of bases)
-applyIU :: Tree a -> Index -> a
-applyIU t w = case t of
-    Leaf u -> u
-    Branch l r -> case assertKnown w of
-        [] -> undefined
-        x:xs -> applyIU (case x of
-            False -> l
-            True  -> r  ) xs
-
-get :: Tree (Tree a) -> Index -> Index -> a
-get t i j = applyI (applyI t i) j
-
-

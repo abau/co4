@@ -28,7 +28,7 @@ $( compileFile [ ImportPrelude
                ] 
   "test/CO4/Example/WCB_MatrixStandalone.hs" )
 
-uBase = knownBase (kList 2 complete)
+uBase = unions [knownA, knownC, knownG, knownU]
 
 uEnergy = unions [knownMinusInfinity, knownFinite $ uNat 8]
 
