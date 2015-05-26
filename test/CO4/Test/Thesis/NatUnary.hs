@@ -42,6 +42,6 @@ uNat i = union knownZ $ knownS $ uNat $ i-1
 kNat 0 = Z
 kNat i = S $ kNat $ i-1
 
-allocator = knownPair (uNat 255) (uNat 255)
+allocator = knownPair (uNat 1023) (uNat 1023)
 
 result p = solveAndTestP (kNat p) allocator encConstraint constraint

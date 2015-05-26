@@ -7,12 +7,14 @@
 module CO4.Test.Thesis.NatBinary
 where
 
-import           Prelude (Int,(-),undefined,(>>=),error,Show (..),putStrLn,(.),id)
+import           Prelude (($),Int,(-),undefined,(>>=),error,Show (..),putStrLn,(.),id)
+import qualified Prelude as P
 import qualified Data.Maybe as M
 import           Language.Haskell.TH (runIO)
 import qualified Satchmo.Core.SAT.Minisat
 import qualified Satchmo.Core.Decode 
 import           CO4
+import           CO4.Util (fromBinary,toBinary)
 
 $( [d|  data Bool     = False | True deriving Show
         data List a   = Nil | Cons a (List a) deriving Show
@@ -38,7 +40,7 @@ $( [d|  data Bool     = False | True deriving Show
           let add' pair accu = case pair of
                 Pair u v -> case accu of
                   Pair bits carry -> case fullAdder u v carry of
-                    Pair sum carry' -> Pair (Cons sum bits) carry
+                    Pair sum carry' -> Pair (Cons sum bits) carry'
           in
             foldr add' (Pair Nil False) (zip x y) 
 
@@ -100,12 +102,20 @@ uNat :: Int -> TAllocator (List Bool)
 uNat 0 = knownNil
 uNat i = knownCons uBool (uNat (i-1))
 
-allocator = knownPair (uNat 8) (uNat 8)
+allocator = knownPair (uNat 10) (uNat 10)
 
-param :: List Bool
-param = Cons False (Cons True  (Cons True  (Cons True (
-        Cons True  (Cons False (Cons True  (Cons True Nil)))))))
+result i = solveAndTestP param allocator encConstraint constraint
+       >>= P.return . P.fmap fromSolution
+  where
+    param             = toListBool $ P.reverse $ toBinary (P.Just 10) i
+    toListBool []     = Nil
+    toListBool (x:xs) = Cons (toBool x) (toListBool xs)
+    toBool P.False    = False
+    toBool P.True     = True
 
-result = solveAndTestP param allocator encConstraint constraint
-
-{- 00111011 01000000 -}
+    fromSolution (Pair x y)  = ( fromBinary $ P.reverse $ fromListBool x
+                               , fromBinary $ P.reverse $ fromListBool y )
+    fromListBool Nil         = []
+    fromListBool (Cons x xs) = (fromBool x) : (fromListBool xs)
+    fromBool False           = P.False
+    fromBool True            = P.True
