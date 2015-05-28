@@ -116,7 +116,7 @@ forall xs f = case xs of
 
 exists :: List a -> (a -> Bool) -> Bool
 exists xs f = case xs of
-  Nill -> True
+  Nill -> False
   Conss y ys -> or2 (f y) (exists ys f)
 
 and2 :: Bool -> Bool -> Bool
