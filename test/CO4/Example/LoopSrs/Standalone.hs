@@ -1,5 +1,7 @@
 module CO4.Example.LoopSrs.Standalone where
 
+import Data.List (tails)
+
 -- * string rewriting:
 
 type Symbol =  [ Bool ]
@@ -23,10 +25,6 @@ isPrefixOf xs ys = case xs of
     x:xs' -> case ys of
         [] -> False
         y:ys' -> (eqSym x y) && isPrefixOf xs' ys'
-
-tails xs = xs : case xs of
-    [] -> []
-    x : xs' -> tails xs'
 
 -- * derivation
 
