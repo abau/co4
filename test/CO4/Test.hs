@@ -13,6 +13,7 @@ import qualified CO4.Example.LoopTrsToyama
 import qualified CO4.Example.WCB_Matrix
 import qualified CO4.Example.QueensSelfContained
 import qualified CO4.Example.LPO
+import qualified CO4.Example.LPOSL
 import qualified CO4.Example.Hang
 import qualified CO4.Example.Unary
 import qualified CO4.Example.Fib
@@ -31,6 +32,7 @@ main = do
     ["wcb-matrix"]  -> wcbMatrix
     ["queens-self"] -> queensSelf 8
     ["lpo"]         -> lpo
+    ["lpo-sl"]      -> lposl
     ["hang",s,n]    -> hang (read s) (read n)
     ["hang"]        -> hang 4 16
     ["unary",n]     -> unary $ read n
@@ -64,6 +66,7 @@ main = do
     queensSelf = simpleTest "CO4.Example.QueensSelfContained" . CO4.Example.QueensSelfContained.result
 
     lpo = simpleTest "CO4.Example.LPO" $ CO4.Example.LPO.result
+    lposl = simpleTest "CO4.Example.LPOSL" $ CO4.Example.LPOSL.result
 
     hang s n = simpleTest "CO4.Example.Hang" $ CO4.Example.Hang.result s n
 
@@ -72,7 +75,7 @@ main = do
     fib = simpleTest "CO4.Example.Fib" . CO4.Example.Fib.result
 
     all = binary 143 >> nat 143 >> prelude >> simple >> {-loopSrs >>-} loopTrs >> wcbMatrix
-                     >> queensSelf 8 >> lpo >> hang 4 16 >> unary 15 >> fib 3
+                     >> queensSelf 8 >> lpo >> lposl >> hang 4 16 >> unary 15 >> fib 3
 
 simpleTest :: String -> IO (Maybe a) -> IO ()
 simpleTest name action = do
