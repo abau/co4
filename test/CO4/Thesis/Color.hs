@@ -14,7 +14,7 @@ import           CO4
 $( [d| data Bool       = False | True deriving Read
        data Color      = Red | Green | Blue deriving Show
        data Monochrome = Black | White deriving Show
-       data Pixel      = Colored Color
+       data Pixel      = Foreground Color
                        | Background Monochrome
                          deriving Show
 
@@ -27,7 +27,7 @@ $( [d| data Bool       = False | True deriving Read
        isBlue :: Pixel -> Bool
        isBlue u = case u of
         Background _ -> False
-        Colored    c -> case c of
+        Foreground f -> case f of
           Blue -> True
           _    -> False
 

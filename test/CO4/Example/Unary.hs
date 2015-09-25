@@ -18,9 +18,9 @@ $( [d|  data Bool = False | True deriving Show
 
         constraint :: Nat -> Pair Nat Nat -> Bool
         constraint p u = case u of
-          Pair a b -> let ab = times a b
-                      in
-                        eq p ab
+          Pair a b ->  and2 (greaterOne a)
+                      (and2 (greaterOne b)
+                            (eq p (times a b)))
 
         plus :: Nat -> Nat -> Nat
         plus x y = case x of 
@@ -38,7 +38,19 @@ $( [d|  data Bool = False | True deriving Show
                          _ -> False
           S x' -> case y of Z    -> False
                             S y' -> eq x' y'
-   |] >>= compile []
+
+        greaterOne :: Nat -> Bool
+        greaterOne x = case x of
+          Z -> False
+          S x' -> case x' of
+            Z -> False
+            S x'' -> True
+
+        and2 :: Bool -> Bool -> Bool
+        and2 x y = case x of
+          False -> False
+          True  -> y
+   |] >>= compile [Dump "/tmp/unary"]
   )
 
 uNat 0 = knownZ
