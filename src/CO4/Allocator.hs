@@ -4,7 +4,6 @@ module CO4.Allocator
   (module CO4.Allocator.Data, module CO4.Allocator.Typed)
 where
 
-import           Control.Applicative (Applicative)
 import qualified Control.Exception as Exception
 import           Control.Monad.State.Strict
 import           Data.List (transpose,genericLength)

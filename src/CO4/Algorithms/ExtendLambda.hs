@@ -4,7 +4,6 @@ module CO4.Algorithms.ExtendLambda
 where
 
 import           Control.Monad (forM)
-import           Control.Applicative (Applicative)
 import           CO4.Language
 import           CO4.Unique
 import           CO4.TypesUtil (argumentTypes,typeOfScheme)

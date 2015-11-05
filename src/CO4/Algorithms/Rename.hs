@@ -5,7 +5,6 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Identity
-import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           Data.Maybe (fromMaybe)
 import           CO4.Algorithms.Instantiator

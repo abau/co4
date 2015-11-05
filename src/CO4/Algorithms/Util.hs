@@ -9,7 +9,6 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Identity
-import           Control.Applicative (Applicative)
 import           CO4.Language
 import           CO4.Names (untypedName)
 import           CO4.Util (nTyped,nUntyped)

@@ -63,7 +63,7 @@ fromKnownAllocator adt = do
     allocType    = typeOfAdt adt
     typeVars     = adtTypeVariables adt
 
-    predicates   = map (\v -> TH.ClassP ''FromKnown [varT v]) typeVars
+    predicates   = map (\v -> TH.AppT (TH.ConT ''FromKnown) $ varT v) typeVars
     instType     = TH.AppT (TH.ConT ''FromKnown) $ toTH allocType
 
     mkDefinition = do 
@@ -88,7 +88,7 @@ completeAllocator adt = [ TH.InstanceD predicates instType [def] ]
     allocType  = typeOfAdt adt
     typeVars   = adtTypeVariables adt
 
-    predicates = map (\v -> TH.ClassP ''Complete [varT v]) typeVars
+    predicates = map (\v -> TH.AppT (TH.ConT ''Complete) $ varT v) typeVars
     instType   = TH.AppT (TH.ConT ''Complete) $ toTH allocType
 
     def        = funD' "complete" [] body

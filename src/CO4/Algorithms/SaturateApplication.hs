@@ -5,7 +5,6 @@ where
 
 import           Control.Monad.State.Strict
 import           Control.Monad.Writer
-import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           CO4.Language
 import           CO4.Unique

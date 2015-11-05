@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module CO4.CodeGen
   (codeGen, codeGenAdt)
@@ -9,7 +10,6 @@ where
 import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
-import           Control.Applicative (Applicative)
 import           Data.List (find)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
@@ -89,7 +89,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
   instantiateCon (ECon n) = return $ varE $ encodedConsName n
 
   instantiateApp (EApp f args) = do
-    args' <- instantiate args
+    args' <- mapM instantiate args
     cache <- is Cache
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
@@ -254,8 +254,9 @@ codeGen originalAdts program = do
                         then pToplevelNames ++ unparsedNames
                         else pToplevelNames
 
-  values' <- runReaderT (runExpInstantiator $ instantiate $ map DBind pValues)
-                        (ExpInstantiatorData toplevelNames (optionalValueType : transformedAdts))
+  values' <- forM pValues $ \pValue ->
+               runReaderT (runExpInstantiator $ instantiate $ DBind pValue)
+                          (ExpInstantiatorData toplevelNames $ optionalValueType : transformedAdts)
 
   sigs'   <- mapM instantiateSignature pValues
                          

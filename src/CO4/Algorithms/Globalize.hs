@@ -4,7 +4,6 @@ module CO4.Algorithms.Globalize
 where
 
 import           Control.Monad.State.Strict
-import           Control.Applicative (Applicative)
 import           Data.List (partition,(\\),nub)
 import qualified Data.Map as M
 import           CO4.Language

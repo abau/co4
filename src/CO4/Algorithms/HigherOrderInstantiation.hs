@@ -6,7 +6,6 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict hiding (State)
-import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           Data.List (nub,partition,(\\))
 import           Data.Maybe (fromMaybe,mapMaybe)

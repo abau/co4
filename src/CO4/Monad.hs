@@ -7,7 +7,6 @@ module CO4.Monad
 where
 
 import           Control.Monad.State.Strict
-import           Control.Applicative (Applicative)
 import           Data.List (nub)
 import qualified Satchmo.Core.SAT.Minisat 
 import           Satchmo.Core.MonadSAT (MonadSAT (..))

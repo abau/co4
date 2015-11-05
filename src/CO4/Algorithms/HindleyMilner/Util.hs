@@ -11,11 +11,9 @@ where
 
 import           Prelude hiding (lookup)
 import           Control.Monad.Reader
-import           Control.Applicative (Applicative)
 import           Text.PrettyPrint ((<+>),hsep,text,nest,vcat)
 import qualified Data.Map.Strict as M
 import           Data.List ((\\),nub)
-import           Data.Monoid (Monoid(..))
 import           CO4.Algorithms.Free (Free(..))
 import           CO4.Algorithms.Instantiator
 import           CO4.Language 

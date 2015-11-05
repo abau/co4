@@ -3,7 +3,6 @@ module CO4.Algorithms.UndefinedValues
   (undefinedValues)
 where
 
-import Control.Applicative (Applicative)
 import CO4.Algorithms.Instantiator
 import CO4.Language
 import CO4.Unique (MonadUnique,newName)

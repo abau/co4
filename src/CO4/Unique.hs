@@ -4,7 +4,6 @@ module CO4.Unique
   , newName, newNamelike, originalName, liftListen, liftPass)
 where
 
-import           Control.Applicative (Applicative)
 import           Control.Monad.Identity
 import           Control.Monad.State.Strict
 import qualified Control.Monad.Trans.State.Strict as State

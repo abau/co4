@@ -30,7 +30,7 @@ toyamaRule3 =
 
 toyama :: TRS
 toyama = Cons toyamaRule1 (Cons toyamaRule2 (Cons toyamaRule3 Nil))
-		
+
 data Bool = False | True
   --deriving Prelude.Show
 data Pos = Pos1 | Pos2 | Pos3

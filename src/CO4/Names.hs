@@ -6,7 +6,8 @@ module CO4.Names
   ( Namelike (..), convertName, funName, listName, nilName, consName
   , tupleTypeName, tupleDataName, maybeName, eitherName, orderingName
   , natName, natTypeName, intName, boolName, unitName
-  , mainName, deprecatedMainName, toValidTypeIdentifier, toValidDataIdentifier
+  , mainName, deprecatedMainName
+  , toValidTypeIdentifier, toValidDataIdentifier, toValidFunIdentifier
   )
 where
 
@@ -125,3 +126,10 @@ toValidDataIdentifier name = case name of
   n | n == tupleTypeName 5 -> readName "Tuple5"
   n | n == unitName        -> readName "Unit"
   n                        -> n
+
+toValidFunIdentifier :: (Eq n, Namelike n) => n -> n
+toValidFunIdentifier name = case name of
+  n | n == convertName (TH.nameBase '(++)) -> readName "append"
+  n | n == convertName (TH.nameBase '(&&)) -> readName "and2"
+  n | n == convertName (TH.nameBase '(||)) -> readName "or2"
+  n                                        -> n
