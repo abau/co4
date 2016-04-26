@@ -15,7 +15,7 @@ constraint nSqr board =
     and [ all (all (\b -> allDifferent $ concat b)) board
         , all allDifferent $ rows board n
         , all allDifferent $ columns board n 
-        , all (gtNat nSqr) $ concat $ concat $ concat board
+        , all (geNat nSqr) $ concat $ concat $ concat board
         ]
 
 rows :: Board -> Unary -> [[Nat]]

@@ -22,7 +22,7 @@ boardAllocator n = matrixAllocator n $ blockAllocator n
 
 result :: Int -> IO ()
 result n = do
-  let param = nat (natWidth n) $ fromIntegral $ n * n
+  let param = nat (natWidth n) $ fromIntegral $ (n * n) - 1
   result <- solveAndTestP param (boardAllocator n) encConstraint constraint
   case result of
     Nothing -> putStrLn "none"
