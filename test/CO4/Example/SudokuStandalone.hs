@@ -5,40 +5,39 @@ import CO4.Prelude
 data Unary = Z | S Unary deriving Show
 
 type Matrix a = [[a]]
-type Block    = Matrix Nat
+type Block    = Matrix Unary
 type Board    = Matrix Block
 
-constraint :: Nat -> Board -> Bool
-constraint nSqr board = 
+constraint :: Board -> Bool
+constraint board = 
   let n = unaryLength board
   in
     and [ all (all (\b -> allDifferent $ concat b)) board
         , all allDifferent $ rows board n
         , all allDifferent $ columns board n 
-        , all (geNat nSqr) $ concat $ concat $ concat board
         ]
 
-rows :: Board -> Unary -> [[Nat]]
+rows :: Board -> Unary -> [[Unary]]
 rows board n = 
   let join = foldl (zipWith (++)) (unaryReplicate n [])
   in
     concatMap join board
 
-columns :: Board -> Unary -> [[Nat]]
+columns :: Board -> Unary -> [[Unary]]
 columns board n = 
   let transposedBoard = transpose $ map (map transpose) board
   in
     rows transposedBoard n
 
-allDifferent :: [Nat] -> Bool
+allDifferent :: [Unary] -> Bool
 allDifferent xs = case xs of
   [] -> True
   y:ys -> (allDifferent ys) && (not $ contains y ys)
 
-contains :: Nat -> [Nat] -> Bool
+contains :: Unary -> [Unary] -> Bool
 contains x xs = case xs of
   [] -> False
-  y:ys -> (eqNat x y) || (contains x ys)
+  y:ys -> (unaryEq x y) || (contains x ys)
 
 at :: [a] -> Unary -> a
 at xs i = case i of
@@ -54,6 +53,13 @@ unaryLength :: [a] -> Unary
 unaryLength xs = case xs of
   [] -> Z
   y:ys -> S $ unaryLength ys
+
+unaryEq :: Unary -> Unary -> Bool
+unaryEq a b = case a of
+  Z -> case b of Z -> True
+                 _ -> False
+  S a' -> case b of Z -> False
+                    S b' -> unaryEq a' b'
 
 transpose :: Matrix a -> Matrix a
 transpose xs = case xs of
