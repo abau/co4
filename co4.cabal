@@ -64,6 +64,7 @@ Library
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess
+  Other-Modules:      CO4.Algorithms.UndefinedValues.Data
 
   Ghc-options:        -W -fno-warn-incomplete-patterns
   Build-Depends:      base
