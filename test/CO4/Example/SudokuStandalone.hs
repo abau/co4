@@ -32,15 +32,17 @@ columns board n =
     rows transposedBoard n
 
 allOccur :: [Unary] -> [Unary] -> Bool
-allOccur ns xs = all (\n -> exactlyOne (map (unaryEq n) xs)) ns
+allOccur ns xs = all (\n -> fst $ exactlyOne $ map (unaryEq n) xs) ns
 
-exactlyOne :: [Bool] -> Bool
+exactlyOne :: [Bool] -> (Bool,Bool)
 exactlyOne xs = case xs of
-  [] -> False
+  [] -> (False,True)
   x:xs' -> case xs' of
-    [] -> x
+    [] -> (x, not x)
     x':xs'' -> case split xs of
-      (ys,zs) -> (exactlyOne ys && none zs) || (exactlyOne zs && none ys)
+      (ys,zs) -> case exactlyOne ys of
+        (ex1Ys,noneYs) -> case exactlyOne zs of
+          (ex1Zs,noneZs) -> ((ex1Ys && noneZs) || (ex1Zs && noneYs), noneYs && noneZs)
 
 split :: [a] -> ([a], [a])
 split xs = case xs of
