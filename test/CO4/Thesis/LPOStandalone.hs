@@ -1,7 +1,7 @@
 module CO4.Thesis.LPOStandalone
 where
 
-import Prelude hiding (lookup,lex)
+import Prelude hiding (lex)
 import CO4.Prelude.Nat
 
 data Pair a b   = Pair a b deriving Show
@@ -13,12 +13,20 @@ data Term       = Var Nat
 
 data Order      = Gr | Eq | NGe
 
-constraint :: List (Pair Term Term) -> List (Pair Nat Nat) -> Bool
-constraint rules precedence = 
-  forall rules ( \rule -> case rule of 
-                   Pair lhs rhs -> eqOrder (lpo precedence lhs rhs) Gr )
+data TRS        = TRS (List Nat)
+                      (List (Pair Term Term))
 
-lpo :: List (Pair Nat Nat) -> Term -> Term -> Order
+constraint :: TRS -> List Nat -> Bool
+constraint trs precedence = case trs of
+  TRS symbols rules ->
+    and2 (forall rules   (\rule -> ordered rule precedence))
+         (forall symbols (\sym  -> exists precedence sym eqNat))
+
+ordered :: Pair Term Term -> List Nat -> Bool
+ordered rule precedence = case rule of 
+  Pair lhs rhs -> eqOrder (lpo precedence lhs rhs) Gr
+
+lpo :: List Nat -> Term -> Term -> Order
 lpo precedence s t = case t of
   Var x -> case eqTerm s t of 
     False -> case varOccurs x s of
@@ -40,24 +48,24 @@ lpo precedence s t = case t of
                    True  -> lex (lpo precedence) ss ts
           NGe -> NGe
 
-ord :: List (Pair Nat Nat) -> Nat -> Nat -> Order
+ord :: List Nat -> Nat -> Nat -> Order
 ord precedence a b = 
-  let pa = lookup eqNat a precedence
-      pb = lookup eqNat b precedence
+  let run ps = case ps of
+        Nill        -> undefined
+        Conss p ps' -> case eqNat p a of
+          True  -> Gr
+          False -> case eqNat p b of
+            True  -> NGe
+            False -> run ps'
   in
-      ordNat pa pb
-
-ordNat :: Nat -> Nat -> Order
-ordNat a b = case eqNat a b of
-  True  -> Eq
-  False -> case gtNat a b of
-    True  -> Gr
-    False -> NGe
+    case eqNat a b of
+      True  -> Eq
+      False -> run precedence
 
 varOccurs :: Nat -> Term -> Bool
 varOccurs var term = case term of
   Var var'  -> eqNat var var'
-  Node _ ts -> exists ts (\t -> varOccurs var t)
+  Node _ ts -> exists' ts (\t -> varOccurs var t)
 
 lex :: (a -> b -> Order) -> List a -> List b -> Order
 lex ord xs ys = case xs of
@@ -71,14 +79,6 @@ lex ord xs ys = case xs of
       NGe -> NGe
 
 -- * utilities
-
-lookup :: (k -> k -> Bool) -> k -> List (Pair k v) -> v
-lookup f k map = case map of
-  Nill -> undefined
-  Conss m ms -> case m of 
-    Pair k' v -> case f k k' of
-      False -> lookup f k ms
-      True  -> v
 
 eqTerm :: Term -> Term -> Bool
 eqTerm x y = case x of
@@ -114,10 +114,13 @@ forall xs f = case xs of
   Nill -> True
   Conss y ys -> and2 (f y) (forall ys f)
 
-exists :: List a -> (a -> Bool) -> Bool
-exists xs f = case xs of
+exists :: List a -> a -> (a -> a -> Bool) -> Bool
+exists xs y f = exists' xs (\x -> f x y)
+
+exists' :: List a -> (a -> Bool) -> Bool
+exists' xs f = case xs of
   Nill -> False
-  Conss y ys -> or2 (f y) (exists ys f)
+  Conss y ys -> or2 (f y) (exists' ys f)
 
 and2 :: Bool -> Bool -> Bool
 and2 x y = case x of
