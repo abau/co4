@@ -24,7 +24,7 @@ encodeableInstance (Adt name vars conss) = do
   varNames <- forM vars $ const $ newName "v"
 
   let predicates = for varNames $ \v -> TH.AppT (TH.ConT ''Encodeable) $ varT v
-      instanceHead = TH.InstanceD predicates 
+      instanceHead = TH.InstanceD Nothing predicates 
                    $ appsT (TH.ConT ''Encodeable) [appsT (conT name) $ map varT varNames]
 
       clause (i,CCon conName conArgs) = do

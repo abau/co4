@@ -4,13 +4,17 @@ module CO4.Unique
   , newName, newNamelike, originalName, liftListen, liftPass)
 where
 
-import           Control.Monad.Identity
-import           Control.Monad.State.Strict
+import           Prelude hiding (fail)
+import           Control.Monad.Identity (Identity,runIdentity)
+import           Control.Monad.State.Strict (StateT,modify,get,evalStateT)
 import qualified Control.Monad.Trans.State.Strict as State
 import           Control.Monad.Reader (ReaderT)
-import           Control.Monad.Writer
+import           Control.Monad.Writer (WriterT)
 import           Control.Monad.RWS (RWST)
 import           Control.Monad.Signatures (Listen,Pass)
+import           Control.Monad.Fail (MonadFail (fail))
+import           Control.Monad.IO.Class (MonadIO (liftIO))
+import           Control.Monad.Trans.Class (MonadTrans (lift))
 import           Language.Haskell.TH.Syntax (Quasi(..))
 import           CO4.Names (Namelike,mapName,fromName,readName)
 import           CO4.Language (Name)
@@ -76,6 +80,9 @@ instance (MonadUnique m, Monoid w) => MonadUnique (RWST r w s m) where
 instance (MonadIO m) => MonadIO (UniqueT m) where
   liftIO = lift . liftIO 
 
+instance (MonadFail m) => MonadFail (UniqueT m) where
+  fail = lift . fail
+
 instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
   qNewName            = lift . qNewName
   qReport a b         = lift $ qReport a b
@@ -93,6 +100,10 @@ instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
   qAddModFinalizer    = lift . qAddModFinalizer
   qGetQ               = lift   qGetQ
   qPutQ               = lift . qPutQ
+  qReifyFixity        = lift . qReifyFixity
+  qReifyConStrictness = lift . qReifyConStrictness
+  qIsExtEnabled       = lift . qIsExtEnabled      
+  qExtsEnabled        = lift   qExtsEnabled       
 
 liftListen :: Monad m => Listen w m (a,Int) -> Listen w (UniqueT m) a
 liftListen listen = UniqueT . State.liftListen listen . runUniqueT

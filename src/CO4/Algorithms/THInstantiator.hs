@@ -133,7 +133,7 @@ class Monad m => MonadTHInstantiator m where
     where 
       instantiateStrictType t = do 
         t' <- instantiate t
-        return $ (TH.NotStrict, t')
+        return $ (TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness, t')
 
   instantiateBind :: Declaration -> m TH.Dec
   instantiateBind (DBind b) = instantiateBinding b 
@@ -143,7 +143,7 @@ class Monad m => MonadTHInstantiator m where
     name' <- instantiate name
     ts'   <- return (map TH.PlainTV) `ap` mapM instantiate ts
     cons' <- mapM instantiate cons
-    return $ TH.DataD [] name' ts' cons' []
+    return $ TH.DataD [] name' ts' Nothing cons' []
 
   instantiateSignature :: Signature -> m TH.Dec
   instantiateSignature (Signature name scheme) = do

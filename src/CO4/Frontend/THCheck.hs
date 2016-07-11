@@ -33,14 +33,14 @@ checks a = concat  [ and' noGuardedBody a
 
 validDeclaration :: Dec -> Check
 validDeclaration dec = case dec of
-  FunD _ [_]       -> []
-  FunD n _         -> [Error $ "Multiple clauses per function declaration are not allowed (" ++ (show $ ppr n) ++ ")"]
-  ValD {}          -> []
-  DataD _ _ _ _ [] -> []
-  DataD _ _ _ _ _  -> [Warning "Deriving statements will be ignored"]
-  TySynD {}        -> []
-  SigD {}          -> []
-  _                -> [Error "Only function declarations, value declarations and data declarations are allowed"]
+  FunD _ [_]         -> []
+  FunD n _           -> [Error $ "Multiple clauses per function declaration are not allowed (" ++ (show $ ppr n) ++ ")"]
+  ValD {}            -> []
+  DataD _ _ _ _ _ [] -> []
+  DataD _ _ _ _ _ _  -> [Warning "Deriving statements will be ignored"]
+  TySynD {}          -> []
+  SigD {}            -> []
+  _                  -> [Error "Only function declarations, value declarations and data declarations are allowed"]
 
 noGuardedBody :: Body -> Check
 noGuardedBody (NormalB  _) = []

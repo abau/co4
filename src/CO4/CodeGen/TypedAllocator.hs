@@ -58,7 +58,7 @@ knownConsAllocator adt i (CCon cName cArgTypes) =
 fromKnownAllocator :: MonadUnique u => Adt -> u [TH.Dec]
 fromKnownAllocator adt = do
   def <- mkDefinition
-  return [ TH.InstanceD predicates instType [def] ]
+  return [ TH.InstanceD Nothing predicates instType [def] ]
   where
     allocType    = typeOfAdt adt
     typeVars     = adtTypeVariables adt
@@ -83,7 +83,7 @@ fromKnownAllocator adt = do
         toArg name = TH.AppE (TH.VarE 'fromKnown) $ varE name
 
 completeAllocator :: Adt -> [TH.Dec]
-completeAllocator adt = [ TH.InstanceD predicates instType [def] ]
+completeAllocator adt = [ TH.InstanceD Nothing predicates instType [def] ]
   where
     allocType  = typeOfAdt adt
     typeVars   = adtTypeVariables adt
