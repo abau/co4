@@ -17,8 +17,8 @@ $( [d|
     constraint p (x,y) = eqNat (plusNat x y) p
                          {-
                          and [ eqNat (plusNat x y) p
-                             , gtNat x (nat 8 1)
-                             , gtNat y (nat 8 1)
+                             , gtNat x (nat 1)
+                             , gtNat y (nat 1)
                              ]
                          -}
    |] >>= compile [ImportPrelude]
@@ -26,4 +26,4 @@ $( [d|
 
 allocator = knownTuple2 (uNat 10) (uNat 10)
 
-result p = solveAndTestP (nat 10 p) allocator encConstraint constraint
+result p = solveAndTestP (nat p) allocator encConstraint constraint

@@ -29,7 +29,6 @@ where
 
 import           Prelude hiding (not,and,or,abs)
 import qualified Prelude
-import qualified Control.Exception as Exception
 import           Control.Monad (zipWithM,forM, when)
 import           Control.Monad.Writer (WriterT,lift,runWriterT,tell)
 import           Data.Bits ((.&.),(.|.))
@@ -59,20 +58,19 @@ instance Ord Nat where
   compare = compare `on` value
 
 instance Show Nat where
-  show x = concat ["(nat ", show $ width x, " ", show $ value x, ")"]
+  show = show . value
 
 instance Encodeable Nat where
-  encode n = encNat (width n) (value n)
+  encode = encNat . value
 
 instance Decode SAT EncodedAdt Nat where
-  decode p = case fmap length (flags p) of
-    Just n -> decode (flags' p) >>= \case
-      [] | n == 0 -> return $ nat 0 0
-      fs          -> return $ nat n $ fromBinary fs
+  decode p = case flags p of
+    Just [] -> error "Empty list of flags while decoding 'Nat'"
+    Just fs -> decode fs >>= (return . (Nat $ length fs) . fromBinary)
     Nothing -> error "Missing flags while decoding 'Nat'"
 
 instance FromKnown Nat where
-  fromKnown n = knownNat (width n) (value n)
+  fromKnown = knownNat . value
 
 instance Complete Nat where
   complete = uNat maxBound
@@ -80,14 +78,13 @@ instance Complete Nat where
 uNat :: Int -> TAllocator Nat
 uNat = unsafeTAllocator . builtInUnknown
 
-knownNat :: Int -> Integer -> TAllocator Nat
-knownNat 0 0 = unsafeTAllocator $ BuiltInKnown []
-knownNat w i = unsafeTAllocator $ BuiltInKnown $ toBinary (Just w) i 
+knownNat :: Integer -> TAllocator Nat
+knownNat = unsafeTAllocator . BuiltInKnown . toBinary Nothing
 
 -- * Plain functions on naturals
 
-nat :: Int -> Integer -> Nat
-nat w n = Exception.assert (w >= (bitWidth $ n + 1)) $ Nat w n
+nat :: Integer -> Nat
+nat n = Nat (bitWidth $ n + 1) n
 
 gtNat,geNat,eqNat,leNat,ltNat :: Nat -> Nat -> Bool
 gtNat = onValue2' (>)
@@ -130,16 +127,14 @@ xorNat = onValue2 B.xor
 
 onValue :: (Integer -> Integer) -> Nat -> Nat
 onValue f a = if value a >= 0 
-  then nat (width a) $ f $ value a
+  then nat $ f $ value a
   else error $ "PreludeNat.onValue: negative value " ++ show a
 
 onValue2 :: (Integer -> Integer -> Integer) -> Nat -> Nat -> Nat
 onValue2 f a b =
   if value a >= 0 && value b >= 0
-  then nat w $ f (value a) (value b)
+  then nat $ f (value a) (value b)
   else error $ "PreludeNat.onValue2: negative values " ++ show (a,b)
-  where
-    w = max (width a) (width b)
 
 onValue2' :: (Integer -> Integer -> a) -> Nat -> Nat -> a
 onValue2' f a b = 
@@ -149,10 +144,9 @@ onValue2' f a b =
 
 -- * Encoded functions on naturals
 
-encNat,encNatProf :: Int -> Integer -> CO4 EncodedAdt
-encNat     0 0 = make [] [] False
-encNat     w i = make (map constant $ toBinary (Just w) i) [] False
-encNatProf w i = traced "nat" $ encNat w i
+encNat,encNatProf :: Integer -> CO4 EncodedAdt
+encNat     i = make (map constant $ toBinary Nothing i) [] False
+encNatProf i = traced "nat" $ encNat i
 
 encGtNat,encGeNat,encEqNat,encLeNat,encLtNat,encMaxNat,encMinNat
   ,encGtNatProf,encGeNatProf,encEqNatProf,encLeNatProf,encLtNatProf

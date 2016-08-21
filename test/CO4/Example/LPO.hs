@@ -16,15 +16,15 @@ import           CO4.Example.LPOStandalone
 
 $( compileFile [Cache,ImportPrelude] "test/CO4/Example/LPOStandalone.hs" )
 
-aSym   = nat 2 0
-sSym   = nat 2 1
-nSym   = nat 2 2
+aSym   = nat 0
+sSym   = nat 1
+nSym   = nat 2
 trsAck = 
   let a = Node aSym
       s = Node sSym
       n = Node nSym []
-      x = Var  (nat 1 0)
-      y = Var  (nat 1 1)
+      x = Var  (nat 0)
+      y = Var  (nat 1)
   in
     [ (a [n,y]         , s [y])
     , (a [s [x], n]    , a [x, s [n]])

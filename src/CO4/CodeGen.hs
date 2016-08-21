@@ -97,8 +97,8 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         fName' <- instantiateName fName
         case fromName fName of
           n | n == natName -> case args of
-            [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
-            _               -> error $ "CodeGen.instantiateApp: nat"
+            [ECon i] -> return $ appsE (varE fName') [nameToIntE i]
+            _        -> error $ "CodeGen.instantiateApp: nat"
 
           n | n == "assertKnownLoc" -> case args of
             [ECon l,ECon c,_] -> bindAndApplyArgs 

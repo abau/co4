@@ -175,10 +175,10 @@ cost b1 b2 = case b1 of
   G -> case b2 of { C -> threeE; U -> oneE; _ -> MinusInfinity }
   U -> case b2 of { A -> twoE  ; G -> oneE; _ -> MinusInfinity }
 
-zeroE  = Finite (nat 8 0)
-oneE   = Finite (nat 8 1)
-twoE   = Finite (nat 8 2)
-threeE = Finite (nat 8 3)
+zeroE  = Finite (nat 0)
+oneE   = Finite (nat 1)
+twoE   = Finite (nat 2)
+threeE = Finite (nat 3)
 
 eqEnergy :: Energy -> Energy -> Bool
 eqEnergy a b = case a of

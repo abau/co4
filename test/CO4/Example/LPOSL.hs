@@ -20,10 +20,10 @@ $( compileFile [Cache,ImportPrelude] "test/CO4/Example/LPOSLStandalone.hs" )
 parameter :: (Trs, [Sigma])
 allocator :: TAllocator (Precedence, Interpretation)
 (parameter, allocator) = 
-  let funSym@  [tSym,pSym,fSym,gSym,aSym] = map (nat 3) [0 .. 4]
+  let funSym@  [tSym,pSym,fSym,gSym,aSym] = map nat [0 .. 4]
       arities = [ 2 ,  2 ,  1 ,  2 ,  0 ]
 
-      varSym@[xSym,ySym,zSym] = map (nat 2) [0 .. 2]
+      varSym@[xSym,ySym,zSym] = map nat [0 .. 2]
 
       t  a b = Node tSym  [a,b]
       p  a b = Node pSym  [a,b]
@@ -40,7 +40,7 @@ allocator :: TAllocator (Precedence, Interpretation)
                , (t x (p y (f z)), t (g x z) (p y a)) ]
 
       carrierSize  = 2
-      carrier      = map (nat $ bitWidth carrierSize) [0 .. (carrierSize - 1)]
+      carrier      = map nat [0 .. (carrierSize - 1)]
 
       argumentAllocs arity = map allocatorList
                            $ sequence 

@@ -22,11 +22,11 @@ maxTermChild = 3
 maxTermDepth = 2
 maxSteps     = 3
 
-vars    = [ nat varBits 0, nat varBits 1 ]
-fSym    = nat symBits 0
-gSym    = nat symBits 1
-nullSym = nat symBits 2
-oneSym  = nat symBits 3
+vars    = [ nat 0, nat 1 ]
+fSym    = nat 0
+gSym    = nat 1
+nullSym = nat 2
+oneSym  = nat 3
 toyama  = 
   let f a1 a2 a3 = Node fSym (Conss a1 (Conss a2 (Conss a3 Nill)))
       g a1 a2    = Node gSym (Conss a1 (Conss a2 Nill))

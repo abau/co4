@@ -260,10 +260,10 @@ data Energy = MinusInfinity
      deriving Show
 
 mi   = MinusInfinity
-zero = Finite (nat 8 0)
-one  = Finite (nat 8 1)
-two  = Finite (nat 8 2)
-three  = Finite (nat 8 3)
+zero = Finite (nat 0)
+one  = Finite (nat 1)
+two  = Finite (nat 2)
+three  = Finite (nat 3)
 
 {-
 

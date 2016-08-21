@@ -33,9 +33,9 @@ result s n =
   let b = ceiling $ logBase 2 $ fromIntegral s
   in
     solveAndTestP 
-      (nat b $ s - 1)
+      (nat $ s - 1)
       (knownTuple2 (kList n $ knownTurn complete $ uNat b)
-                   (allocatorList $ map (\p -> fromKnown $ nat b p) [0..s-1]) )
+                   (allocatorList $ map (\p -> fromKnown $ nat p) [0..s-1]) )
       encConstraint 
       constraint
 
