@@ -65,7 +65,7 @@ instance Encodeable Nat where
 
 instance Decode SAT EncodedAdt Nat where
   decode p = case flags p of
-    Just [] -> error "Empty list of flags while decoding 'Nat'"
+    Just [] -> return $ Nat 0 0
     Just fs -> decode fs >>= (return . (Nat $ length fs) . fromBinary)
     Nothing -> error "Missing flags while decoding 'Nat'"
 
