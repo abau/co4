@@ -4,8 +4,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE LambdaCase #-}
-module CO4.Thesis.LoopBenchmark where
-
 import           System.Environment (getArgs)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -17,16 +15,50 @@ import qualified Satchmo.Core.Decode
 import           CO4
 import           CO4.Prelude.Nat
 import           CO4.Thesis.LoopStandalone
+import           CO4.Util (bitWidth)
 
-symBits      = 2
-varBits      = 1
-maxTermChild = 3
-maxTermDepth = 2
-maxSteps     = 3
+maxTermChild   = 3
+maxTermDepth   = 3
+maxSteps       = 3
 
 $( compileFile [Cache,ImportPrelude] "test/CO4/Thesis/LoopStandalone.hs" )
 
-allocator = knownLoopingDerivation (uList maxSteps uStep) uPos uSubst
+data Properties = Properties { syms         :: [TPDB.Identifier]
+                             , vars         :: [TPDB.Identifier]
+                             , numTermChild :: Int
+                             , numTermDepth :: Int
+                             }
+
+properties :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> Properties
+properties (TPDB.RS sig rules _) = Properties sig vars numTermChild numTermDepth
+  where
+    vars = S.toList $ S.unions $ map go rules
+      where
+        go r = case TPDB.relation r of
+          TPDB.Strict -> S.union (TPDB.vars $ TPDB.lhs r) (TPDB.vars $ TPDB.rhs r)
+          _ -> error "supports only strict relations"
+
+    numTermChild = maximum $ map (\r -> max (go $ TPDB.lhs r) (go $ TPDB.rhs r)) rules
+      where
+        go (TPDB.Var _)     = 0
+        go (TPDB.Node _ ts) = maximum $ (length ts) : (map go ts)
+
+    numTermDepth = maximum $ map (\r -> max (go $ TPDB.lhs r) (go $ TPDB.rhs r)) rules
+      where
+        go (TPDB.Var _)     = 0
+        go (TPDB.Node _ []) = 0
+        go (TPDB.Node _ ts) = 1 + (maximum $ map go ts)
+
+checkValidity :: Properties -> IO ()
+checkValidity p = case ( maxTermChild >= numTermChild p
+                       , maxTermDepth >= numTermDepth p
+                       ) of
+  (False, _) -> error $ "too many children " ++ (show $ numTermChild p)
+  (_, False) -> error $ "term too deep " ++ (show $ numTermDepth p)
+  otherwise  -> return ()
+
+allocator :: Properties -> TAllocator LoopingDerivation
+allocator p = knownLoopingDerivation (uList maxSteps uStep) uPos uSubst
   where
     uList 0 _ = knownNill
     uList i a = union knownNill $ knownConss a $ uList (i - 1) a
@@ -34,112 +66,117 @@ allocator = knownLoopingDerivation (uList maxSteps uStep) uPos uSubst
     uUnary 0  = knownZ
     uUnary i  = union knownZ $ knownS $ uUnary $ i - 1
 
-    uPos      = uList maxTermDepth $ uUnary $ maxTermChild - 1
+    uPos      = uList (numTermDepth p) $ uUnary $ (numTermChild p) - 1
 
-    uVar      = uNat varBits
-    uSym      = uNat symBits
+    uVar      = uNat $ bitWidth $ length $ vars p -- Unary probieren
+    uSym      = uNat $ bitWidth $ length $ syms p -- Unary probieren
 
-    uTerm     = go maxTermDepth
+    uTerm     = go $ numTermDepth p
       where
         go 0  = union (knownVar uVar) (knownNode uSym knownNill)
-        go i  = union (knownVar uVar) (knownNode uSym $ uList maxTermChild $ go $ i - 1)
+        go i  = union (knownVar uVar) (knownNode uSym $ uList (numTermChild p) $ go $ i - 1)
 
     uRule     = knownPair uTerm uTerm
 
     uSubst :: TAllocator (List (Pair Nat Term))
     uSubst    = foldr (\var -> knownConss (knownPair (fromKnown var) uTerm)) knownNill 
-                      $ map nat [0 .. (2^varBits)-1]
+                      $ map nat [0 .. toInteger ((length $ vars p) - 1)]
 
-    uStep     = knownStep uTerm
-                          uRule
-                          uPos
-                          uSubst
-                          uTerm
+    uStep     = knownStep uTerm uRule uPos uSubst uTerm
 
-makeSigMap :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> M.Map TPDB.Identifier Nat
-makeSigMap (TPDB.RS sig _ _) = M.fromList $ zip sig $ map nat [0..]
+type IdentifierMap = M.Map TPDB.Identifier Nat
+type InvIdentifierMap = M.Map Nat TPDB.Identifier
 
-makeVarMap :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> M.Map TPDB.Identifier Nat
-makeVarMap (TPDB.RS _ rules _) = M.fromList $ zip (S.toList vars) $ map nat [0..]
+makeSymMap :: Properties -> IdentifierMap
+makeSymMap p = M.fromList $ zip (syms p) $ map nat [0..]
+
+makeVarMap :: Properties -> IdentifierMap
+makeVarMap p = M.fromList $ zip (vars p) $ map nat [0..]
+
+mapTrs :: IdentifierMap -> IdentifierMap -> TPDB.TRS TPDB.Identifier TPDB.Identifier 
+       -> List (Pair Term Term)
+mapTrs symMap varMap = foldr Conss Nill . map rule . TPDB.rules
   where
-    vars = S.unions $ map varsInRule rules
+    rule r                = Pair (term $ TPDB.lhs r) (term $ TPDB.rhs r)
+    term (TPDB.Var v)     = Var $ varMap M.! v
+    term (TPDB.Node s ts) = Node (symMap M.! s) $ foldr Conss Nill $ map term ts
 
-    varsInRule r = case TPDB.relation r of
-      TPDB.Strict -> S.union (TPDB.vars $ TPDB.lhs r) (TPDB.vars $ TPDB.rhs r)
-      _ -> error "supports only strict relations"
+prettyVar :: InvIdentifierMap -> Nat -> String
+prettyVar invVarMap v = case M.lookup v invVarMap of
+  Nothing -> "WHATEVER" --error $ unwords [show v, "is no variable"]
+  Just v' -> TPDB.name v'
 
-mapTrs :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> List (Pair Term Term)
-mapTrs trs = 
-  if 2 ^ symBits > M.size sigMap
-  then error "too many symbols"
-  else if 2 ^ varBits > M.size varMap
-       then error "too many variables"
-       else foldr Conss Nill $ map rule $ TPDB.rules trs
+prettyList :: (a -> String) -> List a -> String
+prettyList f xs = concat ["[", go (map' f xs), "]"]
   where
-    sigMap = makeSigMap trs
-    varMap = makeVarMap trs
+    go Nill = ""
+    go (Conss y ys) = case ys of
+      Nill -> y
+      Conss {} -> concat [y, ", ", go ys]
 
-    rule r       = Pair (term 0 $ TPDB.lhs r) (term 0 $ TPDB.rhs r)
-    term depth t = 
-      if depth > maxTermDepth
-      then error "term too deep"
-      else case t of
-        TPDB.Var v     -> Var $ varMap M.! v
-        TPDB.Node s ts -> if length ts > maxTermChild
-                          then error "too many children"
-                          else Node (sigMap M.! s) $ foldr Conss Nill $ map (term $ depth + 1) ts
+prettyTerm :: InvIdentifierMap -> InvIdentifierMap -> Term -> String
+prettyTerm invSigMap invVarMap term = case term of
+  Var v -> "Var " ++ (prettyVar invVarMap v)
+  Node f ts -> unwords ["Node" , prettySym f, prettyList (prettyTerm invSigMap invVarMap) ts]
 
-pretty :: TPDB.TRS TPDB.Identifier TPDB.Identifier -> LoopingDerivation -> String
-pretty trs (LoopingDerivation steps pos subst) = unwords [ "LoopingDerivation"
-                                                         , prettyList prettyStep steps
-                                                         , prettyList prettyUnary pos
-                                                         , prettyList prettySubst subst
-                                                         ]
   where
-    sigMap = M.fromList $ map swap $ M.toList $ makeSigMap trs
-    varMap = M.fromList $ map swap $ M.toList $ makeVarMap trs
+    prettySym s = case M.lookup s invSigMap of
+      Nothing -> "WHATEVER" --error $ unwords [show s, "is no symbol"]
+      Just s' -> TPDB.name s'
 
+prettyRule :: InvIdentifierMap -> InvIdentifierMap -> Pair Term Term -> String
+prettyRule invSigMap invVarMap (Pair l r) = unwords [ prettyTerm invSigMap invVarMap l
+                                                    , "->"
+                                                    , prettyTerm invSigMap invVarMap r ]
+
+prettyLD :: InvIdentifierMap -> InvIdentifierMap -> LoopingDerivation -> String
+prettyLD invSigMap invVarMap (LoopingDerivation steps pos subst) =
+  unlines [ "LoopingDerivation"
+          , "  " ++ (prettyList prettyStep steps)
+          , "  " ++ (prettyList prettyUnary pos)
+          , "  " ++ (prettyList prettySubst subst)
+          ]
+  where
     prettyStep (Step t0 rule pos subst t1) =
       unwords [ "Step"
-              , parens $ prettyTerm t0
-              , parens $ prettyRule rule
+              , parens $ prettyTerm invSigMap invVarMap t0
+              , parens $ prettyRule invSigMap invVarMap rule
               , prettyList prettyUnary pos
               , prettyList prettySubst subst
-              , parens $ prettyTerm t1
+              , parens $ prettyTerm invSigMap invVarMap t1
               ]
 
     prettyUnary = show . go
       where go Z     = 0
             go (S u) = 1 + (go u)
 
-    prettySubst (Pair var term) = concat ["(", prettyVar var, ", ", prettyTerm term, ")"]
-
-    prettyRule (Pair l r) = unwords [ prettyTerm l, "->", prettyTerm r ]
-
-    prettyVar v = TPDB.name $ varMap M.! v
-    prettySym s = TPDB.name $ sigMap M.! s
-
-    prettyTerm t = case t of Var v -> "Var " ++ (prettyVar v)
-                             Node f ts -> unwords [ "Node"
-                                                  , prettySym f
-                                                  , prettyList prettyTerm ts
-                                                  ]
-
-    prettyList f xs = concat ["[", go (map' f xs), "]"]
-      where
-        go Nill = ""
-        go (Conss y ys) = case ys of
-          Nill -> y
-          Conss {} -> concat [y, ", ", go ys]
+    prettySubst (Pair var term) = concat [ "(", prettyVar invVarMap var
+                                         , ", ", prettyTerm invSigMap invVarMap term
+                                         , ")" ]
 
     parens x = concat [ "(", x, ")" ]
+
+prettyTRS :: InvIdentifierMap -> InvIdentifierMap -> List (Pair Term Term) -> String
+prettyTRS invSigMap invVarMap rules = unlines $ map (prettyRule invSigMap invVarMap) $ go rules
+  where
+    go Nill         = []
+    go (Conss r rs) = r : (go rs)
 
 mainFile :: FilePath -> IO ()
 mainFile file = TPDB.get file >>= \case
   Right _ -> error "SRS not supported"
-  Left trs -> co4Result >>= putStrLn . show . fmap (pretty trs)
+  Left trs -> do --putStrLn $ prettyTRS invSigMap invVarMap trs'
+                 checkValidity p
+                 solveAndTestP trs' (allocator p) encConstraint constraint >>= \case
+                   Nothing -> putStrLn "Nothing"
+                   Just ld -> putStrLn $ prettyLD invSigMap invVarMap ld
     where
-      co4Result = solveAndTestP (mapTrs trs) allocator encConstraint constraint
+      p         = properties trs
+      symMap    = makeSymMap p
+      varMap    = makeVarMap p
+      invSigMap = M.fromList $ map swap $ M.toList symMap
+      invVarMap = M.fromList $ map swap $ M.toList varMap
+      trs'      = mapTrs symMap varMap trs
 
 main :: IO ()
 main = getArgs >>= \[file] -> mainFile file
