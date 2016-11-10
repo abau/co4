@@ -4,98 +4,95 @@ where
 import Prelude (Bool(..),undefined)
 import CO4.Prelude.Nat
 
-data Pair a b       = Pair a b
-data Triple a b c   = Triple a b c
-data List a         = Nill | Conss a (List a)
+data Pair a b         = Pair a b
+data Triple a b c     = Triple a b c
+data List a           = Nill | Conss a (List a)
 
-type Symbol         = Nat
-type Map k v        = List (Pair k v)
-type Function       = Map (List Nat) Nat
-type Interpretation = Map Symbol Function
-type Sigma          = Map Symbol Nat
-type Label          = List Nat
-type LSymbol        = Pair Symbol Label
-type Precedence     = List LSymbol
+type Symbol           = Nat
+type Map k v          = List (Pair k v)
+type Function         = Map (List Nat) Nat
+type Interpretation a = Map a Function
+type Sigma            = Map Symbol Nat
+type Label            = List Nat
+type Labelled a       = Pair a Label
+type Precedence a     = List a
 
-data Term           = Var Symbol
-                    | Node Symbol (List Term)
+data Term a           = Var Symbol | Node a (List (Term a))
+type Rule a           = Pair (Term a) (Term a)
+type TRS a            = Pair (List a) (List (Rule a))
 
-data LTerm          = LVar Symbol
-                    | LNode LSymbol (List LTerm)
+data Order            = Gr | Eq | NGe
 
-data Order          = Gr | Eq | NGe
-
-type Rule           = Pair Term Term
-type LRule          = Pair LTerm LTerm
-type TRS            = Pair (List Symbol) (List Rule)
-type LTRS           = Pair (List LSymbol) (List LRule)
-
-constraint :: Triple TRS (List LSymbol) (List Sigma) -> Pair Precedence Interpretation -> Bool
+constraint :: Triple (TRS Symbol) (List (Labelled Symbol)) (List Sigma) 
+           -> Pair (Precedence (Labelled Symbol)) (Interpretation Symbol)
+           -> Bool
 constraint p u = 
-  case p of 
-    Triple trs lsymbols assignments ->
-      case u of 
-        Pair precedence interpretation ->
-          case trs of
-            Pair _ rules ->
-              let ltrs = Pair lsymbols (labelledRules interpretation assignments rules)
-              in
-                and2 (lpoConstraint ltrs precedence)
-                     (isModel interpretation assignments trs)
+  let eqSymbol         = eqNat
+      eqLabelledSymbol = eqLabelled eqNat
+  in
+    case p of 
+      Triple trs lsymbols assignments ->
+        case u of 
+          Pair precedence interpretation ->
+            case trs of
+              Pair _ rules ->
+                let lrules = labelledRules eqNat interpretation assignments rules
+                    ltrs   = Pair lsymbols lrules
+                in
+                  and2 (lpoConstraint eqLabelledSymbol ltrs precedence)
+                       (isModel eqNat interpretation assignments trs)
 
--- * lpo
+-- * LPO
 
-lpoConstraint :: LTRS -> Precedence -> Bool
-lpoConstraint ltrs precedence =
-  case ltrs of 
-    Pair symbols rules -> and2 (forall rules   (\rule -> ordered rule precedence))
-                               (forall symbols (\sym  -> exists precedence sym eqLSymbol))
+lpoConstraint :: (a -> a -> Bool) -> TRS a -> Precedence a -> Bool
+lpoConstraint eq trs precedence = case trs of 
+  Pair symbols rules -> and2 (forall rules   (\rule -> ordered eq rule precedence))
+                             (forall symbols (\sym  -> exists precedence sym eq))
 
-ordered :: LRule -> Precedence -> Bool
-ordered lrule precedence = 
-  case lrule of
-    Pair lhs rhs -> eqOrder (lpo precedence lhs rhs) Gr
+ordered :: (a -> a -> Bool) -> Rule a -> Precedence a -> Bool
+ordered eq rule precedence = case rule of
+  Pair lhs rhs -> eqOrder (lpo eq precedence lhs rhs) Gr
 
-lpo :: Precedence -> LTerm -> LTerm -> Order
-lpo precedence s t = case t of
-  LVar x -> case eqLTerm s t of 
+lpo :: (a -> a -> Bool) -> Precedence a -> Term a -> Term a -> Order
+lpo eq precedence s t = case t of
+  Var x -> case eqTerm eq s t of 
     False -> case varOccurs x s of
                 False -> NGe
                 True  -> Gr
     True  -> Eq
 
-  LNode g ts  -> case s of
-    LVar _     -> NGe
-    LNode f ss -> 
-      case forall ss (\si -> eqOrder (lpo precedence si t) NGe) of
+  Node g ts  -> case s of
+    Var _     -> NGe
+    Node f ss -> 
+      case forall ss (\si -> eqOrder (lpo eq precedence si t) NGe) of
         False -> Gr
-        True  -> case ord precedence f g of
-          Gr  -> case forall ts (\ti -> eqOrder (lpo precedence s ti) Gr) of
+        True  -> case ord eq precedence f g of
+          Gr  -> case forall ts (\ti -> eqOrder (lpo eq precedence s ti) Gr) of
                    False -> NGe
                    True  -> Gr
-          Eq  -> case forall ts (\ti -> eqOrder (lpo precedence s ti) Gr) of
+          Eq  -> case forall ts (\ti -> eqOrder (lpo eq precedence s ti) Gr) of
                    False -> NGe
-                   True  -> lex (lpo precedence) ss ts
+                   True  -> lex (lpo eq precedence) ss ts
           NGe -> NGe
 
-ord :: Precedence -> LSymbol -> LSymbol -> Order
-ord precedence a b = 
+ord :: (a -> a -> Bool) -> Precedence a -> a -> a -> Order
+ord eq precedence a b = 
   let run ps = case ps of
         Nill        -> undefined
-        Conss p ps' -> case eqLSymbol p a of
+        Conss p ps' -> case eq p a of
           True  -> Gr
-          False -> case eqLSymbol p b of
+          False -> case eq p b of
             True  -> NGe
             False -> run ps'
   in
-    case eqLSymbol a b of
+    case eq a b of
       True  -> Eq
       False -> run precedence
 
-varOccurs :: Symbol -> LTerm -> Bool
+varOccurs :: Symbol -> Term a -> Bool
 varOccurs var term = case term of
-  LVar var' -> eqNat var var'
-  LNode _ ts -> exists' ts (\t -> varOccurs var t)
+  Var var' -> eqNat var var'
+  Node _ ts -> exists' ts (\t -> varOccurs var t)
 
 lex :: (a -> b -> Order) -> List a -> List b -> Order
 lex ord xs ys = case xs of
@@ -108,33 +105,34 @@ lex ord xs ys = case xs of
       Eq  -> lex ord xs' ys'
       NGe -> NGe
 
--- * semantic labelling
+-- * Semantic Labelling
 
-labelledRules :: Interpretation -> List Sigma -> List Rule -> List LRule
-labelledRules interpretation assignments rules =
+labelledRules :: (a -> a -> Bool) -> Interpretation a -> List Sigma
+              -> List (Rule a) -> List (Rule (Labelled a))
+labelledRules eq interpretation assignments rules =
     concat' (map' (\rule -> case rule of
       Pair lhs rhs ->
-        map' (\sigma -> Pair (labelledTerm interpretation sigma lhs)
-                             (labelledTerm interpretation sigma rhs)
+        map' (\sigma -> Pair (labelledTerm eq interpretation sigma lhs)
+                             (labelledTerm eq interpretation sigma rhs)
              ) assignments) rules)
 
-labelledTerm :: Interpretation -> Sigma -> Term -> LTerm
-labelledTerm interpretation sigma t = case t of
-  Var v     -> LVar v
-  Node f ts -> let as  = map' (eval interpretation sigma) ts
-                   ts' = map' (labelledTerm interpretation sigma) ts
+labelledTerm :: (a -> a -> Bool) -> Interpretation a -> Sigma -> Term a -> Term (Labelled a)
+labelledTerm eq interpretation sigma t = case t of
+  Var v     -> Var v
+  Node f ts -> let as  = map' (eval eq interpretation sigma) ts
+                   ts' = map' (labelledTerm eq interpretation sigma) ts
                in
-                 LNode (Pair f as) ts'
+                 Node (Pair f as) ts'
 
-isModel :: Interpretation -> List Sigma -> TRS -> Bool
-isModel interpretation assignments trs = case trs of
+isModel :: (a -> a -> Bool) -> Interpretation a -> List Sigma -> TRS a -> Bool
+isModel eq interpretation assignments trs = case trs of
   Pair _ rules ->
     forall assignments (\sigma -> 
-      forall rules (\(Pair lhs rhs) -> eqNat (eval interpretation sigma lhs)
-                                             (eval interpretation sigma rhs)))
+      forall rules (\(Pair lhs rhs) -> eqNat (eval eq interpretation sigma lhs)
+                                             (eval eq interpretation sigma rhs)))
 
-eval :: Interpretation -> Sigma -> Term -> Nat
-eval interpretation sigma t = 
+eval :: (a -> a -> Bool) -> Interpretation a -> Sigma -> Term a -> Nat
+eval eq interpretation sigma t = 
   let lookup f k map = case map of
         Nill -> undefined
         Conss m ms -> case m of 
@@ -143,22 +141,22 @@ eval interpretation sigma t =
             True  -> v
   in case t of
     Var  v    -> lookup eqNat v sigma
-    Node f ts -> let i  = lookup eqNat f interpretation
-                     as = map' (eval interpretation sigma) ts
+    Node f ts -> let i  = lookup eq f interpretation
+                     as = map' (\t -> eval eq interpretation sigma t) ts
                  in
                    lookup (eqList eqNat) as i
 
--- * utilities
+-- * Utilities
 
-eqLTerm :: LTerm -> LTerm -> Bool
-eqLTerm x y = case x of
-  LVar u -> case y of 
-    LVar v -> eqNat u v
-    LNode v vs -> False
+eqTerm :: (a -> a -> Bool) -> Term a -> Term a -> Bool
+eqTerm eq x y = case x of
+  Var u -> case y of 
+    Var v -> eqNat u v
+    Node v vs -> False
 
-  LNode u us -> case y of
-    LVar v -> False
-    LNode v vs -> and2 (eqLSymbol u v) (eqList eqLTerm us vs)
+  Node u us -> case y of
+    Var v -> False
+    Node v vs -> and2 (eq u v) (eqList (eqTerm eq) us vs)
 
 eqOrder :: Order -> Order -> Bool
 eqOrder x y = case x of
@@ -172,9 +170,9 @@ eqOrder x y = case x of
                    Eq  -> False
                    NGe -> True
 
-eqLSymbol :: LSymbol -> LSymbol -> Bool
-eqLSymbol (Pair xSym xLabel) (Pair ySym yLabel) =
-  and2 (eqNat xSym ySym) (eqList eqNat xLabel yLabel)
+eqLabelled :: (a -> a -> Bool) -> Labelled a -> Labelled a -> Bool
+eqLabelled eq (Pair a aLabel) (Pair b bLabel) =
+  and2 (eq a b) (eqList eqNat aLabel bLabel)
 
 eqList :: (a -> a -> Bool) -> List a -> List a -> Bool
 eqList f xs ys = case xs of
@@ -201,8 +199,13 @@ map' f xs = case xs of
   Nill -> Nill
   Conss y ys -> Conss (f y) (map' f ys)
 
+concat' :: List (List a) -> List a
 concat' xs = foldr' append' Nill xs
+
+append' :: List a -> List a -> List a
 append' a b = foldr' Conss b a
+
+foldr' :: (a -> b -> b) -> b -> List a -> b
 foldr' n c xs = case xs of 
   Nill -> c
   Conss y ys -> n y (foldr' n c ys)

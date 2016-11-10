@@ -28,7 +28,8 @@ type IdentifierMap = M.Map TPDB.Identifier Nat
 labels :: Int -> [[Nat]]
 labels arity = sequence $ replicate arity carrier
 
-allocator :: IdentifierMap -> TAllocator (Pair Precedence Interpretation)
+allocator :: IdentifierMap -> TAllocator (Pair (Precedence (Labelled Symbol))
+                                               (Interpretation Symbol))
 allocator symMap = knownPair precAlloc interAlloc
   where
     precWidth = bitWidth $ M.size symMap
@@ -72,7 +73,7 @@ makeVarMap (TPDB.RS _ rules _) = M.fromList $ zip vars $ map nat [0..]
           _ -> error "supports only strict relations"
 
 parameter :: IdentifierMap -> IdentifierMap -> TPDB.TRS TPDB.Identifier TPDB.Identifier
-       -> Triple TRS (List LSymbol) (List Sigma)
+          -> Triple (TRS Symbol) (List (Labelled Symbol)) (List Sigma)
 parameter symMap varMap trs = Triple trs' lsymbols assignments
   where
     trs'                  = Pair (list $ map snd $ M.toList symMap)
