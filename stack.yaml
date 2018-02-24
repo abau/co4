@@ -1,0 +1,19 @@
+resolver: lts-10.7
+
+packages: 
+- .
+- location:
+    git: https://github.com/abau/satchmo-core
+    commit: 0abec9f7c6c8f9d28c43b8a5b2d254c72ba0d31e
+  extra-dep: true
+- location:
+    git: https://github.com/bezirg/haskell-src-exts-qq
+    commit: 3c68481a457d37d3b610cb4c745d07f85ae9bba7
+  extra-dep: true
+
+extra-deps:
+- minisat-0.1.2
+
+system-ghc: true
+
+compiler-check: newer-minor

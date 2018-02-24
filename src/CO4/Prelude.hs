@@ -41,7 +41,7 @@ parsePrelude = do
 
 -- The prelude may only contain definitions that are present in the Haskell prelude.
 -- These declarations are parsed by CO4.
-preludeFunctionDeclarations :: [HE.Decl]
+preludeFunctionDeclarations :: [HE.Decl ()]
 preludeFunctionDeclarations = [
   -- Lists
     [dec| map f xs = case xs of { [] -> [] ; y : ys -> (f y) : (map f ys) } |]

@@ -36,11 +36,11 @@ decodeInstance (Adt name vars conss) = do
   paramName        <- newName "d"
   intermediateName <- newName "i"
 
-  let predicates = map (\v -> TH.ClassP ''Decode [ TH.ConT ''SAT
+  let predicates = map (\v -> classP ''Decode [ TH.ConT ''SAT
                                                  , TH.ConT ''EncodedAdt
                                                  , varT v]) vars
 
-      instanceHead = TH.InstanceD predicates (foldl1 TH.AppT 
+      instanceHead = TH.InstanceD Nothing predicates (foldl1 TH.AppT 
                       [ TH.ConT ''Decode, TH.ConT ''SAT, TH.ConT ''EncodedAdt
                       , appsT (conT name) $ map varT vars
                       ])

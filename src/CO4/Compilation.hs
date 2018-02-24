@@ -13,7 +13,8 @@ import           System.IO (stderr, hPutStrLn)
 import           Control.Monad.Writer
 import qualified Language.Haskell.TH as TH
 import           Language.Haskell.TH.Syntax (Q,addDependentFile)
-import qualified Language.Haskell.Exts.Annotated as HE
+import qualified Language.Haskell.Exts.Syntax as HE
+import qualified Language.Haskell.Exts as HE
 import           CO4.Language (Program)
 import           CO4.Unique (MonadUnique,UniqueT,withUniqueT,liftListen,liftPass)
 import           CO4.THUtil (unqualifiedNames)

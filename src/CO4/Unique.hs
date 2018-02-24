@@ -11,6 +11,7 @@ import qualified Control.Monad.Trans.State.Strict as State
 import           Control.Monad.Reader (ReaderT)
 import           Control.Monad.Writer
 import           Control.Monad.RWS (RWST)
+import           Control.Monad.Fail (MonadFail)
 import           Control.Monad.Signatures (Listen,Pass)
 import           Language.Haskell.TH.Syntax (Quasi(..))
 import           CO4.Names (Namelike,mapName,fromName,readName)
@@ -21,7 +22,7 @@ class (Monad m) => MonadUnique m where
   newInt    :: m Int
 
 newtype UniqueT m a = UniqueT { runUniqueT :: StateT Int m a }
-  deriving (Monad, Functor, Applicative, MonadTrans)
+  deriving (Monad, Functor, Applicative, MonadTrans, MonadFail)
 
 newtype Unique a = Unique (UniqueT Identity a)
   deriving (Monad, Functor, Applicative, MonadUnique)

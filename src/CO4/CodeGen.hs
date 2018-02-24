@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# language FlexibleContexts #-}
 {-# language LambdaCase #-}
 
 module CO4.CodeGen

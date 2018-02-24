@@ -23,8 +23,8 @@ encodeableInstance :: MonadUnique u => Adt -> u TH.Dec
 encodeableInstance (Adt name vars conss) = do
   varNames <- forM vars $ const $ newName "v"
 
-  let predicates = for varNames $ \v -> TH.ClassP ''Encodeable [varT v]
-      instanceHead = TH.InstanceD predicates 
+  let predicates = for varNames $ \v -> classP ''Encodeable [varT v]
+      instanceHead = instanceD predicates 
                    $ appsT (TH.ConT ''Encodeable) [appsT (conT name) $ map varT varNames]
 
       clause (i,CCon conName conArgs) = do

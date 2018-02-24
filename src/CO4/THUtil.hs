@@ -78,8 +78,10 @@ conP n = TH.ConP $ toTHName n
 intP :: Integral a => a -> TH.Pat
 intP = TH.LitP . TH.IntegerL . toInteger
 
+notstrict = TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness
+
 normalC' :: Namelike n => n -> [TH.Type] -> TH.Con
-normalC' n = TH.NormalC (toTHName n) . map (\t -> (TH.NotStrict,t))
+normalC' n = TH.NormalC (toTHName n) . map (\t -> (notstrict,t))
 
 toTHName :: Namelike n => n -> TH.Name
 toTHName = TH.mkName . fromName
@@ -110,7 +112,11 @@ unqualifiedNames = everywhere $ mkT unqualifiedName
 derive :: TH.Name -> GenericT
 derive n = everywhere $ mkT go
   where
-    go (TH.DataD ctxt name tvars cons names)
-      | not (n `elem` names) = TH.DataD ctxt name tvars cons $ names ++ [n]
+    make n = TH.DerivClause Nothing [TH.ConT n]
+    go (TH.DataD ctxt name tvars mkind cons dcs)
+      | not (make n `elem` dcs) = TH.DataD ctxt name tvars mkind cons $ dcs ++ [make n]
 
     go decl = decl
+
+classP n ts = foldl TH.AppT (TH.ConT n) ts
+instanceD = TH.InstanceD Nothing

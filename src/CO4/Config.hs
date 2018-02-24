@@ -11,6 +11,7 @@ import Control.Applicative (Applicative)
 import Control.Monad.State.Strict
 import Control.Monad.Reader
 import Control.Monad.Writer
+import Control.Monad.Fail (MonadFail)
 import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
@@ -31,7 +32,7 @@ class (Monad m) => MonadConfig m where
   configs :: m Configs
 
 newtype ConfigurableT m a = ConfigurableT { runConfigurableT :: ReaderT Configs m a }
-  deriving (Monad, Functor, Applicative, MonadReader Configs, MonadTrans)
+  deriving (Monad, Functor, Applicative, MonadReader Configs, MonadTrans, MonadFail)
 
 configurable :: Configs -> ConfigurableT m a -> m a
 configurable configs c = runReaderT (runConfigurableT c) configs

@@ -4,16 +4,15 @@ module CO4.Frontend.HaskellSrcExts
 where
 
 import           Data.Generics (everywhere,mkT)
-import qualified Language.Haskell.Exts.Annotated as HEA
+import qualified Language.Haskell.Exts.Syntax as HEA
 import qualified Language.Haskell.Exts as HE
 import qualified Language.Haskell.Exts.SrcLoc as HE
-import           Language.Haskell.Exts.Annotated.Simplify (sDecl)
 import qualified Language.Haskell.Meta as HM
 import qualified Language.Haskell.TH as TH
 import           Debug.Trace (trace)
 import           CO4.Config (Configs, Config (Profile,ImportPrelude))
 
-toTHDeclarations :: Configs -> HEA.Module HEA.SrcSpanInfo -> [TH.Dec]
+toTHDeclarations :: Configs -> HEA.Module HE.SrcSpanInfo -> [TH.Dec]
 toTHDeclarations configs = \case 
   HEA.Module _ _ _ imports decs ->
     if null imports 
@@ -22,15 +21,15 @@ toTHDeclarations configs = \case
     where 
       result            = map convert decs
       convert           = toTHDeclaration 
-                        . sDecl 
+                        -- . sDecl 
                         . everywhere (mkT $ mapExp markDiscriminants)
 
       markDiscriminants = (Profile `elem` configs) && (ImportPrelude `elem` configs)
 
-toTHDeclaration :: HE.Decl -> TH.Dec
+toTHDeclaration :: HE.Decl s -> TH.Dec
 toTHDeclaration = HM.toDec
 
-mapExp :: Bool -> HEA.Exp HEA.SrcSpanInfo -> HEA.Exp HEA.SrcSpanInfo 
+mapExp :: Bool -> HEA.Exp HE.SrcSpanInfo -> HEA.Exp HE.SrcSpanInfo 
 mapExp markDiscriminants exp = case exp of
   HEA.App loc (HEA.Var _ (HEA.UnQual _ (HEA.Ident _ "assertKnown"))) e ->
     call "assertKnownLoc" loc e

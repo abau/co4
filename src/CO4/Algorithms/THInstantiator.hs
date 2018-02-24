@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module CO4.Algorithms.THInstantiator
   (MonadTHInstantiator(..), THInstantiable(..), toTH)
 where
@@ -11,9 +12,11 @@ import           Text.Read (readEither)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Names (fromName,funName,listName)
-import           CO4.THUtil (toTHName,intE)
+import           CO4.THUtil (toTHName,intE,notstrict)
 
-class Monad m => MonadTHInstantiator m where
+import qualified Data.List
+
+class (Monad m) => MonadTHInstantiator m where
 
   instantiateScheme :: Scheme -> m TH.Type
   instantiateScheme scheme = case scheme of
@@ -39,7 +42,7 @@ class Monad m => MonadTHInstantiator m where
 
     TCon c as -> do
       c'  <- instantiate c
-      as' <- instantiate as
+      as' <- instantiate as :: m [TH.Type]
       return $ foldl TH.AppT (TH.ConT c') as'
 
   instantiateUntypedName :: UntypedName -> m TH.Name
@@ -97,7 +100,7 @@ class Monad m => MonadTHInstantiator m where
 
   instantiateApp :: Expression -> m TH.Exp
   instantiateApp (EApp f args) = do
-    return (foldl TH.AppE) `ap` instantiate f `ap` instantiate args
+    return (foldl TH.AppE) `ap` instantiate f `ap` (instantiate args :: m [TH.Exp])
 
   instantiateLam :: Expression -> m TH.Exp
   instantiateLam (ELam ns e) = do
@@ -133,7 +136,7 @@ class Monad m => MonadTHInstantiator m where
     where 
       instantiateStrictType t = do 
         t' <- instantiate t
-        return $ (TH.NotStrict, t')
+        return $ (notstrict, t')
 
   instantiateBind :: Declaration -> m TH.Dec
   instantiateBind (DBind b) = instantiateBinding b 
@@ -143,7 +146,7 @@ class Monad m => MonadTHInstantiator m where
     name' <- instantiate name
     ts'   <- return (map TH.PlainTV) `ap` instantiate ts
     cons' <- instantiate cons
-    return $ TH.DataD [] name' ts' cons' []
+    return $ TH.DataD [] name' ts' Nothing cons' []
 
   instantiateSignature :: Signature -> m TH.Dec
   instantiateSignature (Signature name scheme) = do
