@@ -13,11 +13,6 @@ import qualified CO4.Example.LoopTrsToyama
 import qualified CO4.Example.WCB_Matrix
 import qualified CO4.Example.QueensSelfContained
 import qualified CO4.Example.LPO
-import qualified CO4.Example.LPOSL
-import qualified CO4.Example.Hang
-import qualified CO4.Example.Unary
-import qualified CO4.Example.Fib
-import qualified CO4.Example.Adder
 
 main :: IO ()
 main = do 
@@ -33,14 +28,6 @@ main = do
     ["wcb-matrix"]  -> wcbMatrix
     ["queens-self"] -> queensSelf 8
     ["lpo"]         -> lpo
-    ["lpo-sl"]      -> lposl
-    ["hang",s,n]    -> hang (read s) (read n)
-    ["hang"]        -> hang 4 16
-    ["unary",n]     -> unary $ read n
-    ["unary"]       -> unary 15
-    ["fib",n]       -> fib $ read n
-    ["fib"]         -> fib 3
-    ["adder"]       -> adder
     _               -> all
   exitSuccess
 
@@ -68,18 +55,9 @@ main = do
     queensSelf = simpleTest "CO4.Example.QueensSelfContained" . CO4.Example.QueensSelfContained.result
 
     lpo = simpleTest "CO4.Example.LPO" $ CO4.Example.LPO.result
-    lposl = simpleTest "CO4.Example.LPOSL" $ CO4.Example.LPOSL.result
-
-    hang s n = simpleTest "CO4.Example.Hang" $ CO4.Example.Hang.result s n
-
-    unary = simpleTest "CO4.Example.Unary" . CO4.Example.Unary.result
-
-    fib = simpleTest "CO4.Example.Fib" . CO4.Example.Fib.result
-
-    adder = simpleTest "CO4.Example.Adder" $ CO4.Example.Adder.result
 
     all = binary 143 >> nat 143 >> prelude >> simple >> {-loopSrs >>-} loopTrs >> wcbMatrix
-                     >> queensSelf 8 >> lpo >> lposl >> hang 4 16 >> unary 15 >> fib 3 >> adder
+                     >> queensSelf 8 >> lpo
 
 simpleTest :: String -> IO (Maybe a) -> IO ()
 simpleTest name action = do

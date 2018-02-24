@@ -28,7 +28,7 @@ $( compileFile [ ImportPrelude
                ] 
   "test/CO4/Example/WCB_MatrixStandalone.hs" )
 
-uBase = unions [knownA, knownC, knownG, knownU]
+uBase = knownBase (kList 2 complete)
 
 uEnergy = unions [knownMinusInfinity, knownFinite $ uNat 8]
 
@@ -59,7 +59,7 @@ ex0 = [ Open, Open
       , Close , Close, Blank 
       ]
 
-result :: [Paren] -> IO (Maybe ([Base],Energy))
+result :: [Paren] -> IO (Maybe [Base])
 result sec = do
     let n = length sec
     out <- solveAndTestP 
@@ -69,6 +69,4 @@ result sec = do
                                      ))
        encConstraint
        constraint
-    return $ case out of
-      Nothing    -> Nothing
-      Just (p,m) -> Just (p, upright m)
+    return $ fmap fst out

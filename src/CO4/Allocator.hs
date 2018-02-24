@@ -4,6 +4,7 @@ module CO4.Allocator
   (module CO4.Allocator.Data, module CO4.Allocator.Typed)
 where
 
+import           Control.Applicative (Applicative)
 import qualified Control.Exception as Exception
 import           Control.Monad.State.Strict
 import           Data.List (transpose,genericLength)
@@ -75,7 +76,7 @@ encodeOverlapping allocators = do
         [BuiltInKnown fs] -> return $ map constant fs
         _                 -> liftCO4 $ sequence $ replicate maxFlags primitive
 
-      liftCO4 $ make flags args prefixfree
+      liftCO4 $ make (constant True) flags args prefixfree
 
       where
         overlappingArgs = transpose $ concat $ for allocs go

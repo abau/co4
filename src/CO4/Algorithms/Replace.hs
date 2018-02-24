@@ -4,6 +4,7 @@ module CO4.Algorithms.Replace
 where
 
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import qualified Data.Map as M
 import           CO4.Algorithms.Instantiator
 import           CO4.Language

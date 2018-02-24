@@ -1,7 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# language LambdaCase #-}
 
 module CO4.CodeGen
   (codeGen, codeGenAdt)
@@ -10,10 +9,12 @@ where
 import           Prelude hiding (undefined)
 import           Control.Monad.Reader
 import           Control.Monad.Writer
+import           Control.Applicative (Applicative)
 import           Data.List (find)
 import qualified Language.Haskell.TH as TH
 import           CO4.Language
 import           CO4.Util
+import           CO4.TypesUtil (typeOfScheme,argumentTypes)
 import           CO4.THUtil
 import           CO4.Names 
 import           CO4.Algorithms.THInstantiator hiding (instantiateSignature)
@@ -24,12 +25,11 @@ import           CO4.CodeGen.DecodeInstance (decodeInstance)
 import           CO4.CodeGen.EncodeableInstance (encodeableInstance)
 import           CO4.CodeGen.TypedAllocator (allocators)
 import           CO4.EncodedAdt 
-  (EncodedAdt,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
+  (EncodedAdt,encUndefined,encodedConstructor,onValidDiscriminant,ifReachable,caseOf,constructorArgument)
 import           CO4.Monad (CO4,withCallCache,traced,profiledCase)
 import           CO4.Config (MonadConfig,is,Config(..))
 import           CO4.Prelude (preludeAdtDeclarations,unparsedNames) 
 import           CO4.PPrint
-import           CO4.Algorithms.UndefinedValues.Data (optionalValueType)
 
 newtype AdtInstantiator u a = AdtInstantiator 
   { runAdtInstantiator :: WriterT [TH.Dec] u a } 
@@ -89,7 +89,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
   instantiateCon (ECon n) = return $ varE $ encodedConsName n
 
   instantiateApp (EApp f args) = do
-    args' <- mapM instantiate args
+    args' <- instantiate args
     cache <- is Cache
     case f of
       ECon cName -> bindAndApplyArgs (appsE $ varE $ encodedConsName cName) args'
@@ -97,14 +97,14 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         fName' <- instantiateName fName
         case fromName fName of
           n | n == natName -> case args of
-            [ECon i] -> return $ appsE (varE fName') [nameToIntE i]
-            _        -> error $ "CodeGen.instantiateApp: nat"
+            [ECon w,ECon i] -> return $ appsE (varE fName') [nameToIntE w,nameToIntE i]
+            _               -> error $ "Algorithms.Eitherize.instantiateApp: nat"
 
           n | n == "assertKnownLoc" -> case args of
             [ECon l,ECon c,_] -> bindAndApplyArgs 
                                    (\[e'] -> appsE (varE fName') [nameToIntE l,nameToIntE c,e'])
                                    $ drop 2 args'
-            _                 -> error $ "CodeGen.instantiateApp: assertKnownLoc"
+            _                 -> error $ "Algorithms.Eitherize.instantiateApp: assertKnownLoc"
 
           _ | cache  -> bindAndApplyArgs (\args'' -> 
                           appsE (TH.VarE 'withCallCache) 
@@ -115,7 +115,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
   instantiateCase (ECase e ms) = 
     getAdt >>= \case 
-      Nothing  -> error "CodeGen.instantiateCase: no ADT found"
+      Nothing  -> error "Algorithms.Eitherize.instantiateCase: no ADT found"
       Just adt -> do
         let numCons = length $ adtConstructors adt
 
@@ -183,7 +183,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
           matchFromConstructor c = 
             case find byMatch ms of
               Nothing -> case defaultMatch of
-                            Nothing -> error $ "CodeGen.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
+                            Nothing -> error $ "Algorithms.Eitherize.matchFromConstructor: no match for constructor '" ++ fromName c ++ "'"
                             Just m  -> m
               Just m  -> m
 
@@ -210,7 +210,7 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
         value' <- instantiate value
         return $ bindS' name' value'
 
-  instantiateUndefined = error "CodeGen.instantiateUndefined: unexpected 'undefined'"
+  instantiateUndefined = return $ TH.AppE (TH.VarE 'return) (TH.VarE 'encUndefined)
 
   instantiateBind (DBind (Binding name exp)) = do
     name'        <- instantiateName name
@@ -224,52 +224,50 @@ instance (MonadUnique u,MonadConfig u) => MonadTHInstantiator (ExpInstantiator u
 
     return $ valD' name' profiledExp'
 
-instantiateSignature :: MonadConfig u => Binding -> u TH.Dec
-instantiateSignature (Binding name expression) = do
-  name' <- encodedName name >>= return . convertName
-  return $ TH.SigD name' $ TH.ForallT [] [] type_
-  where
-    numArgs = case expression of
-      ELam xs _ -> length xs
-      _         -> 0
+instantiateSignature :: MonadConfig u => Signature -> u TH.Dec
+instantiateSignature (Signature name scheme) =
+  let type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
+                    (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
+                    (replicate numArgs $ TH.ConT ''EncodedAdt)
 
-    type_ = foldr (\l r -> TH.AppT (TH.AppT TH.ArrowT l) r) 
-                  (TH.AppT (TH.ConT ''CO4) (TH.ConT ''EncodedAdt))
-                  (replicate numArgs $ TH.ConT ''EncodedAdt)
+      numArgs = length $ argumentTypes $ typeOfScheme scheme
+  in do
+    name' <- encodedName name >>= return . convertName
+    return $ TH.SigD name' $ TH.ForallT [] [] type_
 
--- |@codeGen a p@ transforms a co4 program @p@ into a Template-Haskell program.
--- @p@ must be first-order and fully instantiated.
--- @a@ denotes the untransformed ADTs of the original constraint.
-codeGen :: (MonadUnique u,MonadConfig u) => [Adt] -> Program -> u [TH.Dec]
-codeGen originalAdts program = do
-  adts' <- codeGenAdt originalAdts
-
+-- |@codeGen p@ transforms a co4 program into a Template-Haskell program.
+-- @p@ must be first-order, fully instantiated and explicitly typed.
+codeGen :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+codeGen program = do
   withPrelude  <- is ImportPrelude
 
-  let (pAdts,pValues,_) = splitDeclarations program
-      transformedAdts = if withPrelude then pAdts ++ preludeAdtDeclarations
-                                       else pAdts
-      pToplevelNames  = map boundName $ programToplevelBindings program
-      toplevelNames   = if withPrelude 
-                        then pToplevelNames ++ unparsedNames
-                        else pToplevelNames
+  let (pAdts,pValues,pSignatures) = splitDeclarations program
+      adts           = if withPrelude then pAdts ++ preludeAdtDeclarations
+                                      else pAdts
+      pToplevelNames = map boundName $ programToplevelBindings program
+      toplevelNames  = if withPrelude 
+                       then pToplevelNames ++ unparsedNames
+                       else pToplevelNames
 
-  values' <- forM pValues $ \pValue ->
-               runReaderT (runExpInstantiator $ instantiate $ DBind pValue)
-                          (ExpInstantiatorData toplevelNames $ optionalValueType : transformedAdts)
+  adts'   <- execWriterT $ runAdtInstantiator $ collect adts
 
-  sigs'   <- mapM instantiateSignature pValues
+  values' <- runReaderT (runExpInstantiator $ instantiate $ map DBind pValues)
+                        (ExpInstantiatorData toplevelNames adts)
+
+  sigs'   <- mapM instantiateSignature pSignatures
                          
-  return $ adts' ++ values' ++ sigs'
+  return $ {-deleteSignatures $-} adts' ++ values' ++ sigs'
 
 -- |@codeGenAdt p@ only runs ADT related code generators.
-codeGenAdt :: (MonadUnique u,MonadConfig u) => [Adt] -> u [TH.Dec]
-codeGenAdt adts = do
-  withPreludeAdts <- is ImportPrelude >>= \case
-                       False -> return $ adts
-                       True  -> return $ adts ++ preludeAdtDeclarations
+codeGenAdt :: (MonadUnique u,MonadConfig u) => Program -> u [TH.Dec]
+codeGenAdt program = do
+  withPrelude  <- is ImportPrelude
 
-  execWriterT $ runAdtInstantiator $ collect withPreludeAdts
+  let (pAdts,_,_) = splitDeclarations program
+      adts        = if withPrelude then pAdts ++ preludeAdtDeclarations
+                                   else pAdts
+
+  execWriterT $ runAdtInstantiator $ collect adts
 
 -- |@bindAndApply mapping f args@ binds @args@ to new names @ns@, maps $ns$ to 
 -- expressions @es@ by @mapping@, applies @f@ to @es@ and

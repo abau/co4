@@ -36,7 +36,7 @@ preprocessDecs decs = everywhereM
 onExp :: MonadUnique u => Exp -> u Exp
 onExp a = noInfixAppExpression a >>= noNestedPatternsInLambdaParameters 
       >>= return . noParensExpression . noListExpression . noTupleExpression
-                 . noSignatureExpression . noCondExpression . noFunAppOperator
+                 . noSignatureExpression . noCondExpression
 
 onPat :: MonadUnique u => Pat -> u Pat
 onPat a = noWildcardPattern a
@@ -104,13 +104,6 @@ noCondExpression exp = case exp of
                          , Match (ConP 'False []) (NormalB f) []
                          ]
   _           -> exp
-
-noFunAppOperator :: Exp -> Exp
-noFunAppOperator exp = case exp of
-  AppE (AppE (VarE op) f) x | op == '($)
-                           || op == mkName "$"
-                           -> AppE f x
-  _ -> exp
 
 -- |Transforms nested patterns in arguments of lambda expressions into case expressions
 -- over those arguments

@@ -39,7 +39,7 @@ class Monad m => MonadTHInstantiator m where
 
     TCon c as -> do
       c'  <- instantiate c
-      as' <- mapM instantiate as
+      as' <- instantiate as
       return $ foldl TH.AppT (TH.ConT c') as'
 
   instantiateUntypedName :: UntypedName -> m TH.Name
@@ -60,10 +60,10 @@ class Monad m => MonadTHInstantiator m where
 
     PCon c@(NTyped _ s) ps -> do
       c'  <- instantiate c
-      ps' <- mapM instantiate ps
+      ps' <- instantiate ps
       return (TH.SigP $ TH.ConP c' ps') `ap` instantiate s
 
-    PCon c ps -> return TH.ConP `ap` instantiate c `ap` mapM instantiate ps
+    PCon c ps -> return TH.ConP `ap` instantiate c `ap` instantiate ps
 
   instantiateMatch :: Match -> m TH.Match
   instantiateMatch (Match p e) = do
@@ -97,7 +97,7 @@ class Monad m => MonadTHInstantiator m where
 
   instantiateApp :: Expression -> m TH.Exp
   instantiateApp (EApp f args) = do
-    return (foldl TH.AppE) `ap` instantiate f `ap` mapM instantiate args
+    return (foldl TH.AppE) `ap` instantiate f `ap` instantiate args
 
   instantiateLam :: Expression -> m TH.Exp
   instantiateLam (ELam ns e) = do
@@ -107,11 +107,11 @@ class Monad m => MonadTHInstantiator m where
 
   instantiateCase :: Expression -> m TH.Exp
   instantiateCase (ECase e ms) = 
-    return TH.CaseE `ap` instantiate e `ap` mapM instantiate ms
+    return TH.CaseE `ap` instantiate e `ap` instantiate ms
 
   instantiateLet :: Expression -> m TH.Exp
   instantiateLet (ELet bs exp) =
-    return TH.LetE `ap` mapM instantiate bs `ap` instantiate exp
+    return TH.LetE `ap` instantiate bs `ap` instantiate exp
 
   instantiateUndefined :: m TH.Exp
   instantiateUndefined = return $ TH.VarE 'undefined
@@ -133,7 +133,7 @@ class Monad m => MonadTHInstantiator m where
     where 
       instantiateStrictType t = do 
         t' <- instantiate t
-        return $ (TH.Bang TH.NoSourceUnpackedness TH.NoSourceStrictness, t')
+        return $ (TH.NotStrict, t')
 
   instantiateBind :: Declaration -> m TH.Dec
   instantiateBind (DBind b) = instantiateBinding b 
@@ -141,9 +141,9 @@ class Monad m => MonadTHInstantiator m where
   instantiateAdt :: Adt -> m TH.Dec
   instantiateAdt (Adt name ts cons) = do
     name' <- instantiate name
-    ts'   <- return (map TH.PlainTV) `ap` mapM instantiate ts
-    cons' <- mapM instantiate cons
-    return $ TH.DataD [] name' ts' Nothing cons' []
+    ts'   <- return (map TH.PlainTV) `ap` instantiate ts
+    cons' <- instantiate cons
+    return $ TH.DataD [] name' ts' cons' []
 
   instantiateSignature :: Signature -> m TH.Dec
   instantiateSignature (Signature name scheme) = do
@@ -212,3 +212,6 @@ instance THInstantiable Constructor TH.Con where
 
 instance THInstantiable Program [TH.Dec] where
   instantiate = instantiateProgram
+
+instance (THInstantiable a b) => THInstantiable [a] [b] where
+  instantiate = mapM instantiate

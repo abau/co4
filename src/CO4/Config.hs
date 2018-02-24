@@ -7,14 +7,10 @@ module CO4.Config
   )
 where
 
-import Prelude hiding (fail)
-import Control.Monad (liftM)
-import Control.Monad.State.Strict (StateT)
-import Control.Monad.Reader (MonadReader,ReaderT,ask,mapReaderT,runReaderT)
-import Control.Monad.Writer (WriterT)
-import Control.Monad.Fail (MonadFail (fail))
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.Class (MonadTrans (lift))
+import Control.Applicative (Applicative)
+import Control.Monad.State.Strict
+import Control.Monad.Reader
+import Control.Monad.Writer
 import Language.Haskell.TH.Syntax (Quasi(..))
 import CO4.Unique (UniqueT)
 
@@ -88,9 +84,6 @@ instance (MonadConfig m,Monoid a) => MonadConfig (WriterT a m) where
 instance (MonadIO m) => MonadIO (ConfigurableT m) where
   liftIO = lift . liftIO
 
-instance (MonadFail m) => MonadFail (ConfigurableT m) where
-  fail = lift . fail
-
 instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
   qNewName            = lift . qNewName
   qReport a b         = lift $ qReport a b
@@ -108,7 +101,3 @@ instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
   qAddModFinalizer    = lift . qAddModFinalizer
   qGetQ               = lift   qGetQ
   qPutQ               = lift . qPutQ
-  qReifyFixity        = lift . qReifyFixity
-  qReifyConStrictness = lift . qReifyConStrictness
-  qIsExtEnabled       = lift . qIsExtEnabled      
-  qExtsEnabled        = lift   qExtsEnabled       

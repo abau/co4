@@ -4,6 +4,7 @@ module CO4.Prelude
   , uList, kList, allocatorList
   , assertKnown, encAssertKnownProf, encAssertKnown
   , assertKnownLoc, encAssertKnownLocProf, encAssertKnownLoc
+  , assertDefined, encAssertDefined, encAssertDefinedProf
   , dumpEncoded, encDumpEncoded, encDumpEncodedProf
   , module CO4.Prelude.Nat
   , module CO4.Prelude.Bool
@@ -23,7 +24,7 @@ import           CO4.Unique (MonadUnique)
 import           CO4.Names
 import           CO4.Allocator (TAllocator,toAllocator,unsafeTAllocator,constructors,known)
 import           CO4.Prelude.Nat
-import           CO4.EncodedAdt (EncodedAdt,isInvalid,flags')
+import           CO4.EncodedAdt (EncodedAdt,isConstantlyDefined,isInvalid,flags')
 import           CO4.Monad (CO4,traced,abortWithStackTrace)
 import           CO4.Prelude.Bool
 
@@ -56,7 +57,6 @@ preludeFunctionDeclarations = [
   , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
   , [dec| concat = foldr (++) [] |]
   , [dec| tails xs = case xs of { [] -> [[]]; (x:xs) -> (x:xs) : (tails xs) } |]
-  , [dec| inits xs = case xs of { [] -> [[]]; (x:xs) -> [] : map (\ys -> x:ys) (inits xs) } |]
   -- Functions
   , [dec| id x = x |]
   , [dec| const x y = x |]
@@ -108,7 +108,7 @@ preludeAdtDeclarations = [
 
 unparsedPreludeContext :: Context
 unparsedPreludeContext = bind (
-  [ (natName             , SType $ functionType [TCon intName []] natT)
+  [ (natName             , SType $ functionType [TCon intName [],TCon intName []] natT)
   , ("gtNat"             , SType $ functionType [natT,natT] boolT)
   , ("geNat"             , SType $ functionType [natT,natT] boolT)
   , ("eqNat"             , SType $ functionType [natT,natT] boolT)
@@ -199,6 +199,16 @@ encAssertKnownLoc line col e =
   else abortWithStackTrace $ unwords [ "Prelude.encAssertKnownLoc: assertion 'assertKnown' failed" 
                                      , show (line,col) ]
 encAssertKnownLocProf line col e = traced "assertKnown" $ encAssertKnownLoc line col e
+
+assertDefined :: a -> a
+assertDefined = id
+
+encAssertDefined,encAssertDefinedProf :: EncodedAdt -> CO4 EncodedAdt
+encAssertDefined e = 
+  if isConstantlyDefined e 
+  then return e
+  else abortWithStackTrace "Prelude.encAssertDefined: assertion 'assertDefined' failed" 
+encAssertDefinedProf = traced "assertDefined" . encAssertDefined
 
 dumpEncoded :: a -> a
 dumpEncoded = id

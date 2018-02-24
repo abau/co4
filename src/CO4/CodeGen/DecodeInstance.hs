@@ -20,6 +20,7 @@ import           CO4.Monad (SAT)
 -- >    decode p = do
 -- >      i <- toIntermediateAdt p <#constructors of Type>
 -- >      case i of
+-- >        IntermediateUndefined                 -> error "..."
 -- >        IntermediateEmpty                     -> error "..."
 -- >        IntermediateConstructorIndex 0 <args> -> do
 -- >          p0 <- decode arg0
@@ -35,11 +36,11 @@ decodeInstance (Adt name vars conss) = do
   paramName        <- newName "d"
   intermediateName <- newName "i"
 
-  let predicates = map (\v -> appsT (TH.ConT ''Decode) [ TH.ConT ''SAT
-                                                       , TH.ConT ''EncodedAdt
-                                                       , varT v ]) vars
+  let predicates = map (\v -> TH.ClassP ''Decode [ TH.ConT ''SAT
+                                                 , TH.ConT ''EncodedAdt
+                                                 , varT v]) vars
 
-      instanceHead = TH.InstanceD Nothing predicates (foldl1 TH.AppT 
+      instanceHead = TH.InstanceD predicates (foldl1 TH.AppT 
                       [ TH.ConT ''Decode, TH.ConT ''SAT, TH.ConT ''EncodedAdt
                       , appsT (conT name) $ map varT vars
                       ])
@@ -58,9 +59,20 @@ decodeInstance (Adt name vars conss) = do
   matches  <- forM (zip [0..] conss) $ uncurry decodeCons
   matchDef <- matchDefault name
 
-  return $ instanceHead [ instanceDec $ concat [ [matchEmpty name]
+  return $ instanceHead [ instanceDec $ concat [ [ matchUndefined name
+                                                 , matchEmpty     name
+                                                 ]
                                                ,  matches
                                                , [matchDef] ] ]
+
+matchUndefined :: UntypedName -> TH.Match
+matchUndefined adtName = 
+  TH.Match (TH.ConP 'IntermediateUndefined [])
+           (TH.NormalB $ TH.AppE (TH.VarE 'error)
+                                 (TH.LitE $ TH.StringL 
+                                          $ "Can not decode 'undefined' to data of type '" ++ fromName adtName ++ "'"
+                                 )
+           ) []
 
 matchEmpty :: UntypedName -> TH.Match
 matchEmpty adtName = 

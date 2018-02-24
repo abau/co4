@@ -15,12 +15,12 @@ import           CO4.Prelude
 
 $( [d| 
     constraint p (x,y) = and [ eqNat (timesNat x y) p
-                             , gtNat x (nat 1)
-                             , gtNat y (nat 1)
+                             , gtNat x (nat 8 1)
+                             , gtNat y (nat 8 1)
                              ]
    |] >>= compile [ImportPrelude]
   )
 
 allocator = knownTuple2 (uNat 8) (uNat 8)
 
-result p = solveAndTestP (nat p) allocator encConstraint constraint
+result p = solveAndTestP (nat 8 p) allocator encConstraint constraint

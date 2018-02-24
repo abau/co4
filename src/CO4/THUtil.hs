@@ -79,9 +79,7 @@ intP :: Integral a => a -> TH.Pat
 intP = TH.LitP . TH.IntegerL . toInteger
 
 normalC' :: Namelike n => n -> [TH.Type] -> TH.Con
-normalC' n = TH.NormalC (toTHName n) . map (\t -> ( TH.Bang TH.NoSourceUnpackedness 
-                                                            TH.NoSourceStrictness
-                                                  , t ))
+normalC' n = TH.NormalC (toTHName n) . map (\t -> (TH.NotStrict,t))
 
 toTHName :: Namelike n => n -> TH.Name
 toTHName = TH.mkName . fromName
@@ -108,3 +106,11 @@ unqualifiedNames :: GenericT
 unqualifiedNames = everywhere $ mkT unqualifiedName
   where
     unqualifiedName = TH.mkName . TH.nameBase
+
+derive :: TH.Name -> GenericT
+derive n = everywhere $ mkT go
+  where
+    go (TH.DataD ctxt name tvars cons names)
+      | not (n `elem` names) = TH.DataD ctxt name tvars cons $ names ++ [n]
+
+    go decl = decl

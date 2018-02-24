@@ -1,5 +1,5 @@
 Name:			        co4
-Version:        	0.0.81
+Version:        	0.0.78
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -44,6 +44,7 @@ Library
                     , CO4.Algorithms.HigherOrderInstantiation
                     , CO4.Algorithms.HindleyMilner
                     , CO4.Algorithms.Instantiator
+                    , CO4.Algorithms.PolymorphicInstantiation
                     , CO4.Algorithms.Rename
                     , CO4.Algorithms.Replace
                     , CO4.Algorithms.SaturateApplication
@@ -53,7 +54,6 @@ Library
                     , CO4.Algorithms.Util
                     , CO4.Algorithms.HindleyMilner.Util
                     , CO4.Algorithms.HindleyMilner.W
-                    , CO4.Algorithms.UndefinedValues
                     , CO4.CodeGen
                     , CO4.CodeGen.DecodeInstance
                     , CO4.CodeGen.EncodeableInstance
@@ -64,7 +64,6 @@ Library
                     , CO4.Frontend.THCheck
                     , CO4.Frontend.TH
                     , CO4.Frontend.THPreprocess
-  Other-Modules:      CO4.Algorithms.UndefinedValues.Data
 
   Ghc-options:        -W -fno-warn-incomplete-patterns
   Build-Depends:      base
