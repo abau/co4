@@ -7,8 +7,11 @@ import Data.Char (toUpper)
 import CO4.Names 
 import CO4.Config (MonadConfig,is,Config(Profile))
 
-encodedConsName :: Namelike a => a -> a
-encodedConsName = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons") 
+encodedConsName :: (Eq a, Namelike a) => a -> a
+encodedConsName = encodedConsName_orig . toValidDataIdentifier
+
+encodedConsName_orig :: Namelike a => a -> a
+encodedConsName_orig = mapName (\(n:ns) -> "enc" ++ (toUpper n : ns) ++ "Cons")
 
 encodedName :: (MonadConfig m, Namelike a) => a -> m a
 encodedName name = is Profile >>= \case

@@ -59,7 +59,7 @@ instance (MonadUnique u,MonadConfig u) => MonadCollector (AdtInstantiator u) whe
                       [ intE i
                       , intE $ length $ adtConstructors adt
                       , TH.ListE $ map varE paramNames ]
-        tellOne $ valD' (encodedConsName name) 
+        tellOne $ valD' (encodedConsName name)
                 $ if null args 
                   then exp
                   else lamE' paramNames exp
