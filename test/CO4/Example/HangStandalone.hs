@@ -4,7 +4,6 @@
 module CO4.Example.HangStandalone where
 
 import CO4.Prelude
-import Data.List (inits,tails)
 
 type Pin = Nat
 data Dir = L | R deriving (Show, Eq)
@@ -28,7 +27,7 @@ eqDir d1 d2 = case d1 of
   R -> case d2 of L -> False ; R -> True
 
 primitive :: Hang -> Bool
-primitive h = not $ or $ zipWith matching h $ tail h
+primitive h = not ( or ( zipWith matching h ( tail h ) ))
 
 -- * reducibility checking that relies on caching.
 
@@ -43,9 +42,24 @@ nullable p h = case h of
     [] -> case x of Turn d q -> eqNat p q
     y:ys -> 
          ( matching x (last xs) && nullable p (init xs) )
-      || or (map (\(l,r) -> nullable p l && nullable p r)
-                 $ nonempty_splits $ x:xs )
+      || or (map ( \(l,r) -> nullable p l && nullable p r)
+               (nonempty_splits (x:xs)) )
 
-nonempty_splits xs = tail $ init $ splits xs
+nonempty_splits xs =  tail ( init ( splits2 xs ) )
 
-splits xs = zip (inits xs) $ tails xs
+splits1 xs = zip (inits xs) (tails xs)
+
+splits2 xs = case xs of
+  [] -> [([],[])]
+  x:ys -> (xs,[]) : map (\(l,r) -> (l,x:r)) (splits2 ys)
+
+inits xs = case xs of
+  [] -> [[]]
+  x:xs -> [] : map ( \ys -> x:ys) (inits xs)
+
+-- TODO: CO4 has a problem compiling this:
+-- (change splits2 to splits1 in nonempty_splits above)
+tails xs = case xs of
+  [] -> [[]]
+  y:ys -> xs : tails ys
+

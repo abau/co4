@@ -65,6 +65,9 @@ fullAdder a b carry =
     , xor (a && b) (carry && xorAB)
     )
 
+halfAdder :: Bit -> Bit -> (Bit,Bit)
+halfAdder a b = (xor a b, a && b)
+  
 eqNat' :: Nat -> Nat -> Bool
 eqNat' n1 n2 = case n1 of
   [] -> case n2 of [] -> True

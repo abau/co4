@@ -1,13 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 module CO4.Algorithms.HindleyMilner.W
+  {-
   ( HMConfig (..), IntroduceTLamTApp (..) 
-  , initialContext, schemeOfExp, schemesConfig, schemes, withSchemes)
+  , schemeOfExp, schemesConfig, schemes, withSchemes)
+  -}
 where
   
 import           Prelude hiding (lookup)
 import           Control.Monad.Identity
 import           Control.Monad.Reader
+import           Control.Applicative (Applicative)
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           CO4.Util 

@@ -12,6 +12,4 @@
 dist/
 archive/
 scheme/
-*.p_o
-*.dyn_o
-*.dyn_hi
+.stack-work/
