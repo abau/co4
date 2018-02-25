@@ -19,7 +19,7 @@ import           CO4.Algorithms.HindleyMilner (schemesConfig,initialContext)
 import           CO4.Algorithms.Instantiator
 import           CO4.Util (programFromDeclarations,programDeclarations,removeSignature)
 import           CO4.TypesUtil (quantifiedNames,schemeOfName)
-import           CO4.Names (fromName,untypedName)
+import           CO4.Names (fromName,readName,untypedName)
 import           CO4.Prelude (unparsedNames)
 
 polyInstantiation :: (MonadConfig u, MonadUnique u) => Program -> u Program 
@@ -141,9 +141,12 @@ instance (MonadUnique u,MonadConfig u) => MonadInstantiator (Instantiator u) whe
           True | f `elem` unparsedNames -> return $ EVar f
           _                             -> makeInstance f types' >>= return . EVar
     where
+      repair n = case fromName n of
+        "++" -> readName "Append"
+        s -> s
       makeInstance f types = assert (length types == length typeVars) $ 
         local (bindTypeVars newBoundVars) $ do 
-          untypedInstanceName <- newNamelike $ fromName (originalName f) ++ "PolyInstance"
+          untypedInstanceName <- newNamelike $ fromName (repair $ originalName f) ++ "PolyInstance"
           instanceScheme      <- instantiate $ schemeOfName f
 
           let instanceName = NTyped untypedInstanceName instanceScheme
