@@ -112,3 +112,4 @@ instance (Quasi m, Applicative m) => Quasi (ConfigurableT m) where
   qReifyConStrictness = lift . qReifyConStrictness
   qIsExtEnabled       = lift . qIsExtEnabled      
   qExtsEnabled        = lift   qExtsEnabled       
+  qAddForeignFile a b = lift $ qAddForeignFile a b

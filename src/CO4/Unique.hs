@@ -104,6 +104,7 @@ instance (Quasi m, Applicative m) => Quasi (UniqueT m) where
   qReifyConStrictness = lift . qReifyConStrictness
   qIsExtEnabled       = lift . qIsExtEnabled      
   qExtsEnabled        = lift   qExtsEnabled       
+  qAddForeignFile a b = lift $ qAddForeignFile a b
 
 liftListen :: Monad m => Listen w m (a,Int) -> Listen w (UniqueT m) a
 liftListen listen = UniqueT . State.liftListen listen . runUniqueT

@@ -11,7 +11,6 @@ module CO4.Prelude
 where
 
 import qualified Language.Haskell.Exts as HE
-import           Language.Haskell.Exts.QQ (dec)
 import           Satchmo.Core.Primitive (isConstant)
 import           Satchmo.Core.MonadSAT (note)
 import           CO4.Language 
@@ -36,44 +35,44 @@ parsePrelude = do
   return decs
   where
     -- because parsePreprocessedProgram needs a main function:
-    main = [dec| main = undefined |] 
+    main = parseDecl "main = undefined"
 
 -- The prelude may only contain definitions that are present in the Haskell prelude.
 -- These declarations are parsed by CO4.
-preludeFunctionDeclarations :: [HE.Decl]
+preludeFunctionDeclarations :: [HE.Decl HE.SrcSpanInfo]
 preludeFunctionDeclarations = [
   -- Lists
-    [dec| map f xs = case xs of { [] -> [] ; y : ys -> (f y) : (map f ys) } |]
-  , [dec| foldr n c xs = case xs of { [] -> c ; y : ys -> n y (foldr n c ys) } |]
-  , [dec| foldl n c xs = case xs of { [] -> c ; y : ys -> foldl n (n c y) ys } |]
-  , [dec| a ++ b = foldr (:) b a |]
-  , [dec| reverse xs = foldl (flip (:)) [] xs |]
-  , [dec| null xs = case xs of { [] -> True; _ -> False } |]
-  , [dec| head xs = case xs of { [] -> undefined; (y:_) -> y } |]
-  , [dec| tail xs = case xs of { [] -> []; (_:ys) -> ys } |]
-  , [dec| last xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] ->  x ; _  -> last ys } } |]
-  , [dec| init xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] -> [] ; _  -> x : init ys } } |]
-  , [dec| filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }|]
-  , [dec| concat = foldr (++) [] |]
-  , [dec| tails xs = case xs of { [] -> [[]]; (x:xs) -> (x:xs) : (tails xs) } |]
-  , [dec| inits xs = case xs of { [] -> [[]]; (x:xs) -> [] : map (\ys -> x:ys) (inits xs) } |]
+    parseDecl "map f xs = case xs of { [] -> [] ; y : ys -> (f y) : (map f ys) }"
+  , parseDecl "foldr n c xs = case xs of { [] -> c ; y : ys -> n y (foldr n c ys) }"
+  , parseDecl "foldl n c xs = case xs of { [] -> c ; y : ys -> foldl n (n c y) ys }"
+  , parseDecl "a ++ b = foldr (:) b a"
+  , parseDecl "reverse xs = foldl (flip (:)) [] xs"
+  , parseDecl "null xs = case xs of { [] -> True; _ -> False }"
+  , parseDecl "head xs = case xs of { [] -> undefined; (y:_) -> y }"
+  , parseDecl "tail xs = case xs of { [] -> []; (_:ys) -> ys }"
+  , parseDecl "last xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] ->  x ; _  -> last ys } }"
+  , parseDecl "init xs = case xs of { [] -> undefined ; x : ys -> case ys of { [] -> [] ; _  -> x : init ys } }"
+  , parseDecl "filter f xs = case xs of { [] -> [] ; (x:xs) -> let ys = filter f xs in case f x of { False -> ys ; True -> x : ys } }"
+  , parseDecl "concat = foldr (++) []"
+  , parseDecl "tails xs = case xs of { [] -> [[]]; (x:xs) -> (x:xs) : (tails xs) }"
+  , parseDecl "inits xs = case xs of { [] -> [[]]; (x:xs) -> [] : map (\\ys -> x:ys) (inits xs) }"
   -- Functions
-  , [dec| id x = x |]
-  , [dec| const x y = x |]
-  , [dec| flip f x y = f y x |]
+  , parseDecl "id x = x"
+  , parseDecl "const x y = x"
+  , parseDecl "flip f x y = f y x"
   -- Tuples
-  , [dec| fst (x,_) = x |]
-  , [dec| snd (_,y) = y |]
+  , parseDecl "fst (x,_) = x"
+  , parseDecl "snd (_,y) = y"
   -- maybe, either
-  , [dec| maybe nothing just m = case m of { Nothing -> nothing ; Just x -> just x } |]
-  , [dec| either left right e = case e of { Left x -> left x ; Right y -> right y } |]
+  , parseDecl "maybe nothing just m = case m of { Nothing -> nothing ; Just x -> just x }"
+  , parseDecl "either left right e = case e of { Left x -> left x ; Right y -> right y }"
   -- more Lists
-  , [dec| all f xs = and (map f xs) |]
-  , [dec| any f xs = or  (map f xs) |]
-  , [dec| zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } } |]
-  , [dec| zipWith f xs ys = map (\(x,y) -> f x y) (zip xs ys) |]
-  , [dec| concatMap f xs = concat (map f xs) |]
-  , [dec| unzip xs = foldr (\(u,v) (us,vs) -> (u:us, v:vs)) ([],[]) xs |]
+  , parseDecl "all f xs = and (map f xs)"
+  , parseDecl "any f xs = or  (map f xs)"
+  , parseDecl "zip xs ys = case xs of { [] -> []; u : us -> case ys of { [] -> []; v : vs -> (u,v) : (zip us vs) } }"
+  , parseDecl "zipWith f xs ys = map (\\(x,y) -> f x y) (zip xs ys)"
+  , parseDecl "concatMap f xs = concat (map f xs)"
+  , parseDecl "unzip xs = foldr (\\(u,v) (us,vs) -> (u:us, v:vs)) ([],[]) xs"
   ]
 
 -- These declarations are not parsed by CO4.
@@ -155,6 +154,11 @@ unparsedPreludeContext = bind (
 
 unparsedNames :: Namelike n => [n]
 unparsedNames = map (convertName . fst) $ toList $ unparsedPreludeContext 
+
+parseDecl :: String -> HE.Decl HE.SrcSpanInfo
+parseDecl src = case HE.parseDecl src of
+  HE.ParseOk decl      -> decl
+  HE.ParseFailed _ msg -> error $ concat [ "Prelude.parseDecl: ", msg ]
 
 -- * Allocators
 

@@ -4,45 +4,41 @@ module CO4.Frontend.HaskellSrcExts
 where
 
 import           Data.Generics (everywhere,mkT)
-import qualified Language.Haskell.Exts.Annotated as HEA
 import qualified Language.Haskell.Exts as HE
-import qualified Language.Haskell.Exts.SrcLoc as HE
-import           Language.Haskell.Exts.Annotated.Simplify (sDecl)
 import qualified Language.Haskell.Meta as HM
 import qualified Language.Haskell.TH as TH
 import           Debug.Trace (trace)
 import           CO4.Config (Configs, Config (Profile,ImportPrelude))
 
-toTHDeclarations :: Configs -> HEA.Module HEA.SrcSpanInfo -> [TH.Dec]
+toTHDeclarations :: Configs -> HE.Module HE.SrcSpanInfo -> [TH.Dec]
 toTHDeclarations configs = \case 
-  HEA.Module _ _ _ imports decs ->
+  HE.Module _ _ _ imports decs ->
     if null imports 
     then result
     else trace "Frontend.HaskellSrcExts (Warning): Import declarations will be deleted" result
     where 
       result            = map convert decs
       convert           = toTHDeclaration 
-                        . sDecl 
                         . everywhere (mkT $ mapExp markDiscriminants)
 
       markDiscriminants = (Profile `elem` configs) && (ImportPrelude `elem` configs)
 
-toTHDeclaration :: HE.Decl -> TH.Dec
+toTHDeclaration :: HE.Decl HE.SrcSpanInfo -> TH.Dec
 toTHDeclaration = HM.toDec
 
-mapExp :: Bool -> HEA.Exp HEA.SrcSpanInfo -> HEA.Exp HEA.SrcSpanInfo 
+mapExp :: Bool -> HE.Exp HE.SrcSpanInfo -> HE.Exp HE.SrcSpanInfo 
 mapExp markDiscriminants exp = case exp of
-  HEA.App loc (HEA.Var _ (HEA.UnQual _ (HEA.Ident _ "assertKnown"))) e ->
+  HE.App loc (HE.Var _ (HE.UnQual _ (HE.Ident _ "assertKnown"))) e ->
     call "assertKnownLoc" loc e
 
-  HEA.Case loc discriminant matches | markDiscriminants -> 
-    HEA.Case loc (call "markedDiscriminant" loc discriminant) matches
+  HE.Case loc discriminant matches | markDiscriminants -> 
+    HE.Case loc (call "markedDiscriminant" loc discriminant) matches
 
-  HEA.If loc c t f -> 
+  HE.If loc c t f -> 
       mapExp markDiscriminants
-    $ HEA.Case loc c 
-    [ HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "True" ) []) (HEA.UnGuardedRhs noLoc t) Nothing
-    , HEA.Alt noLoc (HEA.PApp noLoc (HEA.UnQual noLoc $ HEA.Ident noLoc "False") []) (HEA.UnGuardedRhs noLoc f) Nothing
+    $ HE.Case loc c 
+    [ HE.Alt noLoc (HE.PApp noLoc (HE.UnQual noLoc $ HE.Ident noLoc "True" ) []) (HE.UnGuardedRhs noLoc t) Nothing
+    , HE.Alt noLoc (HE.PApp noLoc (HE.UnQual noLoc $ HE.Ident noLoc "False") []) (HE.UnGuardedRhs noLoc f) Nothing
     ]
 
   _ -> exp
@@ -50,13 +46,13 @@ mapExp markDiscriminants exp = case exp of
   where
     noLoc            = HE.noInfoSpan $ HE.mkSrcSpan HE.noLoc HE.noLoc
     call f loc inner = 
-      HEA.App noLoc
-        (HEA.App noLoc 
-          (HEA.App noLoc
-            (HEA.Var noLoc (HEA.UnQual noLoc (HEA.Ident noLoc f)))
-            (HEA.Lit noLoc $ HEA.Int noLoc line $ show line)
+      HE.App noLoc
+        (HE.App noLoc 
+          (HE.App noLoc
+            (HE.Var noLoc (HE.UnQual noLoc (HE.Ident noLoc f)))
+            (HE.Lit noLoc $ HE.Int noLoc line $ show line)
           )
-          (HEA.Lit noLoc $ HEA.Int noLoc col $ show col)
+          (HE.Lit noLoc $ HE.Int noLoc col $ show col)
         ) inner
       where
         line  = fromIntegral $ HE.startLine   loc

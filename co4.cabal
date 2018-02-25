@@ -1,5 +1,5 @@
-Name:			        co4
-Version:        	0.0.81
+Name: 		        co4
+Version:        	0.0.82
 Cabal-Version:  	>= 1.9.2
 License:          GPL
 License-file:     LICENSE
@@ -75,7 +75,6 @@ Library
                     , pretty
                     , satchmo-core
                     , haskell-src-exts
-                    , haskell-src-exts-qq
                     , haskell-src-meta
                     , transformers
 
@@ -89,3 +88,22 @@ Test-Suite co4-examples
                     , satchmo-core
                 --  , tpdb
                     , co4
+  Other-Modules:      CO4.Example.Adder
+                    , CO4.Example.Binary
+                    , CO4.Example.BinaryStandalone
+                    , CO4.Example.Fib
+                    , CO4.Example.Hang
+                    , CO4.Example.HangStandalone
+                    , CO4.Example.LPO
+                    , CO4.Example.LPOSL
+                    , CO4.Example.LPOSLStandalone
+                    , CO4.Example.LPOStandalone
+                    , CO4.Example.LoopTrsToyama
+                    , CO4.Example.LoopTrsToyamaStandalone
+                    , CO4.Example.Nat
+                    , CO4.Example.Prelude
+                    , CO4.Example.QueensSelfContained
+                    , CO4.Example.Simple
+                    , CO4.Example.Unary
+                    , CO4.Example.WCB_Matrix
+                    , CO4.Example.WCB_MatrixStandalone
