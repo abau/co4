@@ -128,7 +128,6 @@ postprocessFlags = go [] []
 
     go flags pattern adt (Known i n args') =
         Exception.assert (length args >= length args') 
-      $ Exception.assert (bitWidth n <= length fs)
       $ do (flags,pattern) `implyPattern` (thisFlags, thisPattern)
            zipWithM_ (go (flags ++ thisFlags) (pattern ++ thisPattern)) args args'
         where
