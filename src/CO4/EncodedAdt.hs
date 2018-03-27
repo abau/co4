@@ -23,7 +23,7 @@ import qualified Satchmo.Core.Primitive as P
 import           Satchmo.Core.Boolean (Boolean)
 import           Satchmo.Core.Decode (Decode,decode)
 import           CO4.Monad 
-import           CO4.Util (bitWidth,for)
+import           CO4.Util (for)
 import           CO4.Prefixfree (numeric,invNumeric,discriminates)
 
 -- See EncodedAdt.hs-boot
@@ -227,11 +227,10 @@ toIntermediateAdt :: (Decode m Primitive Bool)
                   => EncodedAdt -> Int -> m IntermediateAdt
 toIntermediateAdt Empty _                          = return IntermediateEmpty
 toIntermediateAdt (EncodedAdt _ _ _ False) _       = error "EncodedAdt.toIntermediateAdt: ADTs must be encoded using prefixfree encoding"
-toIntermediateAdt (EncodedAdt _ flags args True) n = 
-  Exception.assert (length flags >= bitWidth n) $ do
-    decode flags >>= return . intermediate . numeric n
-      where
-        intermediate i = IntermediateConstructorIndex i args 
+toIntermediateAdt (EncodedAdt _ flags args True) n =
+  decode flags >>= return . intermediate . numeric n
+    where
+      intermediate i = IntermediateConstructorIndex i args
 
 primitivesToDecimal :: Int -> [Primitive] -> Maybe Int
 primitivesToDecimal n ps = 
